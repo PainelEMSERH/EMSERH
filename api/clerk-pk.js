@@ -1,4 +1,4 @@
-export default function handler(req, res) {
+module.exports = (req, res) => {
   const key =
     process.env.VITE_CLERK_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
@@ -6,8 +6,10 @@ export default function handler(req, res) {
     '';
 
   if (!key) {
-    return res.status(500).json({ error: 'Missing Clerk publishable key in environment.' });
+    res.status(500).json({ error: 'Missing Clerk publishable key in environment.' });
+    return;
   }
+
   res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
-  return res.status(200).json({ publishableKey: key });
-}
+  res.status(200).json({ publishableKey: key });
+};
