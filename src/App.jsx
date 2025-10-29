@@ -22,7 +22,7 @@ function RequireAuth({ children }) {
   return children
 }
 
-function App() {
+export default function App() {
   const location = useLocation()
 
   useEffect(() => {
@@ -32,23 +32,19 @@ function App() {
   }, [location.pathname])
 
   return (
-    <>
-      <Routes>
-        <Route path="/signin" element={<SignedOut><SignIn routing="path" path="/signin" /></SignedOut>} />
-        <Route path="/signup" element={<SignedOut><SignUp routing="path" path="/signup" /></SignedOut>} />
+    <Routes>
+      <Route path="/signin" element={<SignedOut><SignIn routing="path" path="/signin" /></SignedOut>} />
+      <Route path="/signup" element={<SignedOut><SignUp routing="path" path="/signup" /></SignedOut>} />
 
-        <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
-        <Route path="/colaboradores" element={<RequireAuth><Colaboradores /></RequireAuth>} />
-        <Route path="/entregas" element={<RequireAuth><Entregas /></RequireAuth>} />
-        <Route path="/pendencias" element={<RequireAuth><Pendencias /></RequireAuth>} />
-        <Route path="/estoque" element={<RequireAuth><Estoque /></RequireAuth>} />
-        <Route path="/kits" element={<RequireAuth><Kits /></RequireAuth>} />
-        <Route path="/relatorios" element={<RequireAuth><Relatorios /></RequireAuth>} />
-        <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
-        <Route path="/config" element={<RequireAuth><Config /></RequireAuth>} />
-      </Routes>
-    </>
+      <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
+      <Route path="/colaboradores" element={<RequireAuth><Colaboradores /></RequireAuth>} />
+      <Route path="/entregas" element={<RequireAuth><Entregas /></RequireAuth>} />
+      <Route path="/pendencias" element={<RequireAuth><Pendencias /></RequireAuth>} />
+      <Route path="/estoque" element={<RequireAuth><Estoque /></RequireAuth>} />
+      <Route path="/kits" element={<RequireAuth><Kits /></RequireAuth>} />
+      <Route path="/relatorios" element={<RequireAuth><Relatorios /></RequireAuth>} />
+      <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
+      <Route path="/config" element={<RequireAuth><Config /></RequireAuth>} />
+    </Routes>
   )
 }
-
-export default App

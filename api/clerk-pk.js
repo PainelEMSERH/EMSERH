@@ -9,7 +9,6 @@ module.exports = (req, res) => {
     res.status(500).json({ error: 'Missing Clerk publishable key in environment.' });
     return;
   }
-
   res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
   res.status(200).json({ publishableKey: key });
 };

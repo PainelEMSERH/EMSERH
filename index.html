@@ -14,7 +14,16 @@
         document.querySelector('html').style.colorScheme = 'light';
       }        
     </script>      
-  </head>
+  <script>
+(function(){
+  try {
+    const qs = new URLSearchParams(location.search);
+    const pk = qs.get('pk');
+    if (pk) { window.__CLERK_PK__ = pk; }
+  } catch (e) {}
+})();
+</script>
+</head>
   <body class="font-inter antialiased bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400">
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <script>
