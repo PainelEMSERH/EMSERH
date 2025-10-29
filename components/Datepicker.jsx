@@ -4,13 +4,18 @@ import { format } from 'date-fns'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/dist/style.css'
 
-export default function Datepicker({ className = '' }) {
+/**
+ * @param {{ className?: string; align?: 'left'|'right' }} props
+ */
+export default function Datepicker({ className = '', align = 'left' }) {
   const [open, setOpen] = useState(false)
   const [range, setRange] = useState({ from: undefined, to: undefined })
 
   const label = range.from && range.to
     ? `${format(range.from, 'dd/MM/yyyy')} — ${format(range.to, 'dd/MM/yyyy')}`
     : 'Selecione o período'
+
+  const panelPos = align === 'right' ? { right: 0 } : { left: 0 }
 
   return (
     <div className={className} style={{ position:'relative' }}>
@@ -24,6 +29,7 @@ export default function Datepicker({ className = '' }) {
       {open && (
         <div
           className="absolute z-50 mt-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow p-3"
+          style={panelPos}
         >
           <DayPicker
             mode="range"
