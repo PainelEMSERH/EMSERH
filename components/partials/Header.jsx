@@ -1,4 +1,5 @@
-'use client'\nimport React, { useState } from 'react';
+'use client'
+import React, { useState } from 'react';
 
 import SearchModal from '../components/ModalSearch';
 import Notifications from '../components/DropdownNotifications';

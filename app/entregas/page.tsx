@@ -1,6 +1,3 @@
 'use client'
-import AppShell from '@/components/AppShell'
-import Dashboard from '@/components/pages/Placeholder'
-export default function Page(){ 
-  return <AppShell><Dashboard title="Entregas" /></AppShell> 
-}
+import Placeholder from '@/components/pages/PlaceholderStandalone'
+export default function Page(){ return <Placeholder title="Entregas" /> }

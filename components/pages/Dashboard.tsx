@@ -1,4 +1,5 @@
-'use client'\nimport React, { useState } from 'react';
+'use client'
+import React, { useState } from 'react';
 
 import Sidebar from '@/components/partials/Sidebar';
 import Header from '@/components/partials/Header';
