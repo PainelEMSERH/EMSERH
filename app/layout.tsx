@@ -1,15 +1,22 @@
-// app/layout.tsx
-import { ClerkProvider } from "@clerk/nextjs";
-import "./globals.css";
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-export const metadata = {
-  title: "EMSERH",
-  description: "Painel EMSERH",
+import type { Metadata } from 'next';
+import { ClerkProvider } from '@clerk/nextjs';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: 'EMSERH',
+  description: 'Painel EMSERH',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+    <ClerkProvider>
       <html lang="pt-BR">
         <body>{children}</body>
       </html>
