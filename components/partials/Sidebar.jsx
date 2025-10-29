@@ -34,7 +34,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, variant = 'defaul
     return () => document.removeEventListener('keydown', keyHandler)
   })
 
-  const linkCls = (href:string) => ['block truncate transition px-3 py-2 rounded',
+  const linkCls = (href) => ['block truncate transition px-3 py-2 rounded',
     pathname === href ? 'bg-violet-100 text-violet-600 dark:bg-gray-800' : 'text-gray-700 dark:text-gray-200 hover:text-gray-900'
   ].join(' ')
 
