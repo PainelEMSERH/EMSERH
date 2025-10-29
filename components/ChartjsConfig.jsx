@@ -1,73 +1,84 @@
 'use client';
-import { Chart, LineElement, BarElement, PointElement, Tooltip, Legend, CategoryScale, LinearScale, Filler } from 'chart.js';
 
-// Register core elements
-Chart.register(LineElement, BarElement, PointElement, Tooltip, Legend, CategoryScale, LinearScale, Filler);
+import {
+  Chart,
+  LineElement,
+  BarElement,
+  PointElement,
+  LinearScale,
+  CategoryScale,
+  Tooltip,
+  Filler,
+  ArcElement,
+  Legend,
+} from 'chart.js';
 
-// Normalize any color string to a format Chart.js understands
-function normalizeColor(input) {
-  if (input == null) return 'rgba(99,102,241,1)'; // indigo-500 fallback
-  if (Array.isArray(input)) return input.map(normalizeColor);
-  if (typeof input !== 'string') return input;
+Chart.register(LineElement, BarElement, PointElement, LinearScale, CategoryScale, Tooltip, Filler, ArcElement, Legend);
 
-  const str = input.trim();
-
-  // Safe formats already understood by Chart.js
-  const safe = /^(rgba?|hsla?)\(/i.test(str) || /^#([0-9a-f]{3,8})$/i.test(str) || /^[a-z]+$/i.test(str);
-  if (safe) return str;
-
-  // Resolve CSS variables, e.g., var(--color-gray-500)
-  if (str.startsWith('var(')) {
-    const m = str.match(/^var\((--[^,\s)]+)\)/);
-    if (m) {
-      try {
-        const v = getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim();
-        if (v) return normalizeColor(v);
-      } catch (e) {}
-    }
-  }
-
-  // Let the browser try to normalize unknown formats (covers many cases)
+// ---------- Helpers to normalize/resolve colors ----------
+function normalizeColor(color) {
   try {
+    if (!color) return 'rgba(99,102,241,1)'; // fallback (indigo-500)
+    // Resolve CSS variables like var(--color-*)
+    const varMatch = typeof color === 'string' && color.trim().match(/^var\((--[^)]+)\)$/);
+    if (varMatch) {
+      const resolved = getComputedStyle(document.documentElement).getPropertyValue(varMatch[1]).trim();
+      if (resolved) color = resolved;
+    }
+
+    // Use a DOM element to normalize to rgb()/rgba() when supported
     const el = document.createElement('div');
     el.style.color = '';
-    el.style.color = str;
-    const out = el.style.color;
-    if (out) return out;
-  } catch (e) {}
+    el.style.color = String(color);
+    const fromEl = el.style.color;
+    if (fromEl) return fromEl;
 
-  // Last resort fallback (prevents "Unsupported color format" crashes)
+    // Try canvas parser as a fallback
+    const ctx = document.createElement('canvas').getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#000';
+      ctx.fillStyle = String(color);
+      const fromCtx = ctx.fillStyle;
+      if (fromCtx) return fromCtx;
+    }
+  } catch (e) {}
   return 'rgba(99,102,241,1)';
 }
 
-// Plugin to sanitize all dataset colors before Chart.js touches them
-const SanitizeColors = {
+function normalizeAny(v) {
+  if (Array.isArray(v)) return v.map(normalizeAny);
+  if (typeof v === 'string') return normalizeColor(v);
+  return v;
+}
+
+// Plugin that sanitizes dataset colors before Chart.js parses them
+const sanitizeColors = {
   id: 'sanitizeColors',
   beforeUpdate(chart) {
     const datasets = chart?.config?.data?.datasets || [];
-    for (const d of datasets) {
-      if (!d) continue;
-      d.borderColor = normalizeColor(d.borderColor);
-      d.backgroundColor = normalizeColor(d.backgroundColor);
-      d.pointBackgroundColor = normalizeColor(d.pointBackgroundColor);
-      d.pointBorderColor = normalizeColor(d.pointBorderColor);
-      d.pointHoverBackgroundColor = normalizeColor(d.pointHoverBackgroundColor);
-      d.pointHoverBorderColor = normalizeColor(d.pointHoverBorderColor);
+    for (const ds of datasets) {
+      if (!ds || typeof ds !== 'object') continue;
+      ds.backgroundColor = normalizeAny(ds.backgroundColor);
+      ds.borderColor = normalizeAny(ds.borderColor);
+      ds.pointBackgroundColor = normalizeAny(ds.pointBackgroundColor);
+      ds.pointBorderColor = normalizeAny(ds.pointBorderColor);
+      ds.pointHoverBackgroundColor = normalizeAny(ds.pointHoverBackgroundColor);
+      ds.pointHoverBorderColor = normalizeAny(ds.pointHoverBorderColor);
     }
-  }
+  },
 };
 
-Chart.register(SanitizeColors);
+Chart.register(sanitizeColors);
 
-// Safe defaults
-Chart.defaults.color = 'rgba(31,41,55,0.8)'; // gray-800
-Chart.defaults.borderColor = 'rgba(229,231,235,1)'; // gray-200
+// Safe, explicit defaults (avoid CSS variables/oklch)
+Chart.defaults.color = 'rgb(31,41,55)'; // gray-800
+Chart.defaults.borderColor = 'rgba(0,0,0,0.1)';
+Chart.defaults.plugins.legend.labels.color = 'rgb(55,65,81)'; // gray-700
+Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(17,24,39,0.92)'; // gray-900 w/ alpha
+Chart.defaults.plugins.tooltip.titleColor = 'rgb(255,255,255)';
+Chart.defaults.plugins.tooltip.bodyColor = 'rgb(255,255,255)';
 
-Chart.defaults.plugins.legend.labels.color = 'rgba(31,41,55,0.8)';
-Chart.defaults.plugins.tooltip.bodyColor = 'rgba(31,41,55,1)';
-Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(255,255,255,0.95)';
-Chart.defaults.plugins.tooltip.borderColor = 'rgba(229,231,235,1)';
-Chart.defaults.plugins.tooltip.titleColor = 'rgba(31,41,55,0.8)';
-Chart.defaults.plugins.tooltip.titleFont = { weight: '600' };
-
-export default Chart;
+export default function ChartjsConfig() {
+  // This module configures Chart.js globally; nothing to render.
+  return null;
+}
