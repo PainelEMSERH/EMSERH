@@ -1,6 +1,6 @@
+// middleware.ts
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
-// Public routes that do NOT require auth
 const isPublicRoute = createRouteMatcher([
   '/',
   '/sign-in(.*)',
@@ -9,12 +9,12 @@ const isPublicRoute = createRouteMatcher([
 
 export default clerkMiddleware((auth, req) => {
   if (isPublicRoute(req)) return;
-  auth().protect();
+  auth.protect();
 });
 
-// Required so middleware runs on all routes except static assets and _next/*
 export const config = {
   matcher: [
+    // Skip Next.js internals and all static files
     '/((?!.+\.[\w]+$|_next).*)',
     '/',
     '/(api|trpc)(.*)',
