@@ -1,25 +1,29 @@
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
-
-import type { Metadata } from 'next';
+// Root layout wrapped with ClerkProvider and forced dynamic rendering
+'use client';
 import { ClerkProvider } from '@clerk/nextjs';
-import './globals.css';
+import React from 'react';
 
-export const metadata: Metadata = {
-  title: 'EMSERH',
-  description: 'Painel EMSERH',
-};
+export const dynamic = 'force-dynamic';
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+const pk =
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+  process.env.VITE_CLERK_PUBLISHABLE_KEY ||
+  '';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider>
-      <html lang="pt-BR">
-        <body>{children}</body>
-      </html>
-    </ClerkProvider>
+    <html lang="pt-BR">
+      <body>
+        <ClerkProvider
+          publishableKey={pk}
+          afterSignInUrl="/"
+          afterSignUpUrl="/"
+          signInUrl="/sign-in"
+          signUpUrl="/sign-up"
+        >
+          {children}
+        </ClerkProvider>
+      </body>
+    </html>
   );
 }
