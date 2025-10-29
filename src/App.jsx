@@ -3,8 +3,8 @@ import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import './css/style.css'
 import './charts/ChartjsConfig'
 
-// Páginas
 import Dashboard from './pages/Dashboard'
+
 import Colaboradores from './pages/emserh/Colaboradores'
 import Entregas from './pages/emserh/Entregas'
 import Pendencias from './pages/emserh/Pendencias'
@@ -14,7 +14,6 @@ import Relatorios from './pages/emserh/Relatorios'
 import Admin from './pages/emserh/Admin'
 import Config from './pages/emserh/Config'
 
-// Auth
 import { SignedIn, SignedOut, SignIn, SignUp, useAuth } from '@clerk/clerk-react'
 
 function RequireAuth({ children }) {
@@ -35,11 +34,9 @@ function App() {
   return (
     <>
       <Routes>
-        {/* Auth */}
         <Route path="/signin" element={<SignedOut><SignIn routing="path" path="/signin" /></SignedOut>} />
         <Route path="/signup" element={<SignedOut><SignUp routing="path" path="/signup" /></SignedOut>} />
 
-        {/* App protegido */}
         <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
         <Route path="/colaboradores" element={<RequireAuth><Colaboradores /></RequireAuth>} />
         <Route path="/entregas" element={<RequireAuth><Entregas /></RequireAuth>} />
