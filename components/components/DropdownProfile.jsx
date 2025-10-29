@@ -1,6 +1,6 @@
 'use client'
 import React from 'react'
-import { UserButton, useUser } from '@clerk/clerk-react'
+import { UserButton, useUser } from '@clerk/nextjs'
 
 export default function DropdownProfile(){ 
   const { user } = useUser()

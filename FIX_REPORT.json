@@ -1,0 +1,13 @@
+{
+  "patterns": [
+    {
+      "file": "/mnt/data/workdir/EMSERH-main/components/components/DropdownProfile.jsx",
+      "issue": "clerk-react import",
+      "action": "switch to @clerk/nextjs"
+    }
+  ],
+  "layout": {
+    "added_globals": "@/app/globals.css",
+    "added_fallback": "charts-color-fallback.css"
+  }
+}
