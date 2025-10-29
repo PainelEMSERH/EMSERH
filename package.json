@@ -20,7 +20,8 @@
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.0.2",
     "react-transition-group": "^4.4.5",
-    "tailwind-merge": "^2.5.5"
+    "tailwind-merge": "^2.5.5",
+    "@clerk/clerk-react": "latest"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
