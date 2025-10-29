@@ -3,6 +3,10 @@
   "installCommand": "pnpm install --no-frozen-lockfile",
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/"
     }
