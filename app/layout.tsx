@@ -1,14 +1,13 @@
-import { ClerkProvider } from '@clerk/nextjs'
-import type { Metadata } from 'next'
-
-// Força renderização dinâmica para evitar SSG nas rotas (útil com Clerk)
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
+export const dynamic = "force-dynamic";
+import type { Metadata } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
+import "./globals.css";
+import "./charts-color-fallback.css";
 
 export const metadata: Metadata = {
-  title: 'EMSERH',
-  description: 'Painel EMSERH',
-}
+  title: "Painel EMSERH",
+  description: "Sistema de gestão EMSERH",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -17,5 +16,5 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <body>{children}</body>
       </html>
     </ClerkProvider>
-  )
+  );
 }
