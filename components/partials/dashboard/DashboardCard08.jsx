@@ -1,4 +1,5 @@
-'use client'\nimport React from 'react';
+'use client'
+import React from 'react';
 import { chartAreaGradient } from '../../charts/ChartjsConfig';
 import LineChart from '../../charts/LineChart02';
 

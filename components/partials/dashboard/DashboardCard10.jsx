@@ -1,4 +1,5 @@
-'use client'\nimport React from 'react';
+'use client'
+import React from 'react';
 
 import Image01 from '../../images/user-36-05.jpg';
 import Image02 from '../../images/user-36-06.jpg';
@@ -11,7 +12,7 @@ function DashboardCard10() {
   const customers = [
     {
       id: '0',
-      image: '/images/user-36-05.jpg',
+      image: Image01,
       name: 'Alex Shatov',
       email: 'alexshatov@gmail.com',
       location: '🇺🇸',
@@ -19,7 +20,7 @@ function DashboardCard10() {
     },
     {
       id: '1',
-      image: '/images/user-36-06.jpg',
+      image: Image02,
       name: 'Philip Harbach',
       email: 'philip.h@gmail.com',
       location: '🇩🇪',
@@ -27,7 +28,7 @@ function DashboardCard10() {
     },
     {
       id: '2',
-      image: '/images/user-36-07.jpg',
+      image: Image03,
       name: 'Mirko Fisuk',
       email: 'mirkofisuk@gmail.com',
       location: '🇫🇷',
@@ -35,7 +36,7 @@ function DashboardCard10() {
     },
     {
       id: '3',
-      image: '/images/user-36-08.jpg',
+      image: Image04,
       name: 'Olga Semklo',
       email: 'olga.s@cool.design',
       location: '🇮🇹',
@@ -43,7 +44,7 @@ function DashboardCard10() {
     },
     {
       id: '4',
-      image: '/images/user-36-09.jpg',
+      image: Image05,
       name: 'Burak Long',
       email: 'longburak@gmail.com',
       location: '🇬🇧',

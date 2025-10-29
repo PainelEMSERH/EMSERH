@@ -1,4 +1,5 @@
-'use client'\nimport React, { useState, useEffect } from 'react';
+'use client'
+import React, { useState, useEffect } from 'react';
 import Tooltip from '../../components/Tooltip';
 import { chartAreaGradient } from '../../charts/ChartjsConfig';
 import RealtimeChart from '../../charts/RealtimeChart';

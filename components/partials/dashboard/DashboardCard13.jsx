@@ -1,4 +1,5 @@
-'use client'\nimport React from 'react';
+'use client'
+import React from 'react';
 
 function DashboardCard13() {
   return (

@@ -1,64 +1,43 @@
 'use client'
-"use client"
+import React, { useState } from 'react'
+import { format } from 'date-fns'
+import { DayPicker } from 'react-day-picker'
+import 'react-day-picker/dist/style.css'
 
-import * as React from "react"
-import { addDays, format } from "date-fns"
+export default function Datepicker({ className = '' }) {
+  const [open, setOpen] = useState(false)
+  const [range, setRange] = useState({ from: undefined, to: undefined })
 
-import { cn } from "../lib/utils"
-import { Calendar } from "./ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "./ui/popover"
-
-export default function DatePickerWithRange({
-  className,
-}) {
-  const [date, setDate] = React.useState({
-    from: new Date(2022, 0, 20),
-    to: addDays(new Date(2022, 0, 20), 20),
-  })
+  const label = range.from && range.to
+    ? `${format(range.from, 'dd/MM/yyyy')} — ${format(range.to, 'dd/MM/yyyy')}`
+    : 'Selecione o período'
 
   return (
-    <div className={cn("grid gap-2", className)}>
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            id="date"
-            className={cn(
-              "btn px-2.5 min-w-[15.5rem] bg-white border-gray-200 hover:border-gray-300 dark:border-gray-700/60 dark:hover:border-gray-600 dark:bg-gray-800 text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100 font-medium text-left justify-start",
-              !date && "text-muted-foreground"
-            )}
-          >
-            {/* <CalendarIcon /> */}
-            <svg className="fill-current text-gray-400 dark:text-gray-500 ml-1 mr-2" width="16" height="16" viewBox="0 0 16 16">
-              <path d="M5 4a1 1 0 0 0 0 2h6a1 1 0 1 0 0-2H5Z"></path>
-              <path d="M4 0a4 4 0 0 0-4 4v8a4 4 0 0 0 4 4h8a4 4 0 0 0 4-4V4a4 4 0 0 0-4-4H4ZM2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Z"></path>
-            </svg>
-            {date?.from ? (
-              date.to ? (
-                <>
-                  {format(date.from, "LLL dd, y")} -{" "}
-                  {format(date.to, "LLL dd, y")}
-                </>
-              ) : (
-                format(date.from, "LLL dd, y")
-              )
-            ) : (
-              <span>Pick a date</span>
-            )}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
+    <div className={className} style={{ position:'relative' }}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 11h5v5H7z"></path><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v13c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 15H5V9h14v10z"></path></svg>
+        <span>{label}</span>
+      </button>
+      {open && (
+        <div
+          className="absolute z-50 mt-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow p-3"
+        >
+          <DayPicker
             mode="range"
-            defaultMonth={date?.from}
-            selected={date}
-            onSelect={setDate}
+            numberOfMonths={2}
+            selected={range}
+            onSelect={setRange}
+            weekStartsOn={1}
           />
-        </PopoverContent>
-      </Popover>
+          <div className="flex justify-end gap-2 mt-2">
+            <button className="px-3 py-1 rounded border text-sm" onClick={() => setRange({ from: undefined, to: undefined })}>Limpar</button>
+            <button className="px-3 py-1 rounded bg-violet-600 text-white text-sm" onClick={() => setOpen(false)}>OK</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
