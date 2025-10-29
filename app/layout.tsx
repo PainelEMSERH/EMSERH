@@ -1,14 +1,20 @@
-import './globals.css'
 import { ClerkProvider } from '@clerk/nextjs'
-import React from 'react'
+import type { Metadata } from 'next'
 
-export const metadata = { title: 'EMSERH • EPI', description: 'Gestão de EPI' }
+// Força renderização dinâmica para evitar SSG nas rotas (útil com Clerk)
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+export const metadata: Metadata = {
+  title: 'EMSERH',
+  description: 'Painel EMSERH',
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider>
       <html lang="pt-BR">
-        <body className="min-h-screen bg-gray-50 dark:bg-gray-950">{children}</body>
+        <body>{children}</body>
       </html>
     </ClerkProvider>
   )
