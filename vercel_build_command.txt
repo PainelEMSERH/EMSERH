@@ -1,0 +1,1 @@
+npm install && npm i -E tailwindcss@^3 postcss autoprefixer @neondatabase/serverless chart.js@4.4.6 react-chartjs-2@5.2.0 && npm i -D typescript@^5 @types/react@^18 @types/node@^20 && node scripts/ensure-tailwind-directives.cjs && node scripts/fix-tailwind-classes.cjs && next build
