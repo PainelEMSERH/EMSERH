@@ -1,22 +1,7 @@
-'use client';
+'use client'
 
-import React from 'react';
-import Link from 'next/link';
-import { useAuth } from '@clerk/nextjs';
+import AppIndex from '@/components/app-index'
 
-type Props = {
-  auth?: unknown;
-};
-
-export default function AppIndex({ auth }: Props = {}) {
-  const { isSignedIn } = useAuth();
-
-  return (
-    <div className="min-h-screen">
-      <nav className="p-4 flex gap-4">
-        <Link href="/">Início</Link>
-        {!isSignedIn && <Link href="/sign-in">Entrar</Link>}
-      </nav>
-    </div>
-  );
+export default function RootIndex() {
+  return <AppIndex />
 }
