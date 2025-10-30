@@ -2,7 +2,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link'
 import Transition from '../utils/Transition';
-import { Info } from '@geist-ui/icons';
 
 function DropdownHelp({
   align
@@ -44,7 +43,19 @@ function DropdownHelp({
         aria-expanded={dropdownOpen}
       >
         <span className="sr-only">Need help?</span>
-        <Info size={16} className="text-gray-500/80 dark:text-gray-400/80" />
+        <svg
+          className="fill-current text-gray-500/80 dark:text-gray-400/80"
+          width={16}
+          height={16}
+          viewBox="0 0 16 16"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path d="M9 7.5a1 1 0 1 0-2 0v4a1 1 0 1 0 2 0v-4ZM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" />
+          <path
+            fillRule="evenodd"
+            d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16Zm6-8A6 6 0 1 1 2 8a6 6 0 0 1 12 0Z"
+          />
+        </svg>
       </button>
 
       <Transition
