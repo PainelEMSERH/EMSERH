@@ -5,6 +5,7 @@ import './globals.css';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 import React from 'react';
+import ThemeProvider from '@/components/utils/ThemeContext';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           signInUrl="/sign-in"
           signUpUrl="/sign-up"
         >
-          {children}
+          <ThemeProvider>{children}</ThemeProvider>
         </ClerkProvider>
       </body>
     </html>
