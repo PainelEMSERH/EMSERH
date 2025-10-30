@@ -1,8 +1,9 @@
-# Tailwind AutoFix Patch
-Coloque estes arquivos na raiz do repo e faça commit:
+# Tailwind AutoFix v2
+Este patch remove imports v4 do Tailwind no `app/globals.css` (ex.: `@import "tailwindcss";`),
+remove `@config` (v4) e garante as diretivas v3 no topo. Mantém `postcss.config.js` e `tailwind.config.js` padrão.
+
+Coloque na raiz do repositório:
 - vercel.json
 - postcss.config.js
 - tailwind.config.js
 - scripts/ensure-tailwind-directives.cjs
-
-Durante o build no Vercel, o script garante que `app/globals.css` tenha as diretivas do Tailwind v3 no topo. Isso resolve o erro `@layer base is used but no matching @tailwind base`.

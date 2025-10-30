@@ -1,31 +1,41 @@
 // scripts/ensure-tailwind-directives.cjs
-// Ensures app/globals.css starts with Tailwind v3 directives
+// Make app/globals.css compatible with Tailwind v3:
+// 1) Remove Tailwind v4 CSS imports like: @import "tailwindcss"; @import "tailwindcss/base";
+// 2) Remove optional @config lines (v4-only) to avoid noise.
+// 3) Ensure file starts with @tailwind base/components/utilities.
 const fs = require('fs');
 const path = require('path');
 
 const filePath = path.join(process.cwd(), 'app', 'globals.css');
 if (!fs.existsSync(filePath)) {
   console.error('[ensure-tailwind-directives] app/globals.css not found');
-  process.exit(0); // don't fail build
+  process.exit(0);
 }
 
-const content = fs.readFileSync(filePath, 'utf8');
+let content = fs.readFileSync(filePath, 'utf8');
+
+// Strip BOM
+content = content.replace(/^\uFEFF/, '');
+
+// Remove Tailwind v4 imports (any variant)
+content = content.replace(/^\s*@import\s+["']tailwindcss(?:\/[a-z-]+)?["'];?\s*$/gmi, '');
+
+// Remove optional @config lines (v4-only)
+content = content.replace(/^\s*@config\s+["'][^"']+["'];?\s*$/gmi, '');
+
+// Check if v3 directives exist
 const hasBase = /@tailwind\s+base;/.test(content);
 const hasComp = /@tailwind\s+components;/.test(content);
 const hasUtil = /@tailwind\s+utilities;/.test(content);
 
-if (hasBase && hasComp && hasUtil) {
-  console.log('[ensure-tailwind-directives] directives already present');
-  process.exit(0);
+// Prepend if missing
+if (!(hasBase && hasComp && hasUtil)) {
+  const prefix = '@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n';
+  content = prefix + content;
+  console.log('[ensure-tailwind-directives] prepended v3 directives');
+} else {
+  console.log('[ensure-tailwind-directives] v3 directives already present');
 }
 
-const lines = [
-  '@tailwind base;',
-  '@tailwind components;',
-  '@tailwind utilities;',
-  ''
-];
-
-const updated = lines.join('\n') + content.replace(/^\uFEFF/, ''); // remove BOM if present
-fs.writeFileSync(filePath, updated, 'utf8');
-console.log('[ensure-tailwind-directives] directives prepended to app/globals.css');
+fs.writeFileSync(filePath, content, 'utf8');
+console.log('[ensure-tailwind-directives] globals.css normalized for Tailwind v3');
