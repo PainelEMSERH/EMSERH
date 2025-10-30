@@ -1,93 +1,84 @@
-'use client'
+'use client';
 
-import { hexToRgba } from './utils/Utils'
+import {
+  Chart,
+  LineElement,
+  BarElement,
+  PointElement,
+  LinearScale,
+  CategoryScale,
+  Tooltip,
+  Filler,
+  ArcElement,
+  Legend,
+} from 'chart.js';
 
-// Static palette fallback (does not rely on CSS variables to avoid SSR/ISR issues)
-const P = {
-  slate100: '#e2e8f0',
-  slate300: '#cbd5e1',
-  slate500: '#64748b',
-  slate700: '#334155',
-  slate800: '#1f2937',
+Chart.register(LineElement, BarElement, PointElement, LinearScale, CategoryScale, Tooltip, Filler, ArcElement, Legend);
 
-  blue500: '#3b82f6',
-  indigo500: '#6366f1',
-  sky500: '#0ea5e9',
-  violet500: '#8b5cf6',
-  cyan500: '#06b6d4',
-  teal500: '#14b8a6',
-  emerald500: '#10b981',
-  lime500: '#84cc16',
-  amber500: '#f59e0b',
-  rose500: '#f43f5e',
-  fuchsia500: '#d946ef',
-};
+// ---------- Helpers to normalize/resolve colors ----------
+function normalizeColor(color) {
+  try {
+    if (!color) return 'rgba(99,102,241,1)'; // fallback (indigo-500)
+    // Resolve CSS variables like var(--color-*)
+    const varMatch = typeof color === 'string' && color.trim().match(/^var\((--[^)]+)\)$/);
+    if (varMatch) {
+      const resolved = getComputedStyle(document.documentElement).getPropertyValue(varMatch[1]).trim();
+      if (resolved) color = resolved;
+    }
 
-export const chartColors = {
-  textColor: {
-    light: P.slate500,
-    dark: P.slate300,
-  },
-  gridColor: {
-    light: hexToRgba(P.slate300, 0.5),
-    dark: hexToRgba(P.slate700, 0.5),
-  },
-  tooltipBgColor: {
-    light: '#fff',
-    dark: P.slate800,
-  },
-  tooltipBorderColor: {
-    light: P.slate300,
-    dark: P.slate700,
-  },
-  tooltipBodyColor: {
-    light: P.slate800,
-    dark: P.slate300,
-  },
-  blue: {
-    light: P.blue500,
-    dark: P.blue500,
-  },
-  indigo: {
-    light: P.indigo500,
-    dark: P.indigo500,
-  },
-  sky: {
-    light: P.sky500,
-    dark: P.sky500,
-  },
-  violet: {
-    light: P.violet500,
-    dark: P.violet500,
-  },
-  cyan: {
-    light: P.cyan500,
-    dark: P.cyan500,
-  },
-  teal: {
-    light: P.teal500,
-    dark: P.teal500,
-  },
-  emerald: {
-    light: P.emerald500,
-    dark: P.emerald500,
-  },
-  lime: {
-    light: P.lime500,
-    dark: P.lime500,
-  },
-  amber: {
-    light: P.amber500,
-    dark: P.amber500,
-  },
-  rose: {
-    light: P.rose500,
-    dark: P.rose500,
-  },
-  fuchsia: {
-    light: P.fuchsia500,
-    dark: P.fuchsia500,
-  },
+    // Use a DOM element to normalize to rgb()/rgba() when supported
+    const el = document.createElement('div');
+    el.style.color = '';
+    el.style.color = String(color);
+    const fromEl = el.style.color;
+    if (fromEl) return fromEl;
+
+    // Try canvas parser as a fallback
+    const ctx = document.createElement('canvas').getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#000';
+      ctx.fillStyle = String(color);
+      const fromCtx = ctx.fillStyle;
+      if (fromCtx) return fromCtx;
+    }
+  } catch (e) {}
+  return 'rgba(99,102,241,1)';
 }
 
-export default chartColors
+function normalizeAny(v) {
+  if (Array.isArray(v)) return v.map(normalizeAny);
+  if (typeof v === 'string') return normalizeColor(v);
+  return v;
+}
+
+// Plugin that sanitizes dataset colors before Chart.js parses them
+const sanitizeColors = {
+  id: 'sanitizeColors',
+  beforeUpdate(chart) {
+    const datasets = chart?.config?.data?.datasets || [];
+    for (const ds of datasets) {
+      if (!ds || typeof ds !== 'object') continue;
+      ds.backgroundColor = normalizeAny(ds.backgroundColor);
+      ds.borderColor = normalizeAny(ds.borderColor);
+      ds.pointBackgroundColor = normalizeAny(ds.pointBackgroundColor);
+      ds.pointBorderColor = normalizeAny(ds.pointBorderColor);
+      ds.pointHoverBackgroundColor = normalizeAny(ds.pointHoverBackgroundColor);
+      ds.pointHoverBorderColor = normalizeAny(ds.pointHoverBorderColor);
+    }
+  },
+};
+
+Chart.register(sanitizeColors);
+
+// Safe, explicit defaults (avoid CSS variables/oklch)
+Chart.defaults.color = 'rgb(31,41,55)'; // gray-800
+Chart.defaults.borderColor = 'rgba(0,0,0,0.1)';
+Chart.defaults.plugins.legend.labels.color = 'rgb(55,65,81)'; // gray-700
+Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(17,24,39,0.92)'; // gray-900 w/ alpha
+Chart.defaults.plugins.tooltip.titleColor = 'rgb(255,255,255)';
+Chart.defaults.plugins.tooltip.bodyColor = 'rgb(255,255,255)';
+
+export default function ChartjsConfig() {
+  // This module configures Chart.js globally; nothing to render.
+  return null;
+}

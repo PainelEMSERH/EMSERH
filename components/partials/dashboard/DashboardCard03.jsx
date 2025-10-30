@@ -1,6 +1,6 @@
 'use client'
 import React from 'react';
-import { Link } from 'next/link';
+import Link from 'next/link';
 import LineChart from '../../charts/LineChart01';
 import { chartAreaGradient } from '../../charts/ChartjsConfig';
 import EditMenu from '../../components/DropdownEditMenu';
@@ -81,17 +81,17 @@ function DashboardCard03() {
           {/* Menu button */}
           <EditMenu align="right" className="relative inline-flex">
             <li>
-              <Link className="font-medium text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-200 flex py-1 px-3" to="#0">
+              <Link className="font-medium text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-200 flex py-1 px-3" href="#0">
                 Option 1
               </Link>
             </li>
             <li>
-              <Link className="font-medium text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-200 flex py-1 px-3" to="#0">
+              <Link className="font-medium text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-200 flex py-1 px-3" href="#0">
                 Option 2
               </Link>
             </li>
             <li>
-              <Link className="font-medium text-sm text-red-500 hover:text-red-600 flex py-1 px-3" to="#0">
+              <Link className="font-medium text-sm text-red-500 hover:text-red-600 flex py-1 px-3" href="#0">
                 Remove
               </Link>
             </li>
