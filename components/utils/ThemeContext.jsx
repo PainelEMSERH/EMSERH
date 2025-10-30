@@ -8,7 +8,7 @@ const ThemeContext = createContext({
 
 export default function ThemeProvider({children}) {  
   const persistedTheme = (typeof window !== 'undefined' && window.localStorage) ? window.localStorage.getItem('theme') : null;
-  const [theme, setTheme] = useState(persistedTheme || 'system');
+  const [theme, setTheme] = useState(persistedTheme || 'light');
 
   const changeCurrentTheme = (newTheme) => {
     setTheme(newTheme);
