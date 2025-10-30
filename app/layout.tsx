@@ -2,7 +2,8 @@
 'use client';
 import { ClerkProvider } from '@clerk/nextjs';
 import './globals.css';
-import { Geist, Geist_Mono } from 'geist/font';
+import { GeistSans } from 'geist/font/sans';
+import { GeistMono } from 'geist/font/mono';
 import React from 'react';
 
 export const dynamic = 'force-dynamic';
@@ -14,8 +15,8 @@ const pk =
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${Geist.variable} ${Geist_Mono.variable}`}>
-      <body className={`${Geist.className} antialiased`}>
+    <html lang="pt-BR" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+      <body className={`${GeistSans.className} antialiased`}>
         <ClerkProvider
           publishableKey={pk}
           signInUrl="/sign-in"
