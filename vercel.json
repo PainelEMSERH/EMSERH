@@ -1,3 +1,4 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json"
+  "version": 2,
+  "installCommand": "npm ci || npm install; npm i -E chart.js@4.4.6 react-chartjs-2@5.2.0"
 }
