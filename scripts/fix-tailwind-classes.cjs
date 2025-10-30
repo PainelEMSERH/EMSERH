@@ -1,50 +1,96 @@
-// scripts/fix-tailwind-classes.cjs
-// Fix CSS across the repo for Tailwind v3 compatibility
-const fs = require('fs'); const path = require('path');
+// Fix Tailwind v4-specific CSS so Tailwind v3 compiles on Vercel
+const fs = require('fs');
+const path = require('path');
+
+const CSS_DIRS = [
+  path.join(process.cwd(), 'app'),
+  path.join(process.cwd(), 'components'),
+];
+
+const breakpoints = {
+  'sm': '640px',
+  'md': '768px',
+  'lg': '1024px',
+  'xl': '1280px',
+  '2xl': '1536px',
+};
+
+function replaceThemeBreakpoints(css) {
+  // Replace @media (width >= theme(--breakpoint-md)) with @screen md
+  css = css.replace(/@media\s*\(\s*width\s*>=\s*theme\(\s*--breakpoint-([a-z0-9]+)\s*\)\s*\)\s*\{/gi, (m, bp) => {
+    return `@screen ${bp} {`;
+  });
+  // Fallback: replace theme(--breakpoint-xx) with px values (min-width style), if any remain.
+  css = css.replace(/theme\(\s*--breakpoint-([a-z0-9]+)\s*\)/gi, (m, bp) => {
+    const px = breakpoints[bp] || '768px';
+    return px;
+  });
+  return css;
+}
+
+function removeLayerWrappersOutsideGlobals(filePath, css) {
+  const isGlobals = /app[\/]+globals\.css$/.test(filePath);
+  if (isGlobals) return css;
+
+  // Unwrap @layer ... { ... } by removing the outer wrapper but keeping content.
+  css = css.replace(/@layer\s+(base|components|utilities)\s*\{([\s\S]*?)\}/gi, (m, layer, inner) => inner);
+
+  // Remove any stray @tailwind directives outside globals
+  css = css.replace(/@tailwind\s+(base|components|utilities)\s*;?/gi, '');
+
+  return css;
+}
+
+function dropImportsOfAdditionalStyles(globalsPath) {
+  if (!fs.existsSync(globalsPath)) return;
+  let css = fs.readFileSync(globalsPath, 'utf8');
+  const before = css;
+  // Remove imports to additional-styles or app/styles
+  css = css.replace(/@import\s+["']\.?\/?(?:app\/)?(?:additional-styles|styles)(?:\/[^"']*)?["'];?\s*/gi, '');
+
+  if (css !== before) {
+    fs.writeFileSync(globalsPath, css, 'utf8');
+    console.log('[fix-tailwind-classes] removed @import to additional-styles/* from globals.css');
+  }
+}
+
+function processFile(filePath) {
+  let css = fs.readFileSync(filePath, 'utf8');
+
+  // Remove Tailwind v4 directives
+  css = css.replace(/@import\s+["']tailwindcss["'];?\s*/g, '');
+  css = css.replace(/@config\s+["'][^"']+["'];?\s*/g, '');
+
+  // Fix invalid class names
+  css = css.replace(/\bshadow-xs\b/g, 'shadow-sm');
+
+  // Replace theme(--breakpoint-*) usage
+  css = replaceThemeBreakpoints(css);
+
+  // Unwrap @layer in non-globals files and drop @tailwind there
+  css = removeLayerWrappersOutsideGlobals(filePath, css);
+
+  // If after replacements still has theme(--breakpoint-), force-convert remaining @media blocks to min-width hardcoded
+  css = css.replace(/@media\s*\([^)]*theme\(\s*--breakpoint-([a-z0-9]+)\s*\)[^)]*\)\s*\{/gi, (m, bp) => {
+    const px = breakpoints[bp] || '768px';
+    return `@media (min-width: ${px}) {`;
+  });
+
+  fs.writeFileSync(filePath, css, 'utf8');
+}
 
 function walk(dir) {
-  let out = [];
-  if (!fs.existsSync(dir)) return out;
-  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, ent.name);
-    if (ent.isDirectory()) out = out.concat(walk(p));
-    else if (ent.isFile() && p.endsWith('.css')) out.push(p);
-  }
-  return out;
-}
-
-const roots = ['app','components','src'];
-let changed = 0;
-
-for (const root of roots) {
-  for (const file of walk(root)) {
-    let txt = fs.readFileSync(file, 'utf8');
-    const orig = txt;
-
-    // Remove Tailwind v4 imports and @config
-    txt = txt.replace(/^\s*@import\s+["']tailwindcss(?:\/[a-z-]+)?["'];?\s*$/gmi, '');
-    txt = txt.replace(/^\s*@config\s+["'][^"']+["'];?\s*$/gmi, '');
-
-    // Replace unsupported classes
-    txt = txt.replace(/\bshadow-xs\b/g, 'shadow-sm');
-
-    // In NON-globals files, unwrap any @layer blocks to plain CSS
-    const isGlobals = /app[\\/]+globals\.css$/.test(file);
-    if (!isGlobals) {
-      txt = txt.replace(/@layer\s+(?:components|base|utilities)\s*\{([\s\S]*?)\}/gmi, '$1');
-    }
-
-    // In non-globals files, also ensure we don't carry stray @tailwind directives
-    if (!isGlobals) {
-      txt = txt.replace(/^\s*@tailwind\s+(?:base|components|utilities);\s*$/gmi, '');
-    }
-
-    if (txt !== orig) {
-      fs.writeFileSync(file, txt, 'utf8');
-      console.log('[fix-tailwind-classes] updated', path.relative(process.cwd(), file));
-      changed++;
-    }
+  const entries = fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }) : [];
+  for (const e of entries) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) walk(p);
+    else if (e.isFile() && /\.css$/.test(e.name)) processFile(p);
   }
 }
 
-console.log('[fix-tailwind-classes] done. Files changed:', changed);
+for (const d of CSS_DIRS) walk(d);
+
+// Finally, remove imports of additional-styles from globals.css to avoid any leftover v4-only patterns
+dropImportsOfAdditionalStyles(path.join(process.cwd(), 'app', 'globals.css'));
+
+console.log('[fix-tailwind-classes] pass complete');
