@@ -1,16 +1,4 @@
-// Utility helpers used across charts and UI
-
-export const formatValue = (value) => Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumSignificantDigits: 3,
-  notation: 'compact',
-}).format(value);
-
-export const formatThousands = (value) => Intl.NumberFormat('en-US', {
-  maximumSignificantDigits: 3,
-  notation: 'compact',
-}).format(value);
+// Utils.js — patched to avoid const reassignment and normalize CSS vars/triplets safely
 
 /**
  * Reads a CSS custom property from :root.
@@ -27,34 +15,72 @@ export const getCssVariable = (variable, fallback = '') => {
 };
 
 /**
+ * Convert "r g b" or "r g b / a" into a valid css rgb(...) string.
+ * Also accepts "r, g, b" and returns "rgb(r, g, b)". If it doesn't match, returns null.
+ */
+const normalizeColorTriplet = (value) => {
+  if (typeof value !== 'string') return null;
+  const s = value.trim();
+
+  // Matches: "r g b" or "r g b / a"
+  let m = s.match(/^(\d{1,3})\s+(\d{1,3})\s+(\d{1,3})(?:\s*\/\s*([\d.]+%?))?$/);
+  if (m) {
+    const [, r, g, b, a] = m;
+    if (a) return `rgba(${r}, ${g}, ${b}, ${a})`;
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  // Matches: "r, g, b"
+  m = s.match(/^(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})$/);
+  if (m) {
+    const [, r, g, b] = m;
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  return null;
+};
+
+/**
  * Convert any CSS color string to an rgba(r,g,b,a) string with the desired opacity.
- * Accepts: hex (#rgb/#rrggbb), rgb/rgba, hsl/hsla, oklch, lab, lch, and even CSS variables
- * resolved beforehand with getCssVariable.
+ * Accepts: hex (#rgb/#rrggbb), rgb/rgba, hsl/hsla, oklch, lab, lch, and CSS variables via var(--x)
+ * Uses getCssVariable for var(...) and normalizes "r g b" triplets often used with Tailwind.
  */
 export const adjustColorOpacity = (color, alpha = 1) => {
   if (!color) return `rgba(0, 0, 0, ${alpha})`;
 
+  let c = color;
+
+  // Resolve CSS variables if present (at most one var for our use case)
+  const varMatch = c.match(/var\((--[a-zA-Z0-9_-]+)\)/);
+  if (varMatch) {
+    const raw = getCssVariable(varMatch[1], '');
+    const normalized = normalizeColorTriplet(raw);
+    c = normalized || raw || c; // fall back to original if nothing resolved
+  }
+
+  // Normalize plain "r g b" or "r, g, b" into rgb(...)
+  const directNormalized = normalizeColorTriplet(c);
+  if (directNormalized) c = directNormalized;
+
   // Already rgba -> just replace alpha
-  const rgbaMatch = color.match(/^rgba\((\s*\d+\s*),(\s*\d+\s*),(\s*\d+\s*),(\s*[^)]+)\)$/i);
+  const rgbaMatch = c.match(/^rgba\((\s*\d+\s*),(\s*\d+\s*),(\s*\d+\s*),(\s*[^)]+)\)$/i);
   if (rgbaMatch) {
-    const [_, r, g, b] = rgbaMatch;
+    const [, r, g, b] = rgbaMatch;
     return `rgba(${r.trim()}, ${g.trim()}, ${b.trim()}, ${alpha})`;
   }
 
   // rgb -> convert to rgba
-  const rgbMatch = color.match(/^rgb\((\s*\d+\s*),(\s*\d+\s*),(\s*\d+\s*)\)$/i);
+  const rgbMatch = c.match(/^rgb\((\s*\d+\s*),(\s*\d+\s*),(\s*\d+\s*)\)$/i);
   if (rgbMatch) {
-    const [_, r, g, b] = rgbMatch;
+    const [, r, g, b] = rgbMatch;
     return `rgba(${r.trim()}, ${g.trim()}, ${b.trim()}, ${alpha})`;
   }
 
   // Hex -> convert to rgba
-  const hexMatch = color.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  const hexMatch = c.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
   if (hexMatch) {
     let hex = hexMatch[1];
-    if (hex.length === 3) {
-      hex = hex.split('').map(x => x + x).join('');
-    }
+    if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
     const r = parseInt(hex.slice(0, 2), 16);
     const g = parseInt(hex.slice(2, 4), 16);
     const b = parseInt(hex.slice(4, 6), 16);
@@ -63,7 +89,7 @@ export const adjustColorOpacity = (color, alpha = 1) => {
 
   // For any other spec (hsl/hsla/oklch/lab/lch/...)
   // Let the browser compute it to rgb and then add our alpha
-  return toRGBA(color, alpha);
+  return toRGBA(c, alpha);
 };
 
 /**
@@ -106,24 +132,3 @@ export const toRGBA = (cssColor, alpha = 1) => {
 export const oklchToRGBA = (oklchColor, alpha = 1) => {
   return toRGBA(oklchColor, alpha);
 };
-
-
-// --- Patched: normalize CSS variable color triples and provide fallback ---
-const __orig_getCssVariable = getCssVariable;
-getCssVariable = function(name, defaultValue) {
-  try {
-    const v = __orig_getCssVariable ? __orig_getCssVariable(name, defaultValue) : undefined;
-    if (typeof v === 'string') {
-      const val = v.trim();
-      // if value is like "123 45 67" convert to rgb(123,45,67)
-      if (/^\d+\s+\d+\s+\d+$/.test(val)) {
-        return `rgb(${val.replace(/\s+/g, ',')})`;
-      }
-      return val || (typeof defaultValue !== 'undefined' ? defaultValue : '#4f46e5');
-    }
-    return (typeof defaultValue !== 'undefined' ? defaultValue : '#4f46e5');
-  } catch (e) {
-    return (typeof defaultValue !== 'undefined' ? defaultValue : '#4f46e5');
-  }
-};
-// --- End patch ---
