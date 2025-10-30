@@ -2,19 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Fonts */
+/* Optional: font import kept */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=fallback');
 
-/* ---- Tailwind v3-safe component layer ---- */
-@layer components {
-  /* Buttons */
-  .btn { @apply font-medium text-sm inline-flex items-center justify-center border border-transparent rounded-lg leading-5 shadow-sm transition; }
-  .btn-sm { @apply px-3 py-1.5; }
-  .btn-xs { @apply px-2 py-1 text-xs; }
-
-  /* Cards / panels */
-  .card { @apply rounded-xl shadow-sm border border-gray-200 bg-white; }
+:root {
+  --brand: #0ea5e9;
 }
 
-/* You can add any extra custom CSS below, but avoid Tailwind v4-only syntax
-   like: layer(components); theme(--breakpoint-*) or @plugin in CSS. */
+html, body {
+  height: 100%;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+/* Example container utility to avoid breaking current layout expectations */
+.container {
+  @apply mx-auto px-4;
+}

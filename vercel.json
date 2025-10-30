@@ -1,3 +1,5 @@
 {
-  "buildCommand": "npm install && npm i -E tailwindcss@^3 postcss autoprefixer @neondatabase/serverless chart.js@4.4.6 react-chartjs-2@5.2.0 && node scripts/ensure-tailwind-directives.cjs && node scripts/fix-tailwind-classes.cjs && next build"
+  "buildCommand": "npm install && npm i -E tailwindcss@^3 postcss autoprefixer @tailwindcss/forms @neondatabase/serverless chart.js@4.4.6 react-chartjs-2@5.2.0 && next build",
+  "installCommand": "npm install",
+  "outputDirectory": ".next"
 }
