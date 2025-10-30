@@ -1,12 +1,13 @@
+'use client'
 import { createContext, useContext, useState, useEffect } from 'react';
 
 const ThemeContext = createContext({
-  currentTheme: 'system',
+  currentTheme: 'light',
   changeCurrentTheme: () => {},
 });
 
 export default function ThemeProvider({children}) {  
-  const persistedTheme = localStorage.getItem('theme');
+  const persistedTheme = (typeof window !== 'undefined' && window.localStorage) ? window.localStorage.getItem('theme') : null;
   const [theme, setTheme] = useState(persistedTheme || 'system');
 
   const changeCurrentTheme = (newTheme) => {
@@ -16,32 +17,18 @@ export default function ThemeProvider({children}) {
 
   useEffect(() => {
     document.documentElement.classList.add('**:transition-none!');
-
-    const apply = (t) => {
-      if (t === 'dark') {
-        document.documentElement.classList.add('dark');
-        document.documentElement.style.colorScheme = 'dark';
-      } else {
-        document.documentElement.classList.remove('dark');
-        document.documentElement.style.colorScheme = 'light';
-      }
-    };
-
-    if (theme === 'system') {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)');
-      apply(mq.matches ? 'dark' : 'light');
-      const handler = (e) => apply(e.matches ? 'dark' : 'light');
-      mq.addEventListener?.('change', handler);
-      // cleanup
-      const cleanup = () => mq.removeEventListener?.('change', handler);
-      setTimeout(cleanup, 0);
+    if (theme === 'light') {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.style.colorScheme = 'light';
     } else {
-      apply(theme);
+      document.documentElement.classList.add('dark');
+      document.documentElement.style.colorScheme = 'dark';
     }
 
     const transitionTimeout = setTimeout(() => {
       document.documentElement.classList.remove('**:transition-none!');
     }, 1);
+    
     return () => clearTimeout(transitionTimeout);
   }, [theme]);
 

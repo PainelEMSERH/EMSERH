@@ -2,8 +2,6 @@
 'use client';
 import { ClerkProvider } from '@clerk/nextjs';
 import './globals.css';
-import { GeistSans } from 'geist/font/sans';
-import { GeistMono } from 'geist/font/mono';
 import React from 'react';
 import ThemeProvider from '@/components/utils/ThemeContext';
 
@@ -16,10 +14,12 @@ const pk =
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${GeistSans.variable} ${GeistMono.variable}`}>
-      <body className={`${GeistSans.className} antialiased`}>
+    <html lang="pt-BR">
+      <body>
         <ClerkProvider
           publishableKey={pk}
+          afterSignInUrl="/"
+          afterSignUpUrl="/"
           signInUrl="/sign-in"
           signUpUrl="/sign-up"
         >

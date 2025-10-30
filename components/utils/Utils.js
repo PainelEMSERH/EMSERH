@@ -75,21 +75,9 @@ export const formatValue = (value) => {
   return String(n);
 };
 
-export const formatThousands = (value) => {
-  const n = Number(value);
-  if (!isFinite(n)) return '0';
-  try {
-    if (typeof Intl !== 'undefined' && Intl.NumberFormat) {
-      return new Intl.NumberFormat('pt-BR').format(n);
-    }
-  } catch {}
-  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-};
-
 export default {
   getCssVariable,
   adjustColorOpacity,
   toRGBA,
   formatValue,
-  formatThousands,
 };
