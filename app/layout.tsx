@@ -1,6 +1,7 @@
 // Root layout wrapped with ClerkProvider and forced dynamic rendering
 'use client';
 import { ClerkProvider } from '@clerk/nextjs';
+import './globals.css';
 import React from 'react';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ClerkProvider
           publishableKey={pk}
-          signInUrl="/sign-in"
+                    signInUrl="/sign-in"
           signUpUrl="/sign-up"
         >
           {children}
