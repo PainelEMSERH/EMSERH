@@ -16,9 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ClerkProvider
           publishableKey={pk}
-          afterSignInUrl="/"
-          afterSignUpUrl="/"
-          signInUrl="/sign-in"
+                    signInUrl="/sign-in"
           signUpUrl="/sign-up"
         >
           {children}

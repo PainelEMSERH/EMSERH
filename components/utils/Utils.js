@@ -75,9 +75,23 @@ export const formatValue = (value) => {
   return String(n);
 };
 
+export const formatThousands = (value) => {
+  const n = Number(value);
+  if (!isFinite(n)) return '0';
+  try {
+    // Use locale formatting but ensure SSR safety
+    if (typeof Intl !== 'undefined' && Intl.NumberFormat) {
+      return new Intl.NumberFormat('pt-BR').format(n);
+    }
+  } catch {}
+  // Fallback: simple thousands separator
+  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+
 export default {
   getCssVariable,
   adjustColorOpacity,
   toRGBA,
   formatValue,
+  formatThousands,
 };
