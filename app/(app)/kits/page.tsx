@@ -1,16 +1,15 @@
 // app/(app)/kits/page.tsx
-// Página colocada dentro do grupo de rotas (app) para herdar o AppShell do dashboard.
-// Sem imports externos para evitar erros de build por módulos ausentes.
+// Esta página herda o AppShell do grupo de rotas (app).
+// Mantém o layout igual ao Dashboard e exibe placeholder até definirmos a UI.
 export default function KitsPage() {
   return (
-    <div className="space-y-6">
-      <section className="rounded-xl bg-[#0b1220] border border-white/10 p-6">
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-[#0E1420] border border-white/5 p-6">
         <h1 className="text-2xl font-semibold">Kits</h1>
-        <p className="mt-2 text-sm text-white/70">
-          Conteúdo em desenvolvimento. Esta página já utiliza o mesmo layout do Dashboard
-          (herdado pelo route group <code>(app)</code>).
+        <p className="text-sm text-white/60 mt-2">
+          Conteúdo em desenvolvimento.
         </p>
-      </section>
+      </div>
     </div>
   );
 }
