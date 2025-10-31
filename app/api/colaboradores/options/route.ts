@@ -1,8 +1,7 @@
-export const runtime = 'nodejs'; export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'; export const dynamic = 'force-dynamic'; export const revalidate = 0;
 export async function GET(){
   const { prisma } = await import('@/lib/db')
   try{
-    // tenta normalizado
     let hasReg = false
     try{
       const r:any[] = await prisma.$queryRaw`SELECT COUNT(*)::int c FROM regional`
@@ -15,7 +14,6 @@ export async function GET(){
       ])
       return Response.json({ ok:true, regionais, funcoes })
     }
-    // fallback
     const regionais:any[] = await prisma.$queryRawUnsafe(`
       SELECT md5(regional_responsavel) AS id, regional_responsavel AS nome
       FROM stg_unid_reg

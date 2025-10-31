@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-export const runtime = 'nodejs'; export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'; export const dynamic = 'force-dynamic'; export const revalidate = 0;
 
 export async function GET(req: NextRequest){
   const { prisma } = await import('@/lib/db')
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest){
   const offset = (page-1)*size
 
   try{
-    // Detecta se a base normalizada tem dados
+    // Se existir dado normalizado, usa ele
     let hasNormalized = false
     try{
       const cnt:any[] = await prisma.$queryRaw`SELECT COUNT(*)::int AS c FROM colaborador`
@@ -21,60 +21,44 @@ export async function GET(req: NextRequest){
     }catch{ hasNormalized = false }
 
     if(hasNormalized){
-      // MONTA WHERE com template tag seguro
-      const where: string[] = []
-      const params: any[] = []
-      if(q){ where.push(`(c.nome ILIKE ${'%' + q + '%'} OR c.matricula ILIKE ${'%' + q + '%'})`); }
-      if(status){ where.push(`c.status = ${status}`) }
-      if(unidadeId){ where.push(`c.unidadeId = ${unidadeId}`) }
-      if(regionalId){ where.push(`u.regionalId = ${regionalId}`) }
-      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+      const whereParts:string[] = []
+      const params:any[] = []
+      if(q){ whereParts.push(`(c.nome ILIKE '%'||$${params.length+1}||'%' OR c.matricula ILIKE '%'||$${params.length+1}||'%')`); params.push(q) }
+      if(status){ whereParts.push(`c.status = $${params.length+1}`); params.push(status) }
+      if(unidadeId){ whereParts.push(`c.unidadeId = $${params.length+1}`); params.push(unidadeId) }
+      if(regionalId){ whereParts.push(`u.regionalId = $${params.length+1}`); params.push(regionalId) }
+      const where = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : ''
 
+      const base = `
+        FROM colaborador c
+        JOIN funcao f   ON f.id = c.funcaoId
+        JOIN unidade u  ON u.id = c.unidadeId
+        JOIN regional r ON r.id = u.regionalId
+        ${where}
+      `
       const rows:any[] = await prisma.$queryRawUnsafe(`
         SELECT c.id, c.nome, c.matricula, c.email, c.telefone, c.status,
-               f.id as funcaoId, f.nome as funcao,
-               u.id as unidadeId, u.nome as unidade,
-               r.id as regionalId, r.nome as regional
-        FROM colaborador c
-        JOIN funcao f   ON f.id = c.funcaoId
-        JOIN unidade u  ON u.id = c.unidadeId
-        JOIN regional r ON r.id = u.regionalId
-        ${whereSql}
+               f.id as "funcaoId", f.nome as funcao,
+               u.id as "unidadeId", u.nome as unidade,
+               r.id as "regionalId", r.nome as regional
+        ${base}
         ORDER BY c.nome
         LIMIT ${size} OFFSET ${offset}
-      `)
-      const totalArr:any[] = await prisma.$queryRawUnsafe(`
-        SELECT COUNT(*)::int as c
-        FROM colaborador c
-        JOIN funcao f   ON f.id = c.funcaoId
-        JOIN unidade u  ON u.id = c.unidadeId
-        JOIN regional r ON r.id = u.regionalId
-        ${whereSql}
-      `)
+      `, ...params)
+      const totalArr:any[] = await prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as c ${base}`, ...params)
       const total = Number(totalArr?.[0]?.c || 0)
       return Response.json({ ok:true, page, size, total, rows })
     }
 
-    // FALLBACK — STG TABLES (sem parâmetros posicionais)
-    const whereStg: string[] = []
-    if(q){
-      const like = `%${q.replace(/'/g,"''")}%`
-      whereStg.push(`(a.colaborador ILIKE '${like}' OR a.cpf ILIKE '${like}')`)
-    }
-    if(status){
-      if(status === 'ativo'){
-        whereStg.push(`(a.demissao IS NULL OR a.demissao > NOW()::date)`)
-      }else if(status === 'inativo'){
-        whereStg.push(`(a.demissao IS NOT NULL AND a.demissao <= NOW()::date)`)
-      }
-    }
-    if(unidadeId){
-      whereStg.push(`md5(COALESCE(ur.nmddepartamento, a.unidade_hospitalar)) = '${unidadeId.replace(/'/g,"''")}'`)
-    }
-    if(regionalId){
-      whereStg.push(`md5(COALESCE(ur.regional_responsavel, '')) = '${regionalId.replace(/'/g,"''")}'`)
-    }
-    const whereSqlStg = whereStg.length ? `WHERE ${whereStg.join(' AND ')}` : ''
+    // FALLBACK — STG TABLES
+    const w:string[] = []
+    const esc = (s:string)=> s.replace(/'/g, "''")
+    if(q){ const like = `%${esc(q)}%`; w.push(`(a.colaborador ILIKE '${like}' OR a.cpf ILIKE '${like}')`) }
+    if(status === 'ativo'){ w.push(`(a.demissao IS NULL OR a.demissao > NOW()::date)`) }
+    if(status === 'inativo'){ w.push(`(a.demissao IS NOT NULL AND a.demissao <= NOW()::date)`) }
+    if(unidadeId){ w.push(`md5(COALESCE(a.unidade_hospitalar,'')) = '${esc(unidadeId)}'`) }
+    if(regionalId){ w.push(`md5(COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur WHERE ur.nmddepartamento = a.unidade_hospitalar LIMIT 1),'')) = '${esc(regionalId)}'`) }
+    const whereSql = w.length ? `WHERE ${w.join(' AND ')}` : ''
 
     const rows:any[] = await prisma.$queryRawUnsafe(`
       SELECT 
@@ -88,21 +72,21 @@ export async function GET(req: NextRequest){
         COALESCE(a.funcao,'') as funcao,
         md5(COALESCE(a.unidade_hospitalar,'')) as "unidadeId",
         COALESCE(a.unidade_hospitalar,'') as unidade,
-        md5(COALESCE(ur.regional_responsavel,'')) as "regionalId",
-        COALESCE(ur.regional_responsavel,'') as regional
+        md5(COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur WHERE ur.nmddepartamento = a.unidade_hospitalar LIMIT 1),'')) as "regionalId",
+        COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur WHERE ur.nmddepartamento = a.unidade_hospitalar LIMIT 1),'') as regional
       FROM stg_alterdata a
-      LEFT JOIN stg_unid_reg ur ON ur.nmddepartamento = a.unidade_hospitalar
-      ${whereSqlStg}
+      ${whereSql}
       ORDER BY a.colaborador
       LIMIT ${size} OFFSET ${offset}
     `)
+
     const totalArr:any[] = await prisma.$queryRawUnsafe(`
-      SELECT COUNT(*)::int as c
+      SELECT COUNT(*)::int AS c
       FROM stg_alterdata a
-      LEFT JOIN stg_unid_reg ur ON ur.nmddepartamento = a.unidade_hospitalar
-      ${whereSqlStg}
+      ${whereSql}
     `)
     const total = Number(totalArr?.[0]?.c || 0)
+
     return Response.json({ ok:true, page, size, total, rows })
   }catch(e:any){
     console.error('[colaboradores/list] error', e)

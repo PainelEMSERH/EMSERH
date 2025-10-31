@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-export const runtime = 'nodejs'; export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'; export const dynamic = 'force-dynamic'; export const revalidate = 0;
 export async function GET(req: NextRequest){
   const { prisma } = await import('@/lib/db')
   const url = new URL(req.url)
@@ -19,7 +19,6 @@ export async function GET(req: NextRequest){
         return Response.json({ ok:true, unidades })
       }
     }
-    // fallback stg_*
     let unidades:any[]
     if(regionalId){
       const rid = regionalId.replace(/'/g,"''")
