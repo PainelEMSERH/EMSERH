@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import AppShell from '@/components/AppShell'
 
 function SearchIcon(props: React.SVGProps<SVGSVGElement>){
   return (
@@ -31,9 +32,9 @@ export default function ColaboradoresPage(){
   const [loading, setLoading] = useState(true)
 
   async function loadOptions(){
-    const o = await fetch('/api/colaboradores/options').then(json<{ok:boolean, regionais:Opt[], funcoes:Opt[]}>)
+    const o = await fetch('/api/colaboradores/options', { cache: 'no-store' }).then(json<{ok:boolean, regionais:Opt[], funcoes:Opt[]}>)
     if(o.ok){ setRegionais(o.regionais as any) }
-    const u = await fetch('/api/colaboradores/unidades').then(json<{ok:boolean, unidades:Opt[]}>)
+    const u = await fetch('/api/colaboradores/unidades', { cache: 'no-store' }).then(json<{ok:boolean, unidades:Opt[]}>)
     if(u.ok) setUnidades(u.unidades as any)
   }
   async function load(){
@@ -43,7 +44,7 @@ export default function ColaboradoresPage(){
     if(regionalId) params.set('regionalId', regionalId)
     if(unidadeId) params.set('unidadeId', unidadeId)
     if(status) params.set('status', status)
-    const r = await fetch('/api/colaboradores/list?'+params.toString()).then(json<{ok:boolean, rows:Row[], total:number, page:number, size:number}>)
+    const r = await fetch('/api/colaboradores/list?'+params.toString(), { cache: 'no-store' }).then(json<{ok:boolean, rows:Row[], total:number, page:number, size:number}>)
     if(r.ok){ setRows(r.rows); setTotal(r.total) } else { setRows([]); setTotal(0) }
     setLoading(false)
   }
@@ -52,7 +53,7 @@ export default function ColaboradoresPage(){
 
   async function onChangeRegional(id:string){
     setRegionalId(id); setUnidadeId('')
-    const u = await fetch('/api/colaboradores/unidades?regionalId='+encodeURIComponent(id||''))
+    const u = await fetch('/api/colaboradores/unidades?regionalId='+encodeURIComponent(id||''), { cache: 'no-store' })
       .then(json<{ok:boolean, unidades:Opt[]}>)
     if(u.ok) setUnidades(u.unidades as any)
   }
@@ -79,83 +80,85 @@ export default function ColaboradoresPage(){
   }
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="rounded-2xl bg-slate-900/40 ring-1 ring-slate-800 p-4">
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative">
-            <SearchIcon className="absolute left-2 top-2 opacity-60" />
-            <input value={q} onChange={e=>{ setQ(e.target.value); setPage(1) }}
-              placeholder="Buscar por nome ou matrícula" className="pl-8 pr-3 py-2 rounded-xl bg-slate-800 text-sm outline-none ring-1 ring-slate-700 focus:ring-sky-500" />
+    <AppShell>
+      <div className="space-y-4">
+        <div className="rounded-2xl bg-slate-900/40 ring-1 ring-slate-800 p-4">
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="relative">
+              <SearchIcon className="absolute left-2 top-2 opacity-60" />
+              <input value={q} onChange={e=>{ setQ(e.target.value); setPage(1) }}
+                placeholder="Buscar por nome ou matrícula" className="pl-8 pr-3 py-2 rounded-xl bg-slate-800 text-sm outline-none ring-1 ring-slate-700 focus:ring-sky-500" />
+            </div>
+            <select value={regionalId} onChange={e=>onChangeRegional(e.target.value)} className="px-3 py-2 rounded-xl bg-slate-800 text-sm ring-1 ring-slate-700">
+              <option value="">Todas as regionais</option>
+              {regionais.map(r=><option key={r.id} value={r.id}>{r.nome}</option>)}
+            </select>
+            <select value={unidadeId} onChange={e=>{ setUnidadeId(e.target.value); setPage(1) }} className="px-3 py-2 rounded-xl bg-slate-800 text-sm ring-1 ring-slate-700 max-w-[320px]">
+              <option value="">Todas as unidades</option>
+              {unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
+            <select value={status} onChange={e=>{ setStatus(e.target.value); setPage(1) }} className="px-3 py-2 rounded-xl bg-slate-800 text-sm ring-1 ring-slate-700">
+              <option value="">Todos status</option>
+              <option value="ativo">Ativo</option>
+              <option value="inativo">Inativo</option>
+            </select>
           </div>
-          <select value={regionalId} onChange={e=>onChangeRegional(e.target.value)} className="px-3 py-2 rounded-xl bg-slate-800 text-sm ring-1 ring-slate-700">
-            <option value="">Todas as regionais</option>
-            {regionais.map(r=><option key={r.id} value={r.id}>{r.nome}</option>)}
-          </select>
-          <select value={unidadeId} onChange={e=>{ setUnidadeId(e.target.value); setPage(1) }} className="px-3 py-2 rounded-xl bg-slate-800 text-sm ring-1 ring-slate-700 max-w-[320px]">
-            <option value="">Todas as unidades</option>
-            {unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}
-          </select>
-          <select value={status} onChange={e=>{ setStatus(e.target.value); setPage(1) }} className="px-3 py-2 rounded-xl bg-slate-800 text-sm ring-1 ring-slate-700">
-            <option value="">Todos status</option>
-            <option value="ativo">Ativo</option>
-            <option value="inativo">Inativo</option>
-          </select>
         </div>
-      </div>
 
-      <div className="rounded-2xl bg-slate-900/40 ring-1 ring-slate-800">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-800/60">
-              <tr className="text-left">
-                <th className="px-4 py-3">Nome</th>
-                <th className="px-4 py-3">Matrícula</th>
-                <th className="px-4 py-3">Função</th>
-                <th className="px-4 py-3">Regional</th>
-                <th className="px-4 py-3">Unidade</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={7} className="px-4 py-16 text-center text-slate-400">Carregando…</td></tr>
-              ) : rows.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-16 text-center text-slate-400">Nenhum colaborador encontrado.</td></tr>
-              ) : rows.map(r => (
-                <tr key={r.id} className="border-t border-slate-800">
-                  <td className="px-4 py-3 font-medium">{r.nome}</td>
-                  <td className="px-4 py-3">{r.matricula}</td>
-                  <td className="px-4 py-3">{r.funcao}</td>
-                  <td className="px-4 py-3">{r.regional}</td>
-                  <td className="px-4 py-3">{r.unidade}</td>
-                  <td className="px-4 py-3">
-                    <span className={"px-2 py-1 rounded-full text-xs " + (r.status==='ativo'?'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-600/40':'bg-rose-500/15 text-rose-300 ring-1 ring-rose-600/40')}>
-                      {r.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex gap-2 justify-end">
-                      <button onClick={()=>move(r.id)} className="px-2 py-1 rounded-lg ring-1 ring-slate-700 hover:ring-sky-500">Mover</button>
-                      <button onClick={()=>situacao(r.id)} className="px-2 py-1 rounded-lg ring-1 ring-slate-700 hover:ring-sky-500">Situação</button>
-                      <button onClick={()=>toggle(r.id, r.status)} className="px-2 py-1 rounded-lg ring-1 ring-slate-700 hover:ring-sky-500">{r.status==='ativo'?'Desligar':'Reativar'}</button>
-                    </div>
-                  </td>
+        <div className="rounded-2xl bg-slate-900/40 ring-1 ring-slate-800">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-800/60">
+                <tr className="text-left">
+                  <th className="px-4 py-3">Nome</th>
+                  <th className="px-4 py-3">Matrícula</th>
+                  <th className="px-4 py-3">Função</th>
+                  <th className="px-4 py-3">Regional</th>
+                  <th className="px-4 py-3">Unidade</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Ações</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={7} className="px-4 py-16 text-center text-slate-400">Carregando…</td></tr>
+                ) : rows.length === 0 ? (
+                  <tr><td colSpan={7} className="px-4 py-16 text-center text-slate-400">Nenhum colaborador encontrado.</td></tr>
+                ) : rows.map(r => (
+                  <tr key={r.id} className="border-t border-slate-800">
+                    <td className="px-4 py-3 font-medium">{r.nome}</td>
+                    <td className="px-4 py-3">{r.matricula}</td>
+                    <td className="px-4 py-3">{r.funcao}</td>
+                    <td className="px-4 py-3">{r.regional || '-'}</td>
+                    <td className="px-4 py-3">{r.unidade}</td>
+                    <td className="px-4 py-3">
+                      <span className={"px-2 py-1 rounded-full text-xs " + (r.status==='ativo'?'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-600/40':'bg-rose-500/15 text-rose-300 ring-1 ring-rose-600/40')}>
+                        {r.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={()=>move(r.id)} className="px-2 py-1 rounded-lg ring-1 ring-slate-700 hover:ring-sky-500">Mover</button>
+                        <button onClick={()=>situacao(r.id)} className="px-2 py-1 rounded-lg ring-1 ring-slate-700 hover:ring-sky-500">Situação</button>
+                        <button onClick={()=>toggle(r.id, r.status)} className="px-2 py-1 rounded-lg ring-1 ring-slate-700 hover:ring-sky-500">{r.status==='ativo'?'Desligar':'Reativar'}</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-        <div className="flex items-center justify-between p-4 border-t border-slate-800">
-          <div className="text-xs opacity-70">Total: {total}</div>
-          <div className="flex items-center gap-2">
-            <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="px-3 py-1 rounded-lg ring-1 ring-slate-700 disabled:opacity-40">Anterior</button>
-            <div className="text-xs">pág. {page}</div>
-            <button disabled={(page*size)>=total} onClick={()=>setPage(p=>p+1)} className="px-3 py-1 rounded-lg ring-1 ring-slate-700 disabled:opacity-40">Próxima</button>
+          <div className="flex items-center justify-between p-4 border-t border-slate-800">
+            <div className="text-xs opacity-70">Total: {total}</div>
+            <div className="flex items-center gap-2">
+              <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="px-3 py-1 rounded-lg ring-1 ring-slate-700 disabled:opacity-40">Anterior</button>
+              <div className="text-xs">pág. {page}</div>
+              <button disabled={(page*size)>=total} onClick={()=>setPage(p=>p+1)} className="px-3 py-1 rounded-lg ring-1 ring-slate-700 disabled:opacity-40">Próxima</button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </AppShell>
   )
 }
