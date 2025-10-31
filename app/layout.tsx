@@ -3,7 +3,6 @@
 import { ClerkProvider } from '@clerk/nextjs';
 import './globals.css';
 import React from 'react';
-import ThemeProvider from '@/components/utils/ThemeContext';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,12 +17,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ClerkProvider
           publishableKey={pk}
-          afterSignInUrl="/"
-          afterSignUpUrl="/"
           signInUrl="/sign-in"
           signUpUrl="/sign-up"
         >
-          <ThemeProvider>{children}</ThemeProvider>
+          {children}
         </ClerkProvider>
       </body>
     </html>

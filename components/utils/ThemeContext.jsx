@@ -1,4 +1,3 @@
-'use client'
 import { createContext, useContext, useState, useEffect } from 'react';
 
 const ThemeContext = createContext({
@@ -7,7 +6,7 @@ const ThemeContext = createContext({
 });
 
 export default function ThemeProvider({children}) {  
-  const persistedTheme = (typeof window !== 'undefined' && window.localStorage) ? window.localStorage.getItem('theme') : null;
+  const persistedTheme = localStorage.getItem('theme');
   const [theme, setTheme] = useState(persistedTheme || 'light');
 
   const changeCurrentTheme = (newTheme) => {

@@ -77,7 +77,7 @@ export const formatValue = (value) => {
 
 export const formatThousands = (value) => {
   const n = Number(value);
-  if (!Number.isFinite(n)) return '0';
+  if (!isFinite(n)) return '0';
   try {
     if (typeof Intl !== 'undefined' && Intl.NumberFormat) {
       return new Intl.NumberFormat('pt-BR').format(n);
