@@ -1,37 +1,41 @@
-// Ensures Tailwind v3 directives exist in app/globals.css exactly once.
+// scripts/ensure-tailwind-directives.cjs
+// Make app/globals.css compatible with Tailwind v3:
+// 1) Remove Tailwind v4 CSS imports like: @import "tailwindcss"; @import "tailwindcss/base";
+// 2) Remove optional @config lines (v4-only) to avoid noise.
+// 3) Ensure file starts with @tailwind base/components/utilities.
 const fs = require('fs');
 const path = require('path');
 
-const globals = path.join(process.cwd(), 'app', 'globals.css');
-if (!fs.existsSync(globals)) {
-  console.log('[ensure-tailwind-directives] globals.css not found, skipping');
+const filePath = path.join(process.cwd(), 'app', 'globals.css');
+if (!fs.existsSync(filePath)) {
+  console.error('[ensure-tailwind-directives] app/globals.css not found');
   process.exit(0);
 }
 
-let css = fs.readFileSync(globals, 'utf8');
+let content = fs.readFileSync(filePath, 'utf8');
 
-// Remove any @import of Tailwind v4 style.
-css = css.replace(/@import\s+["']tailwindcss["'];?\s*/g, '');
-css = css.replace(/@config\s+["'][^"']+["'];?\s*/g, '');
+// Strip BOM
+content = content.replace(/^\uFEFF/, '');
 
-// Ensure @tailwind base/components/utilities at very top in v3 order
-const directives = ['@tailwind base;', '@tailwind components;', '@tailwind utilities;'];
-for (const d of directives) {
-  if (!css.includes(d)) {
-    css = `${d}\n` + css;
-  }
+// Remove Tailwind v4 imports (any variant)
+content = content.replace(/^\s*@import\s+["']tailwindcss(?:\/[a-z-]+)?["'];?\s*$/gmi, '');
+
+// Remove optional @config lines (v4-only)
+content = content.replace(/^\s*@config\s+["'][^"']+["'];?\s*$/gmi, '');
+
+// Check if v3 directives exist
+const hasBase = /@tailwind\s+base;/.test(content);
+const hasComp = /@tailwind\s+components;/.test(content);
+const hasUtil = /@tailwind\s+utilities;/.test(content);
+
+// Prepend if missing
+if (!(hasBase && hasComp && hasUtil)) {
+  const prefix = '@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n';
+  content = prefix + content;
+  console.log('[ensure-tailwind-directives] prepended v3 directives');
+} else {
+  console.log('[ensure-tailwind-directives] v3 directives already present');
 }
 
-// Remove duplicate @tailwind lines (keep first occurrence)
-const seen = new Set();
-css = css.split('\n').filter(line => {
-  if (line.trim().startsWith('@tailwind')) {
-    if (seen.has(line.trim())) return false;
-    seen.add(line.trim());
-    return true;
-  }
-  return true;
-}).join('\n');
-
-fs.writeFileSync(globals, css, 'utf8');
-console.log('[ensure-tailwind-directives] normalized app/globals.css');
+fs.writeFileSync(filePath, content, 'utf8');
+console.log('[ensure-tailwind-directives] globals.css normalized for Tailwind v3');
