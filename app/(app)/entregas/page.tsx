@@ -1,12 +1,17 @@
-export const dynamic = 'force-dynamic';
+import AppShell from '@/components/AppShell'
+
+export const metadata = {
+  title: 'Entregas • EMSERH • EPI',
+  description: 'Registro e confirmação de entregas de EPI por colaborador (com filtros de Regional/Unidade).',
+}
 
 export default function EntregasPage() {
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-white/10 bg-white/5 p-6">
-        <h1 className="text-xl font-semibold">Entregas</h1>
-        <p className="text-sm text-gray-400 mt-1">Conteúdo em desenvolvimento.</p>
+    <AppShell>
+      <div className="bg-[#111827] rounded-lg border border-gray-800 p-6">
+        <h1 className="text-2xl font-semibold mb-2">Entregas</h1>
+        <p className="text-gray-400">Conteúdo em desenvolvimento.</p>
       </div>
-    </div>
-  );
+    </AppShell>
+  )
 }
