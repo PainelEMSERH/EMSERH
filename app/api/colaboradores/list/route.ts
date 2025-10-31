@@ -13,7 +13,7 @@ export async function GET(req: NextRequest){
   const offset = (page-1)*size
 
   try{
-    // Se existir dado normalizado, usa ele
+    // 1) Usa base normalizada se existir
     let hasNormalized = false
     try{
       const cnt:any[] = await prisma.$queryRaw`SELECT COUNT(*)::int AS c FROM colaborador`
@@ -28,7 +28,6 @@ export async function GET(req: NextRequest){
       if(unidadeId){ whereParts.push(`c.unidadeId = $${params.length+1}`); params.push(unidadeId) }
       if(regionalId){ whereParts.push(`u.regionalId = $${params.length+1}`); params.push(regionalId) }
       const where = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : ''
-
       const base = `
         FROM colaborador c
         JOIN funcao f   ON f.id = c.funcaoId
@@ -50,17 +49,23 @@ export async function GET(req: NextRequest){
       return Response.json({ ok:true, page, size, total, rows })
     }
 
-    // FALLBACK — STG TABLES
-    const w:string[] = []
+    // 2) Fallback — STG TABLES (primeira tentativa com subselect de regional)
     const esc = (s:string)=> s.replace(/'/g, "''")
+    const w:string[] = []
     if(q){ const like = `%${esc(q)}%`; w.push(`(a.colaborador ILIKE '${like}' OR a.cpf ILIKE '${like}')`) }
     if(status === 'ativo'){ w.push(`(a.demissao IS NULL OR a.demissao > NOW()::date)`) }
     if(status === 'inativo'){ w.push(`(a.demissao IS NOT NULL AND a.demissao <= NOW()::date)`) }
     if(unidadeId){ w.push(`md5(COALESCE(a.unidade_hospitalar,'')) = '${esc(unidadeId)}'`) }
-    if(regionalId){ w.push(`md5(COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur WHERE ur.nmddepartamento = a.unidade_hospitalar LIMIT 1),'')) = '${esc(regionalId)}'`) }
+    // regionalId: tenta mapear via stg_unid_reg (se coluna disponível)
+    if(regionalId){
+      w.push(`md5(COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
+                             WHERE /* tentar ambas as possibilidades de nome */ 
+                                   COALESCE(ur.nmddepartamento, ur.nmd_departamento) = a.unidade_hospitalar 
+                             LIMIT 1),'')) = '${esc(regionalId)}'`)
+    }
     const whereSql = w.length ? `WHERE ${w.join(' AND ')}` : ''
 
-    const rows:any[] = await prisma.$queryRawUnsafe(`
+    const withRegional = `
       SELECT 
         a.cpf as id,
         a.colaborador as nome,
@@ -72,22 +77,50 @@ export async function GET(req: NextRequest){
         COALESCE(a.funcao,'') as funcao,
         md5(COALESCE(a.unidade_hospitalar,'')) as "unidadeId",
         COALESCE(a.unidade_hospitalar,'') as unidade,
-        md5(COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur WHERE ur.nmddepartamento = a.unidade_hospitalar LIMIT 1),'')) as "regionalId",
-        COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur WHERE ur.nmddepartamento = a.unidade_hospitalar LIMIT 1),'') as regional
+        md5(COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
+                      WHERE COALESCE(ur.nmddepartamento, ur.nmd_departamento) = a.unidade_hospitalar 
+                      LIMIT 1),'')) as "regionalId",
+        COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
+                  WHERE COALESCE(ur.nmddepartamento, ur.nmd_departamento) = a.unidade_hospitalar 
+                  LIMIT 1),'') as regional
       FROM stg_alterdata a
       ${whereSql}
       ORDER BY a.colaborador
       LIMIT ${size} OFFSET ${offset}
-    `)
+    `
 
-    const totalArr:any[] = await prisma.$queryRawUnsafe(`
-      SELECT COUNT(*)::int AS c
-      FROM stg_alterdata a
-      ${whereSql}
-    `)
-    const total = Number(totalArr?.[0]?.c || 0)
-
-    return Response.json({ ok:true, page, size, total, rows })
+    try{
+      const rows:any[] = await prisma.$queryRawUnsafe(withRegional)
+      const totalArr:any[] = await prisma.$queryRawUnsafe(`SELECT COUNT(*)::int AS c FROM stg_alterdata a ${whereSql}`)
+      const total = Number(totalArr?.[0]?.c || 0)
+      return Response.json({ ok:true, page, size, total, rows })
+    }catch(e){
+      // 3) Fallback final — sem regional (garante que lista funcione)
+      const w2 = w.filter(x => !x.includes('regional_responsavel'))
+      const whereSql2 = w2.length ? `WHERE ${w2.join(' AND ')}` : ''
+      const rows:any[] = await prisma.$queryRawUnsafe(`
+        SELECT 
+          a.cpf as id,
+          a.colaborador as nome,
+          a.cpf as matricula,
+          NULL::text as email,
+          NULL::text as telefone,
+          CASE WHEN a.demissao IS NULL OR a.demissao > NOW()::date THEN 'ativo' ELSE 'inativo' END as status,
+          md5(COALESCE(a.funcao,'')) as "funcaoId",
+          COALESCE(a.funcao,'') as funcao,
+          md5(COALESCE(a.unidade_hospitalar,'')) as "unidadeId",
+          COALESCE(a.unidade_hospitalar,'') as unidade,
+          NULL::text as "regionalId",
+          NULL::text as regional
+        FROM stg_alterdata a
+        ${whereSql2}
+        ORDER BY a.colaborador
+        LIMIT ${size} OFFSET ${offset}
+      `)
+      const totalArr:any[] = await prisma.$queryRawUnsafe(`SELECT COUNT(*)::int AS c FROM stg_alterdata a ${whereSql2}`)
+      const total = Number(totalArr?.[0]?.c || 0)
+      return Response.json({ ok:true, page, size, total, rows })
+    }
   }catch(e:any){
     console.error('[colaboradores/list] error', e)
     return Response.json({ ok:false, error:String(e?.message||e) }, { status:200 })
