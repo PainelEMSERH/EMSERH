@@ -99,17 +99,18 @@ model KitItem {
 }
 
 model Item {
-  id            String   @id @default(cuid())
+  id            String      @id @default(cuid())
   nome          String
   categoria     String
   ca            String?
   descricao     String?
   unidadeMedida String
   validadeDias  Int?
-  ativo         Boolean  @default(true)
+  ativo         Boolean     @default(true)
   estoque       Estoque[]
   entregaItens  EntregaItem[]
   pendencias    Pendencia[]
+  kitItems      KitItem[]   // <-- opposite relation for KitItem.item
 
   @@index([categoria])
   @@unique([nome, categoria])
