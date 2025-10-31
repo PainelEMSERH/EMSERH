@@ -7,7 +7,7 @@ export default clerkMiddleware(async (auth, req) => {
 
   const { userId, redirectToSignIn } = await auth();
   if (!userId) {
-    return redirectToSignIn({ returnBackUrl: req.url});
+    return redirectToSignIn({ returnBackUrl: req.url });
   }
 });
 
