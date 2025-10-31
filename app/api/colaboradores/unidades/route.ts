@@ -5,27 +5,31 @@ export async function GET(req: NextRequest){
   const url = new URL(req.url)
   const regionalId = url.searchParams.get('regionalId')||''
   try{
-    // tenta normalizado
+    let hasUnid = false
     try{
-      const [uCnt]:any = await prisma.$queryRawUnsafe(`SELECT COUNT(*)::int c FROM unidade`)
-      if(Number(uCnt?.c||0) > 0){
-        const unidades = regionalId 
-          ? await prisma.$queryRawUnsafe(`SELECT id, nome FROM unidade WHERE regionalId = $1 ORDER BY nome`, regionalId)
-          : await prisma.$queryRawUnsafe(`SELECT id, nome FROM unidade ORDER BY nome`)
+      const u:any[] = await prisma.$queryRaw`SELECT COUNT(*)::int c FROM unidade`
+      hasUnid = Number(u?.[0]?.c||0) > 0
+    }catch{ hasUnid = false }
+    if(hasUnid){
+      if(regionalId){
+        const unidades:any[] = await prisma.$queryRaw`SELECT id, nome FROM unidade WHERE regionalId = ${regionalId} ORDER BY nome`
+        return Response.json({ ok:true, unidades })
+      }else{
+        const unidades:any[] = await prisma.$queryRaw`SELECT id, nome FROM unidade ORDER BY nome`
         return Response.json({ ok:true, unidades })
       }
-    }catch{ /* fallback */ }
-
+    }
     // fallback stg_*
     let unidades:any[]
     if(regionalId){
+      const rid = regionalId.replace(/'/g,"''")
       unidades = await prisma.$queryRawUnsafe(`
         SELECT md5(nmddepartamento) AS id, nmddepartamento AS nome
         FROM stg_unid_reg
-        WHERE md5(COALESCE(regional_responsavel,'')) = $1
+        WHERE md5(COALESCE(regional_responsavel,'')) = '${rid}'
         GROUP BY nmddepartamento
         ORDER BY nmddepartamento
-      `, regionalId)
+      `)
     }else{
       unidades = await prisma.$queryRawUnsafe(`
         SELECT md5(nmddepartamento) AS id, nmddepartamento AS nome

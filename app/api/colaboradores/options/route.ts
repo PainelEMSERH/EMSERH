@@ -3,18 +3,19 @@ export async function GET(){
   const { prisma } = await import('@/lib/db')
   try{
     // tenta normalizado
+    let hasReg = false
     try{
-      const [rCnt]:any = await prisma.$queryRawUnsafe(`SELECT COUNT(*)::int c FROM regional`)
-      if(Number(rCnt?.c||0) > 0){
-        const [regionais, funcoes] = await Promise.all([
-          prisma.$queryRawUnsafe(`SELECT id, nome FROM regional ORDER BY nome`),
-          prisma.$queryRawUnsafe(`SELECT id, nome FROM funcao ORDER BY nome`),
-        ])
-        return Response.json({ ok:true, regionais, funcoes })
-      }
-    }catch{ /* fallback */ }
-
-    // fallback stg_*
+      const r:any[] = await prisma.$queryRaw`SELECT COUNT(*)::int c FROM regional`
+      hasReg = Number(r?.[0]?.c||0) > 0
+    }catch{ hasReg = false }
+    if(hasReg){
+      const [regionais, funcoes] = await Promise.all([
+        prisma.$queryRaw`SELECT id, nome FROM regional ORDER BY nome`,
+        prisma.$queryRaw`SELECT id, nome FROM funcao ORDER BY nome`,
+      ])
+      return Response.json({ ok:true, regionais, funcoes })
+    }
+    // fallback
     const regionais:any[] = await prisma.$queryRawUnsafe(`
       SELECT md5(regional_responsavel) AS id, regional_responsavel AS nome
       FROM stg_unid_reg
