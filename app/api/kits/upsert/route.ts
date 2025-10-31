@@ -1,13 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { id, nome, descricao, itens } = body || {};
-    if (!nome || typeof nome !== 'string') return NextResponse.json({ ok:false, error:'Nome inválido' }, { status: 400 });
 
-    let kitId = id as string | undefined;
+    if (!nome || typeof nome !== 'string') {
+      return NextResponse.json({ ok:false, error:'Nome inválido' }, { status: 400 });
+    }
+
+    let kitId: string | undefined = id;
 
     if (kitId) {
       await prisma.kit.update({
@@ -15,7 +18,7 @@ export async function POST(req: NextRequest) {
         data: { nome, descricao },
       } as any);
       // reset composição
-      await prisma.kit_item.deleteMany({ where: { kitId } } as any);
+      await prisma.kitItem.deleteMany({ where: { kitId } } as any);
     } else {
       const created = await prisma.kit.create({ data: { nome, descricao } } as any);
       kitId = created.id;
@@ -30,13 +33,12 @@ export async function POST(req: NextRequest) {
           quantidade: Number(it.quantidade || 0),
         }));
       if (toCreate.length) {
-        await prisma.kit_item.createMany({ data: toCreate } as any);
+        await prisma.kitItem.createMany({ data: toCreate } as any);
       }
     }
 
     return NextResponse.json({ ok: true, id: kitId });
-  } catch (e:any) {
-    console.error(e);
-    return NextResponse.json({ ok:false, error: e.message || 'Erro' }, { status: 500 });
+  } catch (e: any) {
+    return NextResponse.json({ ok:false, error: e?.message ?? 'Erro' }, { status: 500 });
   }
 }
