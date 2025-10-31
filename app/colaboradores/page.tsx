@@ -1,161 +1,163 @@
-'use client'
-import { useEffect, useState } from 'react'
+'use client';
 
-function SearchIcon(props: React.SVGProps<SVGSVGElement>){
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
-      <path d="M21 21l-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
+import React, { useEffect, useMemo, useState } from 'react'
+import AppShell from '@/components/AppShell'
 
 type Row = {
-  id: string, nome: string, matricula: string, email?: string|null, telefone?: string|null, status: string,
-  funcaoId: string, funcao: string, unidadeId: string, unidade: string, regionalId: string, regional: string
+  matricula: string
+  nome: string
+  funcao: string
+  regional: string
+  unidade: string
+  status: 'ativo' | 'inativo'
 }
-type Opt = { id: string, nome: string }
 
-async function json<T>(res: Response){ if(!res.ok) throw new Error('http'); return res.json() as Promise<T> }
-
-export default function ColaboradoresPage(){
-  const [rows, setRows] = useState<Row[]>([])
-  const [total, setTotal] = useState(0)
+export default function ColaboradoresPage() {
+  const [q, setQ] = useState('')
+  const [regional, setRegional] = useState('')
+  const [unidade, setUnidade] = useState('')
+  const [status, setStatus] = useState<'ativo' | 'inativo' | ''>('')
   const [page, setPage] = useState(1)
   const [size, setSize] = useState(20)
-  const [q, setQ] = useState('')
-  const [regionais, setRegionais] = useState<Opt[]>([])
-  const [unidades, setUnidades] = useState<Opt[]>([])
-  const [regionalId, setRegionalId] = useState('')
-  const [unidadeId, setUnidadeId] = useState('')
-  const [status, setStatus] = useState('')
+  const [total, setTotal] = useState(0)
+  const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
 
-  async function loadOptions(){
-    const o = await fetch('/api/colaboradores/options').then(json<{ok:boolean, regionais:Opt[], funcoes:Opt[]}>)
-    if(o.ok){ setRegionais(o.regionais as any) }
-    const u = await fetch('/api/colaboradores/unidades').then(json<{ok:boolean, unidades:Opt[]}>)
-    if(u.ok) setUnidades(u.unidades as any)
-  }
-  async function load(){
+  async function load(p = page) {
     setLoading(true)
-    const params = new URLSearchParams({ page:String(page), size:String(size) })
-    if(q) params.set('q', q)
-    if(regionalId) params.set('regionalId', regionalId)
-    if(unidadeId) params.set('unidadeId', unidadeId)
-    if(status) params.set('status', status)
-    const r = await fetch('/api/colaboradores/list?'+params.toString()).then(json<{ok:boolean, rows:Row[], total:number, page:number, size:number}>)
-    if(r.ok){ setRows(r.rows); setTotal(r.total) } else { setRows([]); setTotal(0) }
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (regional) params.set('regional', regional)
+    if (unidade) params.set('unidade', unidade)
+    if (status) params.set('status', status)
+    params.set('page', String(p))
+    params.set('size', String(size))
+    const res = await fetch(`/api/colaboradores/list?${params.toString()}`, { cache: 'no-store' })
+    const json = await res.json()
+    if (json?.ok) {
+      setRows(json.rows || [])
+      setTotal(json.total || 0)
+      setPage(json.page || 1)
+    } else {
+      setRows([])
+      setTotal(0)
+    }
     setLoading(false)
   }
-  useEffect(()=>{ loadOptions() },[])
-  useEffect(()=>{ load() },[page, size, q, regionalId, unidadeId, status])
 
-  async function onChangeRegional(id:string){
-    setRegionalId(id); setUnidadeId('')
-    const u = await fetch('/api/colaboradores/unidades?regionalId='+encodeURIComponent(id||''))
-      .then(json<{ok:boolean, unidades:Opt[]}>)
-    if(u.ok) setUnidades(u.unidades as any)
-  }
+  useEffect(() => { load(1) }, [q, regional, unidade, status, size])
 
-  async function move(id:string){
-    const nova = prompt('Mover para unidade (cole o ID da unidade):\n'+unidades.map(u=>`${u.nome} — ${u.id}`).join('\n'))
-    if(!nova) return
-    const res = await fetch('/api/colaboradores/move', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ colaboradorId: id, novaUnidadeId: nova }) }).then(r=>r.json())
-    if(res.ok){ alert('Movido com sucesso'); load() } else { alert('Falha ao mover') }
-  }
-  async function situacao(id:string){
-    const tipo = prompt('Tipo (afastamento, ferias, licenca_maternidade, licenca_medica, outro):')
-    if(!tipo) return
-    const inicio = prompt('Início (YYYY-MM-DD):', new Date().toISOString().substring(0,10))
-    if(!inicio) return
-    const fim = prompt('Fim (YYYY-MM-DD) — opcional:') || null
-    const res = await fetch('/api/colaboradores/situacao', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ colaboradorId: id, tipo, inicio, fim }) }).then(r=>r.json())
-    if(res.ok){ alert('Situação registrada'); } else { alert('Falha ao registrar situação') }
-  }
-  async function toggle(id:string, cur:string){
-    const novo = cur === 'ativo' ? 'inativo' : 'ativo'
-    const res = await fetch('/api/colaboradores/status', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ colaboradorId: id, status: novo }) }).then(r=>r.json())
-    if(res.ok){ load() } else { alert('Falha ao atualizar status') }
-  }
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / size)), [total, size])
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="rounded-2xl bg-slate-900/40 ring-1 ring-slate-800 p-4">
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative">
-            <SearchIcon className="absolute left-2 top-2 opacity-60" />
-            <input value={q} onChange={e=>{ setQ(e.target.value); setPage(1) }}
-              placeholder="Buscar por nome ou matrícula" className="pl-8 pr-3 py-2 rounded-xl bg-slate-800 text-sm outline-none ring-1 ring-slate-700 focus:ring-sky-500" />
-          </div>
-          <select value={regionalId} onChange={e=>onChangeRegional(e.target.value)} className="px-3 py-2 rounded-xl bg-slate-800 text-sm ring-1 ring-slate-700">
+    <AppShell active="colaboradores">
+      <div className="p-4 sm:p-6 lg:p-8">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+          <input
+            className="w-full sm:w-1/3 rounded-md bg-gray-900/40 border border-gray-700 px-3 py-2 outline-none focus:border-blue-500"
+            placeholder="Buscar por nome, CPF, função..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <select className="rounded-md bg-gray-900/40 border border-gray-700 px-3 py-2" value={regional} onChange={e=>setRegional(e.target.value)}>
             <option value="">Todas as regionais</option>
-            {regionais.map(r=><option key={r.id} value={r.id}>{r.nome}</option>)}
+            <option value="NORTE">Norte</option>
+            <option value="SUL">Sul</option>
+            <option value="LESTE">Leste</option>
+            <option value="CENTRO">Centro</option>
           </select>
-          <select value={unidadeId} onChange={e=>{ setUnidadeId(e.target.value); setPage(1) }} className="px-3 py-2 rounded-xl bg-slate-800 text-sm ring-1 ring-slate-700 max-w-[320px]">
-            <option value="">Todas as unidades</option>
-            {unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}
-          </select>
-          <select value={status} onChange={e=>{ setStatus(e.target.value); setPage(1) }} className="px-3 py-2 rounded-xl bg-slate-800 text-sm ring-1 ring-slate-700">
+          <input className="rounded-md bg-gray-900/40 border border-gray-700 px-3 py-2" placeholder="Filtrar por unidade" value={unidade} onChange={e=>setUnidade(e.target.value)} />
+          <select className="rounded-md bg-gray-900/40 border border-gray-700 px-3 py-2" value={status} onChange={e=>setStatus(e.target.value as any)}>
             <option value="">Todos status</option>
             <option value="ativo">Ativo</option>
             <option value="inativo">Inativo</option>
           </select>
         </div>
-      </div>
 
-      <div className="rounded-2xl bg-slate-900/40 ring-1 ring-slate-800">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-800/60">
-              <tr className="text-left">
-                <th className="px-4 py-3">Nome</th>
-                <th className="px-4 py-3">Matrícula</th>
-                <th className="px-4 py-3">Função</th>
-                <th className="px-4 py-3">Regional</th>
-                <th className="px-4 py-3">Unidade</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Ações</th>
+        <div className="overflow-hidden rounded-xl border border-gray-800">
+          <table className="min-w-full divide-y divide-gray-800 text-sm">
+            <thead className="bg-gray-900/30">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold">Nome</th>
+                <th className="px-4 py-3 text-left font-semibold">Matrícula</th>
+                <th className="px-4 py-3 text-left font-semibold">Função</th>
+                <th className="px-4 py-3 text-left font-semibold">Regional</th>
+                <th className="px-4 py-3 text-left font-semibold">Unidade</th>
+                <th className="px-4 py-3 text-left font-semibold">Status</th>
+                <th className="px-4 py-3 text-left font-semibold">Ações</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-800">
               {loading ? (
-                <tr><td colSpan={7} className="px-4 py-16 text-center text-slate-400">Carregando…</td></tr>
+                Array.from({ length: 8 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="px-4 py-3"><div className="h-3 w-40 bg-gray-800 rounded" /></td>
+                    <td className="px-4 py-3"><div className="h-3 w-28 bg-gray-800 rounded" /></td>
+                    <td className="px-4 py-3"><div className="h-3 w-48 bg-gray-800 rounded" /></td>
+                    <td className="px-4 py-3"><div className="h-3 w-20 bg-gray-800 rounded" /></td>
+                    <td className="px-4 py-3"><div className="h-3 w-40 bg-gray-800 rounded" /></td>
+                    <td className="px-4 py-3"><div className="h-6 w-14 bg-gray-800 rounded-full" /></td>
+                    <td className="px-4 py-3"><div className="h-8 w-40 bg-gray-800 rounded" /></td>
+                  </tr>
+                ))
               ) : rows.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-16 text-center text-slate-400">Nenhum colaborador encontrado.</td></tr>
-              ) : rows.map(r => (
-                <tr key={r.id} className="border-t border-slate-800">
-                  <td className="px-4 py-3 font-medium">{r.nome}</td>
-                  <td className="px-4 py-3">{r.matricula}</td>
-                  <td className="px-4 py-3">{r.funcao}</td>
-                  <td className="px-4 py-3">{r.regional}</td>
-                  <td className="px-4 py-3">{r.unidade}</td>
-                  <td className="px-4 py-3">
-                    <span className={"px-2 py-1 rounded-full text-xs " + (r.status==='ativo'?'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-600/40':'bg-rose-500/15 text-rose-300 ring-1 ring-rose-600/40')}>
-                      {r.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex gap-2 justify-end">
-                      <button onClick={()=>move(r.id)} className="px-2 py-1 rounded-lg ring-1 ring-slate-700 hover:ring-sky-500">Mover</button>
-                      <button onClick={()=>situacao(r.id)} className="px-2 py-1 rounded-lg ring-1 ring-slate-700 hover:ring-sky-500">Situação</button>
-                      <button onClick={()=>toggle(r.id, r.status)} className="px-2 py-1 rounded-lg ring-1 ring-slate-700 hover:ring-sky-500">{r.status==='ativo'?'Desligar':'Reativar'}</button>
-                    </div>
-                  </td>
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-gray-400">Nenhum colaborador encontrado.</td>
                 </tr>
-              ))}
+              ) : (
+                rows.map((r, idx) => (
+                  <tr key={`${r.matricula}-${idx}`} className="hover:bg-gray-900/30">
+                    <td className="px-4 py-3">{r.nome}</td>
+                    <td className="px-4 py-3">{r.matricula}</td>
+                    <td className="px-4 py-3">{r.funcao}</td>
+                    <td className="px-4 py-3">{r.regional}</td>
+                    <td className="px-4 py-3">{r.unidade}</td>
+                    <td className="px-4 py-3">
+                      <span className={r.status === 'ativo'
+                        ? 'inline-flex items-center rounded-full bg-emerald-500/10 text-emerald-400 px-2 py-0.5 text-xs font-medium'
+                        : 'inline-flex items-center rounded-full bg-rose-500/10 text-rose-400 px-2 py-0.5 text-xs font-medium'}>
+                        {r.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button className="rounded-md bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 px-3 py-1 text-xs">Mover</button>
+                        <button className="rounded-md bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 px-3 py-1 text-xs">Situação</button>
+                        {r.status === 'inativo' ? (
+                          <button className="rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 px-3 py-1 text-xs">Reativar</button>
+                        ) : (
+                          <button className="rounded-md bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 px-3 py-1 text-xs">Desligar</button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
-        <div className="flex items-center justify-between p-4 border-t border-slate-800">
-          <div className="text-xs opacity-70">Total: {total}</div>
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-gray-400">Total: {total}</div>
           <div className="flex items-center gap-2">
-            <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="px-3 py-1 rounded-lg ring-1 ring-slate-700 disabled:opacity-40">Anterior</button>
-            <div className="text-xs">pág. {page}</div>
-            <button disabled={(page*size)>=total} onClick={()=>setPage(p=>p+1)} className="px-3 py-1 rounded-lg ring-1 ring-slate-700 disabled:opacity-40">Próxima</button>
+            <button
+              disabled={page <= 1}
+              onClick={() => { const p = Math.max(1, page - 1); load(p) }}
+              className="rounded-md border border-gray-700 px-3 py-1.5 text-sm disabled:opacity-40"
+            >
+              Anterior
+            </button>
+            <span className="text-sm text-gray-400">pág. {page}</span>
+            <button
+              disabled={page >= totalPages}
+              onClick={() => { const p = Math.min(totalPages, page + 1); load(p) }}
+              className="rounded-md border border-gray-700 px-3 py-1.5 text-sm disabled:opacity-40"
+            >
+              Próxima
+            </button>
           </div>
         </div>
       </div>
-    </div>
+    </AppShell>
   )
 }
