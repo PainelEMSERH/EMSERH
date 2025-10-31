@@ -30,7 +30,7 @@ export async function ensureAuxTables(prisma: any){
         criadoEm TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         CONSTRAINT fk_cs_colab FOREIGN KEY (colaboradorId) REFERENCES colaborador(id)
       );
-      CREATE INDEX IF NOT EXISTS idx_cs_colab ON colaborador_situacao(colaboradoradorId, inicio, fim);
+      CREATE INDEX IF NOT EXISTS idx_cs_colab ON colaborador_situacao(colaboradorId, inicio, fim);
     `)
   }catch(e){ /* ignore */ }
 }

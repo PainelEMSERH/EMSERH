@@ -1,6 +1,13 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { Search } from '@geist-ui/icons'
+
+function SearchIcon(props: React.SVGProps<SVGSVGElement>){
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
+      <path d="M21 21l-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
 
 type Row = {
   id: string, nome: string, matricula: string, email?: string|null, telefone?: string|null, status: string,
@@ -76,7 +83,7 @@ export default function ColaboradoresPage(){
       <div className="rounded-2xl bg-slate-900/40 ring-1 ring-slate-800 p-4">
         <div className="flex flex-wrap gap-3 items-center">
           <div className="relative">
-            <Search className="absolute left-2 top-2 h-4 w-4 opacity-60" />
+            <SearchIcon className="absolute left-2 top-2 opacity-60" />
             <input value={q} onChange={e=>{ setQ(e.target.value); setPage(1) }}
               placeholder="Buscar por nome ou matrícula" className="pl-8 pr-3 py-2 rounded-xl bg-slate-800 text-sm outline-none ring-1 ring-slate-700 focus:ring-sky-500" />
           </div>
