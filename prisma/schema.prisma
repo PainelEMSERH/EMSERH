@@ -7,13 +7,43 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role { admin regional unidade operador }
-enum StatusColaborador { ativo inativo }
-enum StatusPendencia { aberta atendida cancelada }
-enum EscopoMeta { regional unidade }
-enum PeriodoMeta { mensal anual }
-enum IndicadorMeta { entregas itens colab_atendidos }
-enum EntidadeArquivo { ficha_epi }
+enum Role {
+  admin
+  regional
+  unidade
+  operador
+}
+
+enum StatusColaborador {
+  ativo
+  inativo
+}
+
+enum StatusPendencia {
+  aberta
+  atendida
+  cancelada
+}
+
+enum EscopoMeta {
+  regional
+  unidade
+}
+
+enum PeriodoMeta {
+  mensal
+  anual
+}
+
+enum IndicadorMeta {
+  entregas
+  itens
+  colab_atendidos
+}
+
+enum EntidadeArquivo {
+  ficha_epi
+}
 
 model Regional {
   id       String   @id @default(cuid())
@@ -35,8 +65,10 @@ model Unidade {
   entregas      Entrega[]
   metas         Meta[]
   usuarios      Usuario[]
+
   @@unique([regionalId, sigla])
   @@index([regionalId])
+  @@index([sigla])
 }
 
 model Funcao {
@@ -62,6 +94,7 @@ model KitItem {
   quantidade Int
   kit        Kit   @relation(fields: [kitId], references: [id])
   item       Item  @relation(fields: [itemId], references: [id])
+
   @@id([kitId, itemId])
 }
 
@@ -77,6 +110,7 @@ model Item {
   estoque       Estoque[]
   entregaItens  EntregaItem[]
   pendencias    Pendencia[]
+
   @@index([categoria])
   @@unique([nome, categoria])
 }
@@ -90,6 +124,7 @@ model Estoque {
   maximo     Int?
   unidade    Unidade @relation(fields: [unidadeId], references: [id])
   item       Item    @relation(fields: [itemId], references: [id])
+
   @@unique([unidadeId, itemId])
   @@index([unidadeId])
   @@index([itemId])
@@ -108,6 +143,7 @@ model Colaborador {
   funcao      Funcao  @relation(fields: [funcaoId], references: [id])
   entregas    Entrega[]
   pendencias  Pendencia[]
+
   @@unique([unidadeId, matricula])
   @@index([funcaoId])
 }
@@ -119,11 +155,13 @@ model Entrega {
   data              DateTime @default(now())
   responsavelUserId String
   observacao        String?
+
   unidade     Unidade    @relation(fields: [unidadeId], references: [id])
   colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
   itens       EntregaItem[]
   pendencias  Pendencia[]
   arquivos    Arquivo[]
+
   @@index([unidadeId, data])
   @@index([colaboradorId])
 }
@@ -136,8 +174,10 @@ model EntregaItem {
   qtdPendente   Int
   validadeLote  DateTime?
   lote          String?
+
   entrega Entrega @relation(fields: [entregaId], references: [id])
   item    Item    @relation(fields: [itemId], references: [id])
+
   @@id([entregaId, itemId])
 }
 
@@ -151,9 +191,11 @@ model Pendencia {
   abertaEm      DateTime @default(now())
   prazo         DateTime?
   atendidaEm    DateTime?
+
   entrega     Entrega?    @relation(fields: [entregaId], references: [id])
   colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
   item        Item        @relation(fields: [itemId], references: [id])
+
   @@index([status])
   @@index([colaboradorId])
   @@index([itemId])
@@ -171,8 +213,10 @@ model Meta {
   valorMeta      Int
   valorRealizado Int      @default(0)
   atualizadoEm   DateTime @updatedAt
+
   regional       Regional? @relation(fields: [regionalId], references: [id])
   unidade        Unidade?  @relation(fields: [unidadeId], references: [id])
+
   @@index([escopo, periodo, ano, mes])
   @@index([regionalId])
   @@index([unidadeId])
@@ -188,8 +232,10 @@ model Usuario {
   regionalId  String?
   unidadeId   String?
   ativo       Boolean @default(true)
+
   regional    Regional? @relation(fields: [regionalId], references: [id])
   unidade     Unidade?  @relation(fields: [unidadeId], references: [id])
+
   @@index([role])
 }
 
@@ -201,7 +247,9 @@ model Arquivo {
   driveUrl     String
   nomeArquivo  String
   criadoEm     DateTime @default(now())
+
   entrega      Entrega? @relation(fields: [entidadeId], references: [id])
+
   @@index([entidade, entidadeId])
 }
 
@@ -213,5 +261,6 @@ model AuditLog {
   entityId  String
   diff      Json?
   createdAt DateTime @default(now())
+
   @@index([entity, entityId])
 }
