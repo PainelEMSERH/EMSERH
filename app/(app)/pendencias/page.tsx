@@ -1,15 +1,8 @@
-import React from 'react';
-
 export default function Page() {
   return (
-    <section className="space-y-4">
-      <div className="rounded-xl border border-zinc-800 bg-[#0E1627] p-5">
-        <h1 className="text-xl font-semibold">Pendências</h1>
-        <p className="mt-1 text-sm text-zinc-400">Acompanhe pendências por regional/unidade.</p>
-      </div>
-      <div className="rounded-xl border border-zinc-800 bg-[#0B1320] p-5">
-        <p className="text-zinc-400">Conteúdo em desenvolvimento.</p>
-      </div>
+    <section className="rounded-xl border border-white/5 bg-[#0f1623] p-6">
+      <h1 className="text-xl font-semibold text-white mb-1">Pendências</h1>
+      <p className="text-white/60">Conteúdo em desenvolvimento.</p>
     </section>
   );
 }

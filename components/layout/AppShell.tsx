@@ -1,51 +1,66 @@
-import React from 'react';
+'use client';
+
+import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-// Client wrapper only for active-link highlight
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
-  const pathname = usePathname();
-  const active = pathname === href;
+type NavItem = { href: string; label: string };
+
+const NAV: NavItem[] = [
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/colaboradores', label: 'Colaboradores' },
+  { href: '/entregas', label: 'Entregas' },
+  { href: '/pendencias', label: 'Pendências' },
+  { href: '/estoque', label: 'Estoque' },
+  { href: '/kits', label: 'Kits' },
+  { href: '/relatorios', label: 'Relatórios' },
+  { href: '/admin', label: 'Admin' },
+  { href: '/configuracoes', label: 'Configurações' },
+];
+
+function SideNav() {
+  const pathname = usePathname() || '';
   return (
-    <Link
-      href={href}
-      className={`block px-3 py-2 rounded-md text-sm ${active ? 'text-indigo-400' : 'text-zinc-300 hover:text-white'}`}
-    >
-      {children}
-    </Link>
+    <aside className="w-64 shrink-0 border-r border-white/5 bg-[#0f1623] text-sm text-white/80">
+      <div className="px-5 py-4 text-white font-semibold">EMSERH • EPI</div>
+      <div className="px-5 pb-2 text-xs uppercase tracking-wide text-white/50">Geral</div>
+      <nav className="flex flex-col gap-1 px-2 pb-6">
+        {NAV.map(item => {
+          const active = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={[
+                'rounded-md px-3 py-2 transition-colors',
+                active ? 'bg-indigo-600/20 text-indigo-300' : 'hover:bg-white/5'
+              ].join(' ')}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+    </aside>
   );
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#0B1320] text-zinc-100">
-      {/* Topbar */}
-      <header className="sticky top-0 z-30 border-b border-zinc-800 bg-[#0E1627]/95 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 h-14 flex items-center justify-between">
-          <div className="font-semibold">EMSERH • EPI</div>
-          <div className="text-sm text-zinc-400">Conectado</div>
+    <div className="min-h-screen bg-[#0b1220] text-white">
+      <header className="sticky top-0 z-10 border-b border-white/5 bg-[#0f1623]">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
+          <div className="text-white/80">Painel</div>
+          <div className="flex items-center gap-3 text-white/60">
+            <span className="h-2 w-2 rounded-full bg-rose-500" />
+            <span>Conectado</span>
+          </div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-4 flex gap-6 py-6">
-        {/* Sidebar */}
-        <aside className="w-64 shrink-0">
-          <div className="text-xs uppercase text-zinc-500 mb-2">Geral</div>
-          <nav className="space-y-1">
-            <NavLink href="/">Dashboard</NavLink>
-            <NavLink href="/colaboradores">Colaboradores</NavLink>
-            <NavLink href="/entregas">Entregas</NavLink>
-            <NavLink href="/pendencias">Pendências</NavLink>
-            <NavLink href="/estoque">Estoque</NavLink>
-            <NavLink href="/kits">Kits</NavLink>
-            <NavLink href="/relatorios">Relatórios</NavLink>
-            <NavLink href="/admin">Admin</NavLink>
-            <NavLink href="/configuracoes">Configurações</NavLink>
-          </nav>
-        </aside>
-
-        {/* Content */}
-        <main className="flex-1">{children}</main>
+      <div className="mx-auto flex max-w-7xl gap-6 px-6 py-6">
+        <SideNav />
+        <main className="min-w-0 flex-1">{children}</main>
       </div>
     </div>
   );
