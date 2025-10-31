@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 -- sql/etl_from_staging.sql
 -- Pre-requisitos: staging tables
 --   public.stg_unid_reg (nmedepartamento text, regional_responsavel text)
