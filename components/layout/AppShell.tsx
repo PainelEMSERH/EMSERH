@@ -1,66 +1,51 @@
-'use client';
-
+import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import React from 'react';
 
-const nav = [
-  { href: '/', label: 'Dashboard' },
-  { href: '/colaboradores', label: 'Colaboradores' },
-  { href: '/entregas', label: 'Entregas' },
-  { href: '/pendencias', label: 'Pendências' },
-  { href: '/estoque', label: 'Estoque' },
-  { href: '/kits', label: 'Kits' },
-  { href: '/relatorios', label: 'Relatórios' },
-  { href: '/admin', label: 'Admin' },
-  { href: '/configuracoes', label: 'Configurações' },
-];
+// Client wrapper only for active-link highlight
+function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+  const pathname = usePathname();
+  const active = pathname === href;
+  return (
+    <Link
+      href={href}
+      className={`block px-3 py-2 rounded-md text-sm ${active ? 'text-indigo-400' : 'text-zinc-300 hover:text-white'}`}
+    >
+      {children}
+    </Link>
+  );
+}
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
   return (
-    <div className="min-h-screen bg-[#0b1220] text-slate-100">
-      <div className="flex min-h-screen">
+    <div className="min-h-screen bg-[#0B1320] text-zinc-100">
+      {/* Topbar */}
+      <header className="sticky top-0 z-30 border-b border-zinc-800 bg-[#0E1627]/95 backdrop-blur">
+        <div className="mx-auto max-w-7xl px-4 h-14 flex items-center justify-between">
+          <div className="font-semibold">EMSERH • EPI</div>
+          <div className="text-sm text-zinc-400">Conectado</div>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-7xl px-4 flex gap-6 py-6">
         {/* Sidebar */}
-        <aside className="w-64 bg-[#0d1526] border-r border-slate-800 hidden md:flex flex-col">
-          <div className="px-5 py-5 text-lg font-semibold tracking-wide">
-            <span className="text-slate-200">EMSERH • </span>
-            <span className="text-indigo-400">EPI</span>
-          </div>
-          <div className="px-5 pb-2 text-[11px] uppercase tracking-wider text-slate-400">Geral</div>
-          <nav className="flex-1 px-2 space-y-1">
-            {nav.map((item) => {
-              const active = pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href));
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={
-                    'block rounded-md px-3 py-2 text-sm transition-colors ' +
-                    (active
-                      ? 'bg-indigo-950/60 text-indigo-300'
-                      : 'text-slate-300 hover:bg-slate-800/40 hover:text-slate-100')
-                  }>
-                  {item.label}
-                </Link>
-              );
-            })}
+        <aside className="w-64 shrink-0">
+          <div className="text-xs uppercase text-zinc-500 mb-2">Geral</div>
+          <nav className="space-y-1">
+            <NavLink href="/">Dashboard</NavLink>
+            <NavLink href="/colaboradores">Colaboradores</NavLink>
+            <NavLink href="/entregas">Entregas</NavLink>
+            <NavLink href="/pendencias">Pendências</NavLink>
+            <NavLink href="/estoque">Estoque</NavLink>
+            <NavLink href="/kits">Kits</NavLink>
+            <NavLink href="/relatorios">Relatórios</NavLink>
+            <NavLink href="/admin">Admin</NavLink>
+            <NavLink href="/configuracoes">Configurações</NavLink>
           </nav>
-          <div className="p-4 text-[11px] text-slate-500">&copy; EMSERH</div>
         </aside>
 
-        {/* Main */}
-        <div className="flex-1 flex flex-col">
-          {/* Header */}
-          <header className="sticky top-0 z-10 h-14 bg-[#0d1526] border-b border-slate-800/80 flex items-center justify-between px-4">
-            <div className="text-sm text-slate-400">Conectado</div>
-            <div className="flex items-center gap-4">
-              <div className="h-8 w-8 rounded-full bg-indigo-600/30 border border-indigo-500/30" />
-            </div>
-          </header>
-
-          <main className="flex-1 p-4 md:p-6">{children}</main>
-        </div>
+        {/* Content */}
+        <main className="flex-1">{children}</main>
       </div>
     </div>
   );
