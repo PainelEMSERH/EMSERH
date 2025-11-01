@@ -1,70 +1,37 @@
-// app/api/kits/list/route.ts
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-// Lista kits + composição sem depender do nome do campo de relação no modelo Kit.
-// Evita erro de include desconhecido em `KitInclude`.
+export const runtime = "nodejs";
+
 export async function GET() {
   try {
-    // 1) Kits básicos
-    const kits = await prisma.kit.findMany({
-      orderBy: { nome: 'asc' },
-      select: { id: true, nome: true, descricao: true },
-    });
+    // Raw SQL to avoid Prisma type issues. Adjust identifiers if your schema uses different column names.
+    const rows = await prisma.$queryRawUnsafe<any[]>(`
+      SELECT
+        k.id,
+        k.nome,
+        COALESCE(k.descricao, '') AS descricao,
+        json_agg(json_build_object('item', i.nome, 'quantidade', COALESCE(ki.quantidade, 0)))
+          FILTER (WHERE i.id IS NOT NULL) AS composicao
+      FROM kit k
+      LEFT JOIN kit_item ki ON ki.kit_id = k.id
+      LEFT JOIN item i ON i.id = ki.item_id
+      GROUP BY k.id, k.nome, k.descricao
+      ORDER BY k.nome ASC;
+    `);
 
-    if (kits.length === 0) {
-      return NextResponse.json({ ok: true, data: [] });
-    }
-
-    const kitIds = kits.map(k => k.id);
-
-    // 2) Composição dos kits (uma consulta só, depois agrupamos em memória)
-    const comps = await prisma.kitItem.findMany({
-      where: { kitId: { in: kitIds } },
-      select: {
-        kitId: true,
-        quantidade: true,
-        item: {
-          select: {
-            id: true,
-            nome: true,
-            categoria: true,
-            unidadeMedida: true,
-            ca: true,
-            descricao: true,
-            validadeDias: true,
-            ativo: true,
-          }
-        }
-      }
-    });
-
-    const byKit = new Map<string, any[]>();
-    for (const c of comps) {
-      const arr = byKit.get(c.kitId) ?? [];
-      arr.push({
-        itemId: c.item?.id ?? null,
-        itemNome: c.item?.nome ?? null,
-        categoria: c.item?.categoria ?? null,
-        unidadeMedida: c.item?.unidadeMedida ?? null,
-        ca: c.item?.ca ?? null,
-        validadeDias: c.item?.validadeDias ?? null,
-        ativo: c.item?.ativo ?? null,
-        quantidade: c.quantidade ?? 0,
-      });
-      byKit.set(c.kitId, arr);
-    }
-
-    const data = kits.map(k => ({
-      id: k.id,
-      nome: k.nome,
-      descricao: k.descricao,
-      itens: byKit.get(k.id) ?? [],
+    const data = rows.map((r) => ({
+      id: r.id,
+      nome: r.nome,
+      descricao: r.descricao,
+      composicao: Array.isArray(r.composicao)
+        ? r.composicao.map((c: any) => `${c.item} (${c.quantidade})`).join(", ")
+        : "",
     }));
 
     return NextResponse.json({ ok: true, data });
   } catch (err: any) {
-    console.error('[GET /api/kits/list] Error:', err);
-    return NextResponse.json({ ok: false, error: 'Erro ao listar kits.' }, { status: 500 });
+    console.error("KITS_LIST_ERROR", err);
+    return NextResponse.json({ ok: false, error: String(err?.message || err) }, { status: 500 });
   }
 }
