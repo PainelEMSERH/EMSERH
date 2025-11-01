@@ -1,0 +1,1 @@
+export default function Page(){return(<div className="p-4"><div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6"><h1 className="text-xl font-semibold">Pendências</h1><p className="text-sm text-zinc-400 mt-2">Em breve: pendências por colaborador, com prazo e situação.</p></div></div>);}
