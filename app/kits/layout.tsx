@@ -1,5 +1,6 @@
-import React from "react";
-export const dynamic = 'force-dynamic';
+import React from 'react'
+import AppShell from '@/components/AppShell'
+
 export default function SectionLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <AppShell>{children}</AppShell>
 }
