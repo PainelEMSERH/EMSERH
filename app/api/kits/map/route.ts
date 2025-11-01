@@ -1,52 +1,39 @@
-import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-
-export const dynamic = 'force-dynamic';
+import prisma from '@/lib/prisma';
 
 export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const q = (searchParams.get('q') || '').trim();
-    const unidade = (searchParams.get('unidade') || '').trim();
-    const size = Math.min(Math.max(parseInt(searchParams.get('size') || '50', 10), 1), 200);
-    const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
-    const offset = (page - 1) * size;
+  const { searchParams } = new URL(req.url);
+  const grouped = searchParams.get('grouped') === '1';
 
-    const where: string[] = [];
-    const params: any[] = [];
+  // Pull raw rows
+  const rows = await prisma.$queryRawUnsafe<any[]>(`
+    select alterdata_funcao, epi_item, quantidade, nome_site
+    from stg_epi_map
+  `);
 
-    if (q) {
-      params.push(`%${q.toUpperCase()}%`);
-      params.push(`%${q.toUpperCase()}%`);
-      where.push(`(UPPER(alterdata_funcao) LIKE $${params.length - 1} OR UPPER(epi_item) LIKE $${params.length})`);
-    }
-    if (unidade) {
-      params.push(unidade.toUpperCase());
-      where.push(`UPPER(nome_site) = $${params.length}`);
-    }
+  if (!grouped) return NextResponse.json({ data: rows });
 
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    // Query itens + total em duas chamadas (p/ evitar window functions se o DB tiver restrição)
-    const rows = await prisma.$queryRawUnsafe(`
-      SELECT
-        alterdata_funcao AS funcao,
-        epi_item        AS item,
-        COALESCE(quantidade, 0)::int AS quantidade,
-        nome_site       AS unidade
-      FROM stg_epi_map
-      ${whereSql}
-      ORDER BY alterdata_funcao, epi_item
-      LIMIT ${size} OFFSET ${offset}
-    `, ...params);
-
-    const totalRows: Array<{ c: number }> = await prisma.$queryRawUnsafe(`
-      SELECT COUNT(*)::int AS c
-      FROM stg_epi_map
-      ${whereSql}
-    `, ...params);
-
-    return NextResponse.json({ ok: true, items: rows, total: totalRows?.[0]?.c ?? 0, page, size });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
+  const map = new Map<string, { funcoes: Set<string>, itens: Map<string, number> }>();
+  for (const r of rows) {
+    const nome = r.nome_site ?? r.alterdata_funcao ?? '—';
+    if (!map.has(nome)) map.set(nome, { funcoes: new Set(), itens: new Map() });
+    const bucket = map.get(nome)!;
+    if (r.alterdata_funcao) bucket.funcoes.add(String(r.alterdata_funcao));
+    const item = String(r.epi_item ?? 'SEM EPI');
+    const qtd = r.quantidade == null ? 0 : Number(r.quantidade);
+    // guard: treat "SEM EPI" quantity as 0
+    const q = /sem epi/i.test(item) ? 0 : qtd;
+    bucket.itens.set(item, q);
   }
+
+  const data = Array.from(map.entries()).map(([nome_site, { funcoes, itens }]) => ({
+    nome_site,
+    funcoes: Array.from(funcoes).sort((a,b)=>a.localeCompare(b)),
+    itens: Array.from(itens.entries()).map(([epi_item, quantidade]) => ({ epi_item, quantidade }))
+      .sort((a,b)=>a.epi_item.localeCompare(b.epi_item)),
+    funcoesCount: funcoes.size,
+    itensCount: itens.size,
+  })).sort((a,b)=>a.nome_site.localeCompare(b.nome_site));
+
+  return NextResponse.json({ data });
 }
