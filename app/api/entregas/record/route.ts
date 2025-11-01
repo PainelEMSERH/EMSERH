@@ -41,11 +41,11 @@ export async function POST(req: Request) {
       )
     `);
 
-    const tx = [];
+    const tx: Promise<any>[] = [];
     for (const it of body.itens) {
       tx.push(prisma.$executeRawUnsafe(
-        \`insert into entrega_epi (colaborador_id, colaborador_nome, funcao, unidade, regional, nome_site, epi_item, quantidade, entregue, data_entrega)
-          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)\`,
+        `insert into entrega_epi (colaborador_id, colaborador_nome, funcao, unidade, regional, nome_site, epi_item, quantidade, entregue, data_entrega)
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         body.colaborador.id,
         body.colaborador.nome,
         body.colaborador.funcao,
