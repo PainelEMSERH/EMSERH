@@ -176,14 +176,14 @@ export default function EntregasPage() {
           <label className="text-xs text-slate-600">Buscar colaborador</label>
           <div className="flex gap-2">
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Nome ou CPF" className="flex-1 rounded-xl border px-3 py-2" />
-            <button onClick={onSearch} className="px-3 py-2 rounded-xl border bg-slate-900 hover:bg-slate-800 text-white">Buscar</button>
+            <button onClick={onSearch} className="input-xl border bg-panel hover:bg-slate-800 text-white">Buscar</button>
           </div>
         </div>
       </div>
 
       {/* List */}
       <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+        <table className="table" className="w-full text-sm">
           <thead className="bg-slate-50">
             <tr className="text-slate-700">
               <th className="text-left px-3 py-2">Colaborador</th>
@@ -219,7 +219,7 @@ export default function EntregasPage() {
                     </a>
                     <button
                       onClick={()=>openEntregaEditor(r)}
-                      className="px-3 py-1.5 rounded-xl border bg-slate-900 hover:bg-slate-800 text-white"
+                      className="px-3 py-1.5 rounded-xl border bg-panel hover:bg-slate-800 text-white"
                     >
                       Entregar
                     </button>
@@ -265,13 +265,13 @@ export default function EntregasPage() {
                 <input type="date" value={dataEntrega} onChange={e=>setDataEntrega(e.target.value)} className="rounded-xl border px-3 py-2" />
               </div>
               <div className="flex items-end justify-end gap-2">
-                <button onClick={()=>saveEntrega(true)} disabled={saving} className="px-3 py-2 rounded-xl border bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-50">Marcar tudo entregue</button>
-                <button onClick={()=>saveEntrega(false)} disabled={saving} className="px-3 py-2 rounded-xl border hover:bg-slate-50 disabled:opacity-50">Salvar</button>
+                <button onClick={()=>saveEntrega(true)} disabled={saving} className="input-xl border bg-panel hover:bg-slate-800 text-white disabled:opacity-50">Marcar tudo entregue</button>
+                <button onClick={()=>saveEntrega(false)} disabled={saving} className="input-xl border hover:bg-slate-50 disabled:opacity-50">Salvar</button>
               </div>
             </div>
 
             <div className="rounded-xl border overflow-hidden">
-              <table className="w-full text-sm">
+              <table className="table" className="w-full text-sm">
                 <thead className="bg-slate-50">
                   <tr className="text-slate-700">
                     <th className="text-left px-3 py-2">Item</th>

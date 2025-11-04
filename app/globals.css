@@ -1,3 +1,100 @@
+/* ==== THEME TOKENS (Professional & Accessible) ==== */
+:root{
+  --bg: #0b1020;           /* page background (dark navy) */
+  --panel: #10172a;        /* panels/surfaces */
+  --card: #121b33;
+  --accent: #4f8cff;       /* accent brand */
+  --accent-2: #22c55e;     /* success */
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --text: #e7edf6;         /* primary text */
+  --muted: #aab6cf;        /* secondary text */
+  --border: rgba(255,255,255,.12);
+  --ring: rgba(79,140,255,.55);
+  --input: rgba(255,255,255,.06);
+}
+
+:root[data-theme="light"],
+.light{
+  --bg: #f7f9fc;
+  --panel: #ffffff;
+  --card: #ffffff;
+  --accent: #2b6fff;
+  --accent-2: #059669;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --text: #0b1220;
+  --muted: #4b5566;
+  --border: rgba(0,0,0,.12);
+  --ring: rgba(43,111,255,.35);
+  --input: rgba(0,0,0,.04);
+}
+
+.dark{
+  --bg: #0b1020;
+  --panel: #10172a;
+  --card: #121b33;
+  --text: #e7edf6;
+  --muted: #aab6cf;
+  --border: rgba(255,255,255,.12);
+  --ring: rgba(79,140,255,.55);
+  --input: rgba(255,255,255,.06);
+}
+
+/* Base */
+html{ color-scheme: dark light; }
+body{ background: var(--bg); color: var(--text); }
+
+/* Reusable utilities */
+.bg-bg{ background: var(--bg); }
+.bg-panel{ background: var(--panel); }
+.bg-card{ background: var(--card); }
+.text-text{ color: var(--text); }
+.text-muted{ color: var(--muted); }
+.border-border{ border-color: var(--border); }
+
+.btn{ 
+  display:inline-flex; align-items:center; justify-content:center; gap:.5rem;
+  padding:.55rem .9rem; border-radius:.75rem; border:1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.08));
+  color: var(--text);
+}
+.btn:hover{ background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.16)); }
+.btn-primary{
+  border-color: transparent; background: var(--accent); color: #fff;
+  box-shadow: 0 6px 20px rgba(79,140,255,.25);
+}
+.btn-primary:hover{ filter: brightness(.95); }
+.btn-ghost{ background: transparent; }
+.btn-danger{ background: var(--danger); color:#fff; border-color:transparent; }
+.btn-success{ background: var(--accent-2); color:#001; border-color:transparent; }
+
+.input, .select, .textarea{
+  background: var(--input); border:1px solid var(--border); color: var(--text);
+  border-radius:.65rem; padding:.6rem .75rem; outline: none;
+}
+.input:focus, .select:focus, .textarea:focus{
+  border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring);
+}
+
+.table{
+  width:100%; font-size:.925rem; border-collapse: collapse;
+}
+.table thead th{ text-align:left; padding:.6rem .75rem; background: color-mix(in hsl, var(--panel), #fff 4%); border-bottom:1px solid var(--border); }
+.table tbody td{ padding:.65rem .75rem; border-top:1px solid var(--border); }
+.table tr:hover td{ background: color-mix(in hsl, var(--panel), #fff 2%); }
+
+.navlink{ display:block; padding:.5rem .75rem; border-radius:.5rem; color: var(--muted); }
+.navlink:hover{ background: color-mix(in hsl, var(--panel), #fff 6%); color: var(--text); }
+
+.section{
+  border:1px solid var(--border);
+  background: var(--panel);
+  border-radius: 1rem;
+}
+.section-header{ padding: .9rem 1rem; border-bottom:1px solid var(--border); }
+.section-body{ padding: .75rem; }
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=fallback');
 
 @import 'tailwindcss';

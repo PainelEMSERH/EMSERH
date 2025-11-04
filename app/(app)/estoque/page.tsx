@@ -88,16 +88,16 @@ export default function Page(){
 
   return (
     <div className="p-6 space-y-4">
-      <div className="rounded-xl border border-white/10 bg-[#0f172a] p-4">
+      <div className="rounded-xl border border-border bg-panel p-4">
         <h1 className="text-xl font-semibold mb-1">Estoque</h1>
-        <p className="text-sm text-white/60 mb-3">Controle completo por Regional/Unidade: saldo, movimentações e pedidos de reposição.</p>
+        <p className="text-sm text-muted mb-3">Controle completo por Regional/Unidade: saldo, movimentações e pedidos de reposição.</p>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-          <input className="px-3 py-2 rounded bg-black/20 border border-white/10" placeholder="Buscar item/unidade" value={q} onChange={e=>{setQ(e.target.value); setPage(1)}}/>
-          <select className="px-3 py-2 rounded bg-black/20 border border-white/10" value={regional} onChange={e=>{setRegional(e.target.value); setPage(1)}}>
+          <input className="px-3 py-2 rounded bg-card border border-border" placeholder="Buscar item/unidade" value={q} onChange={e=>{setQ(e.target.value); setPage(1)}}/>
+          <select className="px-3 py-2 rounded bg-card border border-border" value={regional} onChange={e=>{setRegional(e.target.value); setPage(1)}}>
             <option value="">Todas as Regionais</option>
             {opts.regionais.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
-          <select className="px-3 py-2 rounded bg-black/20 border border-white/10" value={unidade} onChange={e=>{setUnidade(e.target.value); setPage(1)}}>
+          <select className="px-3 py-2 rounded bg-card border border-border" value={unidade} onChange={e=>{setUnidade(e.target.value); setPage(1)}}>
             <option value="">Todas as Unidades</option>
             {unidadesFiltradas.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
           </select>
@@ -110,10 +110,10 @@ export default function Page(){
       </div>
 
       {tab==='visao' && (
-        <div className="rounded-xl border border-white/10 bg-[#0f172a]">
+        <div className="rounded-xl border border-border bg-panel">
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-white/5"><tr>
+              <thead className="bg-white/10"><tr>
                 <th className="px-3 py-2 text-left">Regional</th>
                 <th className="px-3 py-2 text-left">Unidade</th>
                 <th className="px-3 py-2 text-left">Item</th>
@@ -125,7 +125,7 @@ export default function Page(){
                 {rows.map(r => {
                   const low = r.minimo>0 && r.quantidade < r.minimo;
                   return (
-                    <tr key={r.id} className={'border-t border-white/10 '+(low?'bg-red-500/5':'hover:bg-white/5')}>
+                    <tr key={r.id} className={'border-t border-border '+(low?'bg-red-500/5':'hover:bg-white/10')}>
                       <td className="px-3 py-2">{r.regional}</td>
                       <td className="px-3 py-2">{r.unidade}</td>
                       <td className="px-3 py-2">{r.item}</td>
@@ -135,16 +135,16 @@ export default function Page(){
                     </tr>
                   )
                 })}
-                {rows.length===0 && (<tr><td colSpan={6} className="px-3 py-6 text-center text-white/60">Nenhum registro</td></tr>)}
+                {rows.length===0 && (<tr><td colSpan={6} className="px-3 py-6 text-center text-muted">Nenhum registro</td></tr>)}
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between p-3 text-xs text-white/70">
+          <div className="flex items-center justify-between p-3 text-xs text-muted">
             <div>Total: {total}</div>
             <div className="flex items-center gap-2">
-              <button className="px-2 py-1 border border-white/10 rounded disabled:opacity-40" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}>Anterior</button>
+              <button className="px-2 py-1 border border-border rounded disabled:opacity-40" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}>Anterior</button>
               <div>Página {page}</div>
-              <button className="px-2 py-1 border border-white/10 rounded disabled:opacity-40" onClick={()=>setPage(p=>p+1)} disabled={rows.length<size}>Próxima</button>
+              <button className="px-2 py-1 border border-border rounded disabled:opacity-40" onClick={()=>setPage(p=>p+1)} disabled={rows.length<size}>Próxima</button>
             </div>
           </div>
         </div>
@@ -152,37 +152,37 @@ export default function Page(){
 
       {tab==='mov' && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-white/10 bg-[#0f172a] p-4">
+          <div className="rounded-xl border border-border bg-panel p-4">
             <h2 className="font-semibold mb-2">Nova movimentação</h2>
             <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
-              <select className="px-3 py-2 rounded bg-black/20 border border-white/10" value={novoTipo} onChange={e=>setNovoTipo(e.target.value as any)}>
+              <select className="px-3 py-2 rounded bg-card border border-border" value={novoTipo} onChange={e=>setNovoTipo(e.target.value as any)}>
                 <option value="entrada">Entrada</option>
                 <option value="saida">Saída</option>
               </select>
-              <select className="px-3 py-2 rounded bg-black/20 border border-white/10" value={novoUnidadeId} onChange={e=>setNovoUnidadeId(e.target.value)}>
+              <select className="px-3 py-2 rounded bg-card border border-border" value={novoUnidadeId} onChange={e=>setNovoUnidadeId(e.target.value)}>
                 <option value="">Unidade</option>
                 {unidadesFiltradas.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
               </select>
-              <select className="px-3 py-2 rounded bg-black/20 border border-white/10" value={novoItemId} onChange={e=>setNovoItemId(e.target.value)}>
+              <select className="px-3 py-2 rounded bg-card border border-border" value={novoItemId} onChange={e=>setNovoItemId(e.target.value)}>
                 <option value="">Item</option>
                 {itensCat.map(i => <option key={i.id} value={i.id}>{i.nome}</option>)}
               </select>
-              <input type="number" className="px-3 py-2 rounded bg-black/20 border border-white/10" placeholder="Quantidade" value={novoQtd} onChange={e=>setNovoQtd(parseInt(e.target.value||'0',10))}/>
-              <input className="px-3 py-2 rounded bg-black/20 border border-white/10" placeholder="Destino/Justificativa" value={novoDestino} onChange={e=>setNovoDestino(e.target.value)}/>
-              <input type="date" className="px-3 py-2 rounded bg-black/20 border border-white/10" value={novoData} onChange={e=>setNovoData(e.target.value)}/>
+              <input type="number" className="px-3 py-2 rounded bg-card border border-border" placeholder="Quantidade" value={novoQtd} onChange={e=>setNovoQtd(parseInt(e.target.value||'0',10))}/>
+              <input className="px-3 py-2 rounded bg-card border border-border" placeholder="Destino/Justificativa" value={novoDestino} onChange={e=>setNovoDestino(e.target.value)}/>
+              <input type="date" className="px-3 py-2 rounded bg-card border border-border" value={novoData} onChange={e=>setNovoData(e.target.value)}/>
             </div>
             <div className="mt-2">
-              <input className="w-full px-3 py-2 rounded bg-black/20 border border-white/10" placeholder="Observação" value={novoObs} onChange={e=>setNovoObs(e.target.value)}/>
+              <input className="w-full px-3 py-2 rounded bg-card border border-border" placeholder="Observação" value={novoObs} onChange={e=>setNovoObs(e.target.value)}/>
             </div>
             <div className="mt-3 flex justify-end">
               <button className="px-3 py-2 border rounded" onClick={criarMov} disabled={!novoUnidadeId || !novoItemId || !novoQtd}>Salvar movimentação</button>
             </div>
           </div>
 
-          <div className="rounded-xl border border-white/10 bg-[#0f172a]">
+          <div className="rounded-xl border border-border bg-panel">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-white/5"><tr>
+                <thead className="bg-white/10"><tr>
                   <th className="px-3 py-2 text-left">Data</th>
                   <th className="px-3 py-2 text-left">Tipo</th>
                   <th className="px-3 py-2 text-left">Unidade</th>
@@ -193,7 +193,7 @@ export default function Page(){
                 </tr></thead>
                 <tbody>
                   {movs.map(m => (
-                    <tr key={m.id} className="border-t border-white/10 hover:bg-white/5">
+                    <tr key={m.id} className="border-t border-border hover:bg-white/10">
                       <td className="px-3 py-2">{new Date(m.data).toLocaleString()}</td>
                       <td className="px-3 py-2 capitalize">{m.tipo}</td>
                       <td className="px-3 py-2">{m.unidade}</td>
@@ -203,16 +203,16 @@ export default function Page(){
                       <td className="px-3 py-2">{m.observacao || '-'}</td>
                     </tr>
                   ))}
-                  {movs.length===0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-white/60">Sem movimentações</td></tr>}
+                  {movs.length===0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-muted">Sem movimentações</td></tr>}
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center justify-between p-3 text-xs text-white/70">
+            <div className="flex items-center justify-between p-3 text-xs text-muted">
               <div>Total: {movTotal}</div>
               <div className="flex items-center gap-2">
-                <button className="px-2 py-1 border border-white/10 rounded disabled:opacity-40" onClick={()=>setMovPage(p=>Math.max(1,p-1))} disabled={movPage===1}>Anterior</button>
+                <button className="px-2 py-1 border border-border rounded disabled:opacity-40" onClick={()=>setMovPage(p=>Math.max(1,p-1))} disabled={movPage===1}>Anterior</button>
                 <div>Página {movPage}</div>
-                <button className="px-2 py-1 border border-white/10 rounded disabled:opacity-40" onClick={()=>setMovPage(p=>p+1)} disabled={movs.length<25}>Próxima</button>
+                <button className="px-2 py-1 border border-border rounded disabled:opacity-40" onClick={()=>setMovPage(p=>p+1)} disabled={movs.length<25}>Próxima</button>
               </div>
             </div>
           </div>
@@ -221,26 +221,26 @@ export default function Page(){
 
       {tab==='ped' && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-white/10 bg-[#0f172a] p-4">
+          <div className="rounded-xl border border-border bg-panel p-4">
             <h2 className="font-semibold mb-2">Novo pedido de reposição</h2>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-              <select className="px-3 py-2 rounded bg-black/20 border border-white/10" value={unidade} onChange={e=>setUnidade(e.target.value)}>
+              <select className="px-3 py-2 rounded bg-card border border-border" value={unidade} onChange={e=>setUnidade(e.target.value)}>
                 <option value="">Selecione a Unidade</option>
                 {unidadesFiltradas.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
               </select>
-              <input type="date" className="px-3 py-2 rounded bg-black/20 border border-white/10" value={pedPrevisto} onChange={e=>setPedPrevisto(e.target.value)} />
-              <input className="px-3 py-2 rounded bg-black/20 border border-white/10" placeholder="Observação" value={pedObs} onChange={e=>setPedObs(e.target.value)} />
+              <input type="date" className="px-3 py-2 rounded bg-card border border-border" value={pedPrevisto} onChange={e=>setPedPrevisto(e.target.value)} />
+              <input className="px-3 py-2 rounded bg-card border border-border" placeholder="Observação" value={pedObs} onChange={e=>setPedObs(e.target.value)} />
             </div>
             <div className="mt-3">
-              <div className="text-xs text-white/80 mb-1">Itens do pedido</div>
+              <div className="text-xs text-text mb-1">Itens do pedido</div>
               <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-center">
-                <select className="px-3 py-2 rounded bg-black/20 border border-white/10" onChange={e=>setPedItens(p=>[...p,{itemId:e.target.value, quantidade:1}])}>
+                <select className="px-3 py-2 rounded bg-card border border-border" onChange={e=>setPedItens(p=>[...p,{itemId:e.target.value, quantidade:1}])}>
                   <option value="">Adicionar item...</option>
                   {itensCat.map(i => <option key={i.id} value={i.id}>{i.nome}</option>)}
                 </select>
-                <div className="col-span-5 text-xs text-white/70">
+                <div className="col-span-5 text-xs text-muted">
                   {pedItens.map((it,idx)=> (
-                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 border border-white/10 rounded mr-2 mb-2">
+                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 border border-border rounded mr-2 mb-2">
                       <input type="number" className="w-16 bg-transparent text-right" value={it.quantidade} onChange={e=>{
                         const v = parseInt(e.target.value||'0',10);
                         setPedItens(arr => arr.map((x,i)=> i===idx ? {...x, quantidade: v}: x));
@@ -256,10 +256,10 @@ export default function Page(){
             </div>
           </div>
 
-          <div className="rounded-xl border border-white/10 bg-[#0f172a]">
+          <div className="rounded-xl border border-border bg-panel">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-white/5"><tr>
+                <thead className="bg-white/10"><tr>
                   <th className="px-3 py-2 text-left">Criado em</th>
                   <th className="px-3 py-2 text-left">Unidade</th>
                   <th className="px-3 py-2 text-left">Status</th>
@@ -270,7 +270,7 @@ export default function Page(){
                 </tr></thead>
                 <tbody>
                   {peds.map(p => (
-                    <tr key={p.id} className="border-t border-white/10 hover:bg-white/5">
+                    <tr key={p.id} className="border-t border-border hover:bg-white/10">
                       <td className="px-3 py-2">{new Date(p.criadoEm).toLocaleString()}</td>
                       <td className="px-3 py-2">{p.unidade || p.regional || '-'}</td>
                       <td className="px-3 py-2 capitalize">{p.status}</td>
@@ -280,16 +280,16 @@ export default function Page(){
                       <td className="px-3 py-2">{p.recebidoEm ? new Date(p.recebidoEm).toLocaleDateString() : '-'}</td>
                     </tr>
                   ))}
-                  {peds.length===0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-white/60">Nenhum pedido</td></tr>}
+                  {peds.length===0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-muted">Nenhum pedido</td></tr>}
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center justify-between p-3 text-xs text-white/70">
+            <div className="flex items-center justify-between p-3 text-xs text-muted">
               <div>Total: {pedTotal}</div>
               <div className="flex items-center gap-2">
-                <button className="px-2 py-1 border border-white/10 rounded disabled:opacity-40" onClick={()=>setPedPage(p=>Math.max(1,p-1))} disabled={pedPage===1}>Anterior</button>
+                <button className="px-2 py-1 border border-border rounded disabled:opacity-40" onClick={()=>setPedPage(p=>Math.max(1,p-1))} disabled={pedPage===1}>Anterior</button>
                 <div>Página {pedPage}</div>
-                <button className="px-2 py-1 border border-white/10 rounded disabled:opacity-40" onClick={()=>setPedPage(p=>p+1)} disabled={peds.length<25}>Próxima</button>
+                <button className="px-2 py-1 border border-border rounded disabled:opacity-40" onClick={()=>setPedPage(p=>p+1)} disabled={peds.length<25}>Próxima</button>
               </div>
             </div>
           </div>
