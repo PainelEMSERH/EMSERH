@@ -1,0 +1,29 @@
+/* === Contrast-only patch for Entregas (dark mode) === */
+.dark .bg-white,
+.dark .bg-gray-50, .dark .bg-slate-50,
+.dark .bg-gray-100, .dark .bg-slate-100 { background-color: var(--card) !important; }
+
+.dark .text-black,
+.dark .text-gray-900, .dark .text-slate-900,
+.dark .text-gray-800, .dark .text-slate-800 { color: var(--text) !important; }
+
+.dark .text-gray-500, .dark .text-slate-500,
+.dark .placeholder-gray-500, .dark .placeholder-slate-500 { color: var(--muted) !important; }
+
+.dark .border-gray-200, .dark .border-slate-200,
+.dark .border-gray-300, .dark .border-slate-300 { border-color: var(--border) !important; }
+
+.dark table { color: var(--text) !important; }
+.dark table thead th { background-color: var(--panel) !important; color: var(--text) !important; }
+.dark table tbody tr { background-color: var(--card) !important; color: var(--text) !important; }
+.dark table tbody tr:hover { background-color: #151516 !important; }
+.dark table td, .dark table th { border-color: var(--border) !important; }
+
+.dark input, .dark select, .dark textarea {
+  background-color: var(--card) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+.dark input::placeholder, .dark textarea::placeholder { color: var(--muted) !important; }
+
+.dark button { color: var(--text) !important; }
