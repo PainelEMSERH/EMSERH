@@ -59,10 +59,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen bg-bg text-text">
       <Sidebar />
       <main className="flex-1">
-        <header className="sticky top-0 z-10 w-full border-b border-border bg-bg/80 backdrop-blur px-5 py-3">
+        <header className="sticky top-0 z-10 w-full border-b border-border bg-panel/80 backdrop-blur px-5 py-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-emerald-400">● Conectado</span>
-            <div className="text-sm text-slate-300">Painel</div>
+            <div className="flex items-center gap-3"><ThemeToggle /><UserButton afterSignOutUrl="/" /></div>
           </div>
         </header>
         <div className="p-6">{children}</div>
