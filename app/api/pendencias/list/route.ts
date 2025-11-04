@@ -1,11 +1,8 @@
-
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-/**
- * Lista pendências por colaborador e item com filtros básicos.
- */
+// Lista pendências com filtros básicos
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const status  = (searchParams.get('status') || '').trim();
