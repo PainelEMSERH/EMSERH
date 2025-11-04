@@ -1,9 +1,10 @@
-'use client'
-import dynamic from 'next/dynamic'
-
-// Carrega o Dashboard EPI apenas no cliente (sem SSR) para evitar erros como getComputedStyle no build/render do servidor.
-const DashboardEPI = dynamic(() => import('@/components/pages/DashboardEPI'), { ssr: false })
 
 export default function Page() {
-  return <DashboardEPI />
+  return (
+    <section className="grid gap-3">
+      <h1 className="text-2xl font-semibold">Início</h1>
+      <p className="text-sm text-muted-foreground">Rota preservada: <code>/</code>. Substitua por conteúdo definitivo.</p>
+      <div className="rounded-2xl border p-4">Placeholder da rota <strong>/</strong>.</div>
+    </section>
+  )
 }

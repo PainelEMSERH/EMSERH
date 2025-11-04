@@ -1,11 +1,10 @@
-export const dynamic = "force-dynamic";
-export default async function Page() {
+
+export default function Page() {
   return (
-    <div className="p-6">
-      <div className="rounded-xl border border-border bg-panel p-6 shadow">
-        <h1 className="text-2xl font-semibold mb-2">Pendências</h1>
-        <p className="text-sm text-text">Pendências por colaborador, prazos e situação.</p>
-      </div>
-    </div>
-  );
+    <section className="grid gap-3">
+      <h1 className="text-2xl font-semibold">/(App)/Pendencias</h1>
+      <p className="text-sm text-muted-foreground">Rota preservada: <code>/(app)/pendencias</code>. Substitua por conteúdo definitivo.</p>
+      <div className="rounded-2xl border p-4">Placeholder da rota <strong>/(app)/pendencias</strong>.</div>
+    </section>
+  )
 }
