@@ -1,52 +1,62 @@
-import prisma from '@/lib/prisma';
-import { NextResponse } from 'next/server';
-
+// file: app/api/kits/map/route.ts
 export const dynamic = 'force-dynamic';
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 
-export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const q = (searchParams.get('q') || '').trim();
-    const unidade = (searchParams.get('unidade') || '').trim();
-    const size = Math.min(Math.max(parseInt(searchParams.get('size') || '50', 10), 1), 200);
-    const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
-    const offset = (page - 1) * size;
+/**
+ * GET /api/kits/map
+ * Query params:
+ *  - q: string       (filtro por função OU item) [opcional]
+ *  - unidade: string (filtra por nome_site)      [opcional]
+ *  - page, size: paginação                       [opcionais]
+ *
+ * Retorna linhas no formato:
+ *  { funcao: string, item: string, quantidade: number, unidade: string }
+ * a partir da tabela public.stg_epi_map:
+ *  - alteredata_funcao -> funcao
+ *  - epi_item          -> item
+ *  - quantidade        -> quantidade
+ *  - nome_site         -> unidade
+ */
+export async function GET(req: Request){
+  const { searchParams } = new URL(req.url);
+  const q        = (searchParams.get('q') || '').trim();
+  const unidade  = (searchParams.get('unidade') || '').trim();
+  const page     = Math.max(1, Number(searchParams.get('page') || '1'));
+  const size     = Math.min(500, Math.max(10, Number(searchParams.get('size') || '100')));
+  const offset   = (page - 1) * size;
 
-    const where: string[] = [];
-    const params: any[] = [];
+  const where: string[] = [];
+  const params: any[] = [];
 
-    if (q) {
-      params.push(`%${q.toUpperCase()}%`);
-      params.push(`%${q.toUpperCase()}%`);
-      where.push(`(UPPER(alterdata_funcao) LIKE $${params.length - 1} OR UPPER(epi_item) LIKE $${params.length})`);
-    }
-    if (unidade) {
-      params.push(unidade.toUpperCase());
-      where.push(`UPPER(nome_site) = $${params.length}`);
-    }
-
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    // Query itens + total em duas chamadas (p/ evitar window functions se o DB tiver restrição)
-    const rows = await prisma.$queryRawUnsafe(`
-      SELECT
-        alterdata_funcao AS funcao,
-        epi_item        AS item,
-        COALESCE(quantidade, 0)::int AS quantidade,
-        nome_site       AS unidade
-      FROM stg_epi_map
-      ${whereSql}
-      ORDER BY alterdata_funcao, epi_item
-      LIMIT ${size} OFFSET ${offset}
-    `, ...params);
-
-    const totalRows: Array<{ c: number }> = await prisma.$queryRawUnsafe(`
-      SELECT COUNT(*)::int AS c
-      FROM stg_epi_map
-      ${whereSql}
-    `, ...params);
-
-    return NextResponse.json({ ok: true, items: rows, total: totalRows?.[0]?.c ?? 0, page, size });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
+  if (q){
+    const like = `%${q.toUpperCase()}%`;
+    params.push(like);
+    where.push(`(UPPER(m.alterdata_funcao) LIKE $${params.length} OR UPPER(m.epi_item) LIKE $${params.length})`);
   }
+  if (unidade){
+    params.push(`%${unidade.toUpperCase()}%`);
+    where.push(`UPPER(m.nome_site) LIKE $${params.length}`);
+  }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  // Nota: usamos $queryRawUnsafe para flexibilidade sem depender do schema Prisma.
+  const rows: any[] = await prisma.$queryRawUnsafe(`
+    SELECT
+      m.alterdata_funcao  AS funcao,
+      m.epi_item          AS item,
+      COALESCE(m.quantidade, 0)::float AS quantidade,
+      m.nome_site         AS unidade
+    FROM stg_epi_map m
+    ${whereSql}
+    ORDER BY m.alterdata_funcao, m.epi_item
+    LIMIT ${size} OFFSET ${offset}
+  `, ...params);
+
+  // Opcional: total para paginação futura
+  const totalRes: any[] = await prisma.$queryRawUnsafe(`
+    SELECT COUNT(*)::int AS c FROM stg_epi_map m ${whereSql}
+  `, ...params);
+
+  return NextResponse.json({ rows, total: (totalRes?.[0]?.c ?? rows.length) });
 }
