@@ -187,7 +187,7 @@ export async function POST(req: Request) {
       ON CONFLICT (batch_id) DO NOTHING
     `);
 
-    await prisma.$queryRawUnsafe(`SELECT apply_alterdata_v2_batch('${batchId}'::uuid)`);
+    await prisma.$executeRawUnsafe(`SELECT apply_alterdata_v2_batch('${batchId}'::uuid)`);
 
     return NextResponse.json({ ok:true, batchId, total_rows: inserted });
   }catch(e:any){
