@@ -183,7 +183,7 @@ export default function EntregasPage() {
 
       {/* List */}
       <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
-        <table className="table" className="w-full text-sm">
+        <table className="table w-full text-sm">
           <thead className="bg-slate-50">
             <tr className="text-slate-700">
               <th className="text-left px-3 py-2">Colaborador</th>
@@ -271,7 +271,7 @@ export default function EntregasPage() {
             </div>
 
             <div className="rounded-xl border overflow-hidden">
-              <table className="table" className="w-full text-sm">
+              <table className="table w-full text-sm">
                 <thead className="bg-slate-50">
                   <tr className="text-slate-700">
                     <th className="text-left px-3 py-2">Item</th>
