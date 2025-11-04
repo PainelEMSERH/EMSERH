@@ -61,7 +61,7 @@ export default function Page(){
       <div className='rounded-xl border border-border bg-panel'>
         <div className='overflow-x-auto'>
           <table className='min-w-full text-sm'>
-            <thead className='bg-white/10'><tr>
+            <thead className='bg-card/10'><tr>
               <th className='px-3 py-2 text-left'>Nome</th>
               <th className='px-3 py-2 text-left'>Matrícula</th>
               <th className='px-3 py-2 text-left'>Função</th>
@@ -70,7 +70,7 @@ export default function Page(){
             </tr></thead>
             <tbody>
               {items.map((c)=> (
-                <tr key={c.id} className='border-t border-border hover:bg-white/10'>
+                <tr key={c.id} className='border-t border-border hover:bg-card/10'>
                   <td className='px-3 py-2'>{c.nome}</td>
                   <td className='px-3 py-2'>{c.matricula||''}</td>
                   <td className='px-3 py-2'>{c.funcao}</td>

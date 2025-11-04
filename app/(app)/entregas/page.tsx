@@ -157,7 +157,7 @@ export default function EntregasPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl border shadow-sm p-3 mb-4 grid grid-cols-1 md:grid-cols-4 gap-2">
+      <div className="bg-card rounded-2xl border shadow-sm p-3 mb-4 grid grid-cols-1 md:grid-cols-4 gap-2">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted">Regional</label>
           <select value={regional} onChange={e=>setRegional(e.target.value)} className="rounded-xl border px-3 py-2">
@@ -182,9 +182,9 @@ export default function EntregasPage() {
       </div>
 
       {/* List */}
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+      <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
         <table className="text-text table w-full text-sm">
-          <thead className="bg-slate-50">
+          <thead className="bg-panel">
             <tr className="text-text">
               <th className="text-left px-3 py-2">Colaborador</th>
               <th className="text-left px-3 py-2">Função</th>
@@ -249,7 +249,7 @@ export default function EntregasPage() {
       {/* Drawer / Modal */}
       {openColab && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40" onClick={()=>setOpenId(null)}>
-          <div className="absolute right-0 top-0 h-full w-full max-w-[560px] bg-white shadow-2xl p-4 overflow-auto" onClick={(e)=>e.stopPropagation()}>
+          <div className="absolute right-0 top-0 h-full w-full max-w-[560px] bg-card shadow-2xl p-4 overflow-auto" onClick={(e)=>e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <div>
                 <div className="text-xs text-muted">Entrega para</div>
@@ -272,7 +272,7 @@ export default function EntregasPage() {
 
             <div className="rounded-xl border overflow-hidden">
               <table className="table w-full text-sm">
-                <thead className="bg-slate-50">
+                <thead className="bg-panel">
                   <tr className="text-text">
                     <th className="text-left px-3 py-2">Item</th>
                     <th className="text-left px-3 py-2 w-24">Qtd</th>
@@ -281,7 +281,7 @@ export default function EntregasPage() {
                 </thead>
                 <tbody>
                   {epi.map((it, idx) => (
-                    <tr key={it.epi_item} className={idx % 2 ? 'bg-white' : 'bg-slate-50/50'}>
+                    <tr key={it.epi_item} className={idx % 2 ? 'bg-card' : 'bg-panel/50'}>
                       <td className="px-3 py-2">{it.epi_item}</td>
                       <td className="px-3 py-2">{it.quantidade}</td>
                       <td className="px-3 py-2 text-center">
