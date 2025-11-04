@@ -42,7 +42,7 @@ export default function Page(){
   const unidadesFiltradas = useMemo(()=> opts.unidades.filter(u=>!regional || u.regional===regional),[opts,regional]);
 
   return (
-    <div className='p-6 space-y-4 text-white'>
+    <div className='p-6 space-y-4 text-text'>
       <div className='rounded-xl border border-border bg-panel p-4'>
         <h1 className='text-xl font-semibold mb-1'>Colaboradores</h1>
         <div className='grid grid-cols-1 md:grid-cols-4 gap-2'>

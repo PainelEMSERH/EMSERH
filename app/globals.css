@@ -237,3 +237,5 @@ body{ background: var(--bg); color: var(--text); }
 
 /* Token-based ring utility */
 .ring-ring{ --tw-ring-color: var(--ring); }
+
+.bg-panel-hover{ background: color-mix(in hsl, var(--panel), #000 5%); }

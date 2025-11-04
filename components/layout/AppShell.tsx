@@ -27,7 +27,7 @@ function Sidebar() {
       <div className="px-4 py-5 text-sm font-semibold tracking-wide text-text">
         EMSERH • EPI
       </div>
-      <div className="px-4 pb-2 text-[10px] uppercase tracking-wider text-slate-400">
+      <div className="px-4 pb-2 text-[10px] uppercase tracking-wider text-muted">
         Geral
       </div>
       <nav className="flex flex-col px-2 pb-6">
@@ -42,8 +42,8 @@ function Sidebar() {
               className={clsx(
                 "rounded-md px-3 py-2 text-sm transition-colors",
                 active
-                  ? "bg-indigo-600/10 text-indigo-300 ring-1 ring-inset ring-indigo-500/30"
-                  : "text-slate-300 hover:bg-slate-800/60 hover:text-text"
+                  ? "bg-panel text-text ring-1 ring-inset ring-border"
+                  : "text-muted hover:bg-panel hover:text-text"
               )}
             >
               {n.label}
