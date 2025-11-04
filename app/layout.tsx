@@ -1,6 +1,7 @@
 import './globals.css';
 import React from 'react';
-import { Geist, Geist_Mono } from 'geist/font';
+import { GeistSans } from 'geist/font/sans';
+import { GeistMono } from 'geist/font/mono';
 import Providers from './providers';
 
 export const metadata = {
@@ -9,9 +10,6 @@ export const metadata = {
 };
 
 const inter = Inter({ subsets: ['latin'], display: 'swap' });
-
-const geistSans = Geist({ subsets: ['latin'] });
-const geistMono = Geist_Mono({ subsets: ['latin'] });
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
