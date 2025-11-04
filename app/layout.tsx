@@ -9,8 +9,6 @@ export const metadata = {
   description: 'Gestão de EPIs — Regional Sul',
 };
 
-const inter = Inter({ subsets: ['latin'], display: 'swap' });
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
