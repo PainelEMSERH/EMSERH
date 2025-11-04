@@ -5,7 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import ThemeToggle from "@/components/components/ThemeToggle";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton } from '@clerk/nextjs';
+import { ThemeSwitcher } from 'geist/components';
 
 const NAV = [
   { label: "Dashboard", href: "/" },
@@ -62,7 +63,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-10 w-full border-b border-border bg-panel/80 backdrop-blur px-5 py-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-emerald-400">● Conectado</span>
-            <div className="flex items-center gap-3"><ThemeToggle /><UserButton afterSignOutUrl="/" /></div>
+            <div className="flex items-center gap-3"><ThemeSwitcher /><UserButton afterSignOutUrl="/" /></div>
           </div>
         </header>
         <div className="p-6">{children}</div>
