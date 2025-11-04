@@ -12,8 +12,8 @@ export default function ThemeToggle() {
       onClick={() => setTheme(current === 'dark' ? 'light' : 'dark')}
       className="inline-flex items-center gap-2 rounded-xl border border-border bg-panel px-3 py-2 text-sm text-text hover:opacity-90"
     >
-      <span className="i-moon hidden dark:inline" aria-hidden />
-      <span className="i-sun inline dark:hidden" aria-hidden />
+      <span className="hidden dark:inline" aria-hidden>🌙</span>
+      <span className="inline dark:hidden" aria-hidden>☀️</span>
       <span className="opacity-80">{current === 'dark' ? 'Escuro' : 'Claro'}</span>
     </button>
   );
