@@ -1,10 +1,3 @@
-
-export default function Page() {
-  return (
-    <section className="grid gap-3">
-      <h1 className="text-2xl font-semibold">/Sign-In/[[...Sign-In]]</h1>
-      <p className="text-sm text-muted-foreground">Rota preservada: <code>/sign-in/[[...sign-in]]</code>. Substitua por conteúdo definitivo.</p>
-      <div className="rounded-2xl border p-4">Placeholder da rota <strong>/sign-in/[[...sign-in]]</strong>.</div>
-    </section>
-  )
-}
+'use client'
+import { SignIn } from '@clerk/nextjs'
+export default function Page(){ return <div className='min-h-screen grid place-items-center'><SignIn /></div> }

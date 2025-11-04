@@ -1,10 +1,11 @@
-
-export default function Page() {
+export const dynamic = "force-dynamic";
+export default async function Page() {
   return (
-    <section className="grid gap-3">
-      <h1 className="text-2xl font-semibold">/(App)/Relatorios</h1>
-      <p className="text-sm text-muted-foreground">Rota preservada: <code>/(app)/relatorios</code>. Substitua por conteúdo definitivo.</p>
-      <div className="rounded-2xl border p-4">Placeholder da rota <strong>/(app)/relatorios</strong>.</div>
-    </section>
-  )
+    <div className="p-6">
+      <div className="rounded-xl border border-border bg-panel p-6 shadow">
+        <h1 className="text-2xl font-semibold mb-2">Relatórios</h1>
+        <p className="text-sm text-muted">Relatórios operacionais e gerenciais.</p>
+      </div>
+    </div>
+  );
 }

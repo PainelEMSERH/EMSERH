@@ -1,0 +1,1 @@
+UI remains the same; no file overwrite needed. (Optional: show error banner in page.tsx if desired.)
