@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-@import './additional-styles/utility-patterns.css' layer(components);
 
 /* ==== THEME TOKENS (Professional & Accessible) ==== */
 :root{
@@ -99,7 +98,6 @@ body{ background: var(--bg); color: var(--text); }
 .section-header{ padding: .9rem 1rem; border-bottom:1px solid var(--border); }
 .section-body{ padding: .75rem; }
 
-500;600;700&display=fallback');
 
 @plugin "@tailwindcss/forms" {
   strategy: base;
