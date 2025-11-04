@@ -5,6 +5,8 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
+import ThemeToggle from '@/components/components/ThemeToggle';
+import { UserButton } from '@clerk/nextjs';
 
 const NAV = [
   { label: "Dashboard", href: "/" },
@@ -21,8 +23,8 @@ const NAV = [
 function Sidebar() {
   const pathname = usePathname();
   return (
-    <aside className="w-64 shrink-0 border-r border-slate-800/60 bg-slate-950/50">
-      <div className="px-4 py-5 text-sm font-semibold tracking-wide text-slate-100">
+    <aside className="w-64 shrink-0 border-r border-border bg-bg/50">
+      <div className="px-4 py-5 text-sm font-semibold tracking-wide text-text">
         EMSERH • EPI
       </div>
       <div className="px-4 pb-2 text-[10px] uppercase tracking-wider text-slate-400">
@@ -41,7 +43,7 @@ function Sidebar() {
                 "rounded-md px-3 py-2 text-sm transition-colors",
                 active
                   ? "bg-indigo-600/10 text-indigo-300 ring-1 ring-inset ring-indigo-500/30"
-                  : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-100"
+                  : "text-slate-300 hover:bg-slate-800/60 hover:text-text"
               )}
             >
               {n.label}
@@ -55,10 +57,10 @@ function Sidebar() {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100">
+    <div className="flex min-h-screen bg-bg text-text">
       <Sidebar />
       <main className="flex-1">
-        <header className="sticky top-0 z-10 w-full border-b border-slate-800/60 bg-slate-950/80 backdrop-blur px-5 py-3">
+        <header className="sticky top-0 z-10 w-full border-b border-border bg-bg/80 backdrop-blur px-5 py-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-emerald-400">● Conectado</span>
             <div className="text-sm text-slate-300">Painel</div>

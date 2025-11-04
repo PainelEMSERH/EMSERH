@@ -232,3 +232,6 @@ body{ background: var(--bg); color: var(--text); }
     border-color: var(--color-gray-200, currentColor);
   }
 }
+
+/* Token-based ring utility */
+.ring-ring{ --tw-ring-color: var(--ring); }
