@@ -1,11 +1,7 @@
-export const dynamic = "force-dynamic";
-export default async function Page() {
-  return (
-    <div className="p-6">
-      <div className="rounded-xl border border-border bg-panel p-6 shadow">
-        <h1 className="text-2xl font-semibold mb-2">Dashboard</h1>
-        <p className="text-sm text-muted">Resumo e indicadores.</p>
-      </div>
-    </div>
-  );
-}
+'use client'
+import dynamic from 'next/dynamic'
+
+const DashboardEPI = dynamic(() => import('@/components/pages/DashboardEPIClient'), { ssr: false })
+
+export const dynamic = 'force-dynamic'
+export default function Page(){ return <DashboardEPI /> }
