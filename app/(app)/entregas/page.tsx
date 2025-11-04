@@ -153,27 +153,27 @@ export default function EntregasPage() {
     <div className="p-4 lg:p-6">
       <div className="mb-4">
         <h1 className="text-2xl font-semibold">Entregas</h1>
-        <p className="text-sm text-slate-600">Marque entregas por colaborador, com registro de data e itens. Filtre por Regional/Unidade.</p>
+        <p className="text-sm text-muted">Marque entregas por colaborador, com registro de data e itens. Filtre por Regional/Unidade.</p>
       </div>
 
       {/* Filters */}
       <div className="bg-white rounded-2xl border shadow-sm p-3 mb-4 grid grid-cols-1 md:grid-cols-4 gap-2">
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-600">Regional</label>
+          <label className="text-xs text-muted">Regional</label>
           <select value={regional} onChange={e=>setRegional(e.target.value)} className="rounded-xl border px-3 py-2">
             <option value="">Todas</option>
             {regionais.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-600">Unidade</label>
+          <label className="text-xs text-muted">Unidade</label>
           <select value={unidade} onChange={e=>setUnidade(e.target.value)} className="rounded-xl border px-3 py-2">
             <option value="">Todas</option>
             {unidadesFiltradas.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1 md:col-span-2">
-          <label className="text-xs text-slate-600">Buscar colaborador</label>
+          <label className="text-xs text-muted">Buscar colaborador</label>
           <div className="flex gap-2">
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Nome ou CPF" className="flex-1 rounded-xl border px-3 py-2" />
             <button onClick={onSearch} className="btn btn-primary">Buscar</button>
@@ -185,7 +185,7 @@ export default function EntregasPage() {
       <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
         <table className="text-text table w-full text-sm">
           <thead className="bg-slate-50">
-            <tr className="text-slate-700">
+            <tr className="text-text">
               <th className="text-left px-3 py-2">Colaborador</th>
               <th className="text-left px-3 py-2">Função</th>
               <th className="text-left px-3 py-2">Unidade</th>
@@ -196,10 +196,10 @@ export default function EntregasPage() {
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-500">Carregando...</td></tr>
+              <tr><td colSpan={6} className="px-3 py-6 text-center text-muted">Carregando...</td></tr>
             )}
             {!loading && rows.length === 0 && (
-              <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-500">Nenhum colaborador encontrado.</td></tr>
+              <tr><td colSpan={6} className="px-3 py-6 text-center text-muted">Nenhum colaborador encontrado.</td></tr>
             )}
             {!loading && rows.map(r => (
               <tr key={r.id} className="border-t">
@@ -232,7 +232,7 @@ export default function EntregasPage() {
 
         {/* Pagination */}
         <div className="flex items-center justify-between px-3 py-2 border-t text-sm">
-          <div className="text-slate-600">Total: {total}</div>
+          <div className="text-muted">Total: {total}</div>
           <div className="flex items-center gap-2">
             <button onClick={()=>loadList(Math.max(1, page-1))} className="px-2 py-1 rounded border disabled:opacity-50" disabled={page<=1}>‹</button>
             <div>Página {page}</div>
@@ -252,16 +252,16 @@ export default function EntregasPage() {
           <div className="absolute right-0 top-0 h-full w-full max-w-[560px] bg-white shadow-2xl p-4 overflow-auto" onClick={(e)=>e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <div className="text-xs text-slate-500">Entrega para</div>
+                <div className="text-xs text-muted">Entrega para</div>
                 <div className="text-lg font-semibold">{openColab.nome}</div>
-                <div className="text-xs text-slate-500">{openColab.funcao} • {openColab.unidade} • {openColab.regional}</div>
+                <div className="text-xs text-muted">{openColab.funcao} • {openColab.unidade} • {openColab.regional}</div>
               </div>
               <button onClick={()=>{setOpenId(null); setOpenColab(null); setEpi([]);}} className="rounded-xl border px-3 py-1.5">Fechar</button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-600">Data da entrega</label>
+                <label className="text-xs text-muted">Data da entrega</label>
                 <input type="date" value={dataEntrega} onChange={e=>setDataEntrega(e.target.value)} className="rounded-xl border px-3 py-2" />
               </div>
               <div className="flex items-end justify-end gap-2">
@@ -273,7 +273,7 @@ export default function EntregasPage() {
             <div className="rounded-xl border overflow-hidden">
               <table className="table w-full text-sm">
                 <thead className="bg-slate-50">
-                  <tr className="text-slate-700">
+                  <tr className="text-text">
                     <th className="text-left px-3 py-2">Item</th>
                     <th className="text-left px-3 py-2 w-24">Qtd</th>
                     <th className="text-center px-3 py-2 w-28">Entregue</th>
@@ -296,7 +296,7 @@ export default function EntregasPage() {
               </table>
             </div>
 
-            <p className="text-xs text-slate-500 mt-2">Itens não marcados como “entregue” serão registrados como pendência automaticamente.</p>
+            <p className="text-xs text-muted mt-2">Itens não marcados como “entregue” serão registrados como pendência automaticamente.</p>
           </div>
         </div>
       )}
