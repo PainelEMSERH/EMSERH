@@ -3,18 +3,18 @@
 
 /* ==== THEME TOKENS (Professional & Accessible) ==== */
 :root{
-  --bg: #0b1020;           /* page background (dark navy) */
-  --panel: #10172a;        /* panels/surfaces */
-  --card: #121b33;
-  --accent: #4f8cff;       /* accent brand */
-  --accent-2: #22c55e;     /* success */
+  /* Geist Light */
+  --bg: #ffffff;
+  --panel: #f6f6f7;       /* subtle panel */
+  --card: #ffffff;
+  --text: #111111;
+  --muted: #666666;
+  --border: rgba(0,0,0,0.12);
+  --ring: rgba(0,0,0,0.28);
+  --accent: #0070f3;      /* Vercel/Geist blue */
+  --accent-2: #10b981;    /* success */
   --danger: #ef4444;
   --warning: #f59e0b;
-  --text: #e7edf6;         /* primary text */
-  --muted: #aab6cf;        /* secondary text */
-  --border: rgba(255,255,255,.12);
-  --ring: rgba(79,140,255,.55);
-  --input: rgba(255,255,255,.06);
 }
 
 :root[data-theme="light"],
@@ -34,14 +34,18 @@
 }
 
 .dark{
-  --bg: #0b1020;
-  --panel: #10172a;
-  --card: #121b33;
-  --text: #e7edf6;
-  --muted: #aab6cf;
-  --border: rgba(255,255,255,.12);
-  --ring: rgba(79,140,255,.55);
-  --input: rgba(255,255,255,.06);
+  /* Geist Dark */
+  --bg: #000000;
+  --panel: #0f0f10;
+  --card: #0a0a0b;
+  --text: #ffffff;
+  --muted: #a3a3a3;
+  --border: rgba(255,255,255,0.12);
+  --ring: rgba(255,255,255,0.30);
+  --accent: #3b82f6;      /* adjust for dark */
+  --accent-2: #22c55e;
+  --danger: #ef4444;
+  --warning: #f59e0b;
 }
 
 /* Base */

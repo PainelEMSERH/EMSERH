@@ -1,7 +1,7 @@
 import './globals.css';
 import React from 'react';
+import { Geist, Geist_Mono } from 'geist/font';
 import Providers from './providers';
-import { Inter } from 'next/font/google';
 
 export const metadata = {
   title: 'EMSERH • EPI',
@@ -10,10 +10,13 @@ export const metadata = {
 
 const inter = Inter({ subsets: ['latin'], display: 'swap' });
 
+const geistSans = Geist({ subsets: ['latin'] });
+const geistMono = Geist_Mono({ subsets: ['latin'] });
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={`${geistSans.className} ${geistMono.variable}`}>
         <Providers>{children}</Providers>
       </body>
     </html>
