@@ -12,7 +12,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className={`${geistSans.className} ${geistMono.variable}`}>
+      <body className={`${GeistSans.className} ${GeistMono.variable}`}>
         <Providers>{children}</Providers>
       </body>
     </html>
