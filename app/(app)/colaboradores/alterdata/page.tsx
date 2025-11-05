@@ -108,7 +108,7 @@ const FALLBACK_UNIDADES: UnidadeMap[] = [
 
 // === Helpers (somente visual) ===
 function stripAccents(s: string){ return (s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
-function norm(s: string){ return stripAccents(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+function norm(s: string){ return stripAccents((s || '').trim()).toLowerCase().replace(/[^a-z0-9]/g, ''); }
 
 function formatDateBR(value: string){
   if(!value) return '';
@@ -174,6 +174,7 @@ export default function AlterdataCompletaPage(){
 
   // Unidades ↔ Regional
   const [unidades, setUnidades] = useState<UnidadeMap[]>(FALLBACK_UNIDADES);
+  const unitKeySet = useMemo(()=> new Set(unidades.map(u => norm(u.unidade))), [unidades]);
   const regionalLookup = useMemo(()=>{
     const map = new Map<string,string>();
     for(const u of unidades) map.set(norm(u.unidade), u.regional);
@@ -231,6 +232,9 @@ export default function AlterdataCompletaPage(){
     (async ()=>{
       const params = new URLSearchParams({ page: String(page), limit: String(limit) });
       if(q.trim()) params.set('q', q.trim());
+      if(fRegional) params.set('regional', fRegional);
+      if(fUnidade) params.set('unidade', fUnidade);
+      if(fStatus) params.set('status', fStatus);
       const r = await fetch(`/api/alterdata/raw-rows?${params.toString()}`);
       const j: ApiRows = await r.json();
       if(on){
@@ -242,10 +246,9 @@ export default function AlterdataCompletaPage(){
     return ()=>{ on=false; };
   }, [page, limit, q]);
 
-  // Descobrir dinamicamente qual coluna é a de Unidade usando pontuação pelos valores
+  // Heurística: tenta localizar a coluna de Unidade; se não conseguir, usa scanner por linha
   const unidadeCol = useMemo(()=>{
-    if(cols.length === 0) return '';
-    const unitSet = new Set(unidades.map(u=>norm(u.unidade)));
+    if(cols.length === 0 || rows.length === 0) return '';
     let bestCol = '';
     let bestScore = -1;
     const sample = rows.slice(0, 200);
@@ -253,26 +256,38 @@ export default function AlterdataCompletaPage(){
       let score = 0;
       for(const r of sample){
         const v = norm(String(r.data?.[c] || ''));
-        if(unitSet.has(v)) score++;
+        if(unitKeySet.has(v)) score++;
       }
-      // bônus se o nome da coluna sugere unidade
       const n = norm(c);
       if(n.includes('unid')||n.includes('depart')||n.includes('lotac')||n.includes('setor')) score += 3;
       if(score > bestScore){ bestScore = score; bestCol = c; }
     }
-    if(bestScore >= 3) return bestCol;
-    // fallback por nome
+    if(bestScore >= 2) return bestCol;
     for(const c of cols){
       const n = norm(c);
       if(n.includes('unidadehospitalar')||n.includes('unidade')||n.includes('departamento')||n.includes('nmddepartamento')||n.includes('lotacao')||n.includes('setor')) return c;
     }
     return '';
-  }, [cols, rows, unidades]);
+  }, [cols, rows, unitKeySet]);
+
+  // Scanner robusto: procura dentro da linha algum campo que seja uma Unidade válida
+  function findUnitValue(r: Row): string{
+    if(unidadeCol){
+      const uv = String(r.data?.[unidadeCol] ?? '');
+      if(unitKeySet.has(norm(uv))) return uv;
+    }
+    // Varre todos os campos e pega o primeiro que bater no dicionário
+    for(const [_, v] of Object.entries(r.data || {})){
+      const nv = norm(String(v||''));
+      if(unitKeySet.has(nv)) return String(v);
+    }
+    return '';
+  }
 
   // Derivações por linha
   const getRegionalOfRow = (r: Row)=>{
-    const unidadeValor = unidadeCol ? (r.data?.[unidadeCol] || '') : '';
-    return regionalLookup.get(norm(unidadeValor)) || '';
+    const uv = findUnitValue(r);
+    return uv ? (regionalLookup.get(norm(uv)) || '') : '';
   };
   const hasAfastamentoAtivo = (r: Row)=>{
     const ini = Object.entries(r.data||{}).find(([k]) => norm(k).includes('inicio') && norm(k).includes('afast'));
@@ -286,10 +301,8 @@ export default function AlterdataCompletaPage(){
     return dFim > hoje;
   };
   const isDemitido = (r: Row)=>{
-    // tenta 'situação'/'status'
     const sit = Object.entries(r.data||{}).find(([k]) => norm(k).includes('situac') || norm(k).includes('status'));
     if(sit){ const v = norm(String(sit[1]||'')); if(v.includes('demit')) return true; }
-    // fallback: data de demissão
     const dem = Object.entries(r.data||{}).find(([k]) => norm(k).includes('demiss'));
     const v = dem ? String(dem[1]||'').trim() : '';
     return !!v && /^\d{4}-\d{2}-\d{2}/.test(v);
@@ -297,9 +310,12 @@ export default function AlterdataCompletaPage(){
 
   const rowsFiltered = useMemo(()=>{
     return rows.filter(r=>{
-      if(fRegional && getRegionalOfRow(r) !== fRegional) return false;
+      if(fRegional){
+        const reg = getRegionalOfRow(r);
+        if(reg !== fRegional) return false;
+      }
       if(fUnidade){
-        const uv = unidadeCol ? (r.data?.[unidadeCol] || '') : '';
+        const uv = findUnitValue(r);
         if(norm(uv) !== norm(fUnidade)) return false;
       }
       if(fStatus === 'Demitido') return isDemitido(r);
