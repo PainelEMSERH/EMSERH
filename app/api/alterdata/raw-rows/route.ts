@@ -3,7 +3,6 @@ import prisma from '@/lib/prisma';
 
 function esc(s: string){ return (s||'').replace(/'/g, "''"); }
 function norm(expr: string){
-  // Normaliza removendo acentos/espaços/sinais e coloca em maiúsculas (lado SQL)
   return `regexp_replace(upper(${expr}), '[^A-Z0-9]', '', 'g')`;
 }
 
@@ -31,15 +30,14 @@ export async function GET(req: Request) {
         WHERE EXISTS (
           SELECT 1 FROM jsonb_each_text(r.data) kv
           WHERE ${norm('kv.value')} = ${norm('ur.nmddepartamento')}
-        )
-        AND ur.regional_responsavel = '${esc(regional)}'
+        ) AND ur.regional_responsavel = '${esc(regional)}'
       )`);
     }
 
     if(unidade){
       wh.push(`EXISTS (
         SELECT 1 FROM jsonb_each_text(r.data) kv
-        WHERE ${norm('kv.value')} = ${norm(`'${esc(unidade)}'`)}
+        WHERE ${norm('kv.value')} = ${norm('\'' + esc(unidade) + '\'')}
       )`);
     }
 
