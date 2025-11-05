@@ -11,6 +11,7 @@ import ThemeSwitcherGeist from '@/components/components/ThemeSwitcherGeist';
 const NAV = [
   { label: "Dashboard", href: "/" },
   { label: "Colaboradores", href: "/colaboradores" },
+  { label: "Alterdata (Completa)", href: "/colaboradores/alterdata" },
   { label: "Entregas", href: "/entregas" },
   { label: "Pendências", href: "/pendencias" },
   { label: "Estoque", href: "/estoque" },
