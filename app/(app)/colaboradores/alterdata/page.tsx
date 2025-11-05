@@ -7,6 +7,105 @@ type ApiCols = { ok: boolean; columns: string[]; error?: string };
 
 type UnidadeMap = { unidade: string; regional: string };
 
+// === Fallback (usado se o endpoint não responder) ===
+const FALLBACK_UNIDADES: UnidadeMap[] = [
+  { unidade: "AGENCIA TRANSFUSIONAL BARRA DO CORDA", regional: "CENTRO" },
+  { unidade: "AGENCIA TRANSFUSIONAL CHAPADINHA", regional: "LESTE" },
+  { unidade: "AGENCIA TRANSFUSIONAL COLINAS", regional: "CENTRO" },
+  { unidade: "AGENCIA TRANSFUSIONAL DE SÃO JOÃO DOS PATOS", regional: "CENTRO" },
+  { unidade: "AGENCIA TRANSFUSIONAL DE VIANA", regional: "NORTE" },
+  { unidade: "AGENCIA TRANSFUSIONAL TIMON", regional: "LESTE" },
+  { unidade: "CAF - FEME", regional: "NORTE" },
+  { unidade: "CAF - SEDE EMSERH", regional: "NORTE" },
+  { unidade: "CASA DA GESTANTE, BEBE E PUERPERA", regional: "SUL" },
+  { unidade: "CASA TEA 12+", regional: "NORTE" },
+  { unidade: "CENTRAL DE REGULACAO - AMBULATORIAL", regional: "NORTE" },
+  { unidade: "CENTRAL DE REGULACAO - LEITOS", regional: "NORTE" },
+  { unidade: "CENTRAL DE REGULACAO - TRANSPORTE", regional: "NORTE" },
+  { unidade: "CENTRO DA PESSOA IDOSA", regional: "SUL" },
+  { unidade: "CENTRO DE SAUDE GENESIO REGO", regional: "NORTE" },
+  { unidade: "CENTRO DE TERAPIA RENAL SUBSTITUTIVA", regional: "NORTE" },
+  { unidade: "CENTRO ESPECIALIDADES MEDICAS PAM DIAMANTE", regional: "NORTE" },
+  { unidade: "CENTRO ESPECIALIZADO DE REAB. CIDADE OPERARIA", regional: "NORTE" },
+  { unidade: "CENTRO ESPECIALIZADO DE REABILITACAO OLHO D AGUA", regional: "NORTE" },
+  { unidade: "EMSERH SEDE", regional: "NORTE" },
+  { unidade: "EMSERH SEDE DIRETORIA", regional: "NORTE" },
+  { unidade: "FEME", regional: "NORTE" },
+  { unidade: "FEME - UGAF", regional: "NORTE" },
+  { unidade: "FEME DE CAXIAS", regional: "LESTE" },
+  { unidade: "FEME IMPERATRIZ", regional: "SUL" },
+  { unidade: "FESMA", regional: "NORTE" },
+  { unidade: "HEMOMAR", regional: "NORTE" },
+  { unidade: "HEMONUCLEO DE BACABAL", regional: "CENTRO" },
+  { unidade: "HEMONUCLEO DE BALSAS", regional: "SUL" },
+  { unidade: "HEMONUCLEO DE CAXIAS", regional: "LESTE" },
+  { unidade: "HEMONUCLEO DE CODO", regional: "LESTE" },
+  { unidade: "HEMONUCLEO DE IMPERATRIZ", regional: "SUL" },
+  { unidade: "HEMONUCLEO DE PEDREIRAS", regional: "CENTRO" },
+  { unidade: "HEMONUCLEO PINHEIRO", regional: "NORTE" },
+  { unidade: "HEMONUCLEO SANTA INES", regional: "SUL" },
+  { unidade: "HOSPITAL ADELIA MATOS FONSECA", regional: "LESTE" },
+  { unidade: "HOSPITAL AQUILES LISBOA", regional: "NORTE" },
+  { unidade: "HOSPITAL DA ILHA", regional: "NORTE" },
+  { unidade: "HOSPITAL DE BARREIRINHAS", regional: "NORTE" },
+  { unidade: "HOSPITAL DE CUIDADOS INTENSIVOS - HCI", regional: "NORTE" },
+  { unidade: "HOSPITAL DE PAULINO NEVES", regional: "NORTE" },
+  { unidade: "HOSPITAL DE PEDREIRAS", regional: "CENTRO" },
+  { unidade: "HOSPITAL E MATERNIDADE ADERSON MARINHO - P. FRANCO", regional: "SUL" },
+  { unidade: "HOSPITAL GENESIO REGO", regional: "NORTE" },
+  { unidade: "HOSPITAL GERAL DE ALTO ALEGRE", regional: "LESTE" },
+  { unidade: "HOSPITAL GERAL DE GRAJAU", regional: "CENTRO" },
+  { unidade: "HOSPITAL GERAL DE PERITORO", regional: "LESTE" },
+  { unidade: "HOSPITAL MACROREGIONAL DE CAXIAS", regional: "LESTE" },
+  { unidade: "HOSPITAL MACROREGIONAL DE COROATA", regional: "LESTE" },
+  { unidade: "HOSPITAL MACRORREGIONAL DRA RUTH NOLETO", regional: "SUL" },
+  { unidade: "HOSPITAL MATERNO INFANTIL IMPERATRIZ", regional: "SUL" },
+  { unidade: "HOSPITAL PRESIDENTE DUTRA", regional: "CENTRO" },
+  { unidade: "HOSPITAL PRESIDENTE VARGAS", regional: "NORTE" },
+  { unidade: "HOSPITAL REGIONAL ALARICO NUNES PACHECO - Timon", regional: "LESTE" },
+  { unidade: "HOSPITAL REGIONAL DE BARRA DO CORDA", regional: "CENTRO" },
+  { unidade: "HOSPITAL REGIONAL DE CARUTAPERA", regional: "NORTE" },
+  { unidade: "HOSPITAL REGIONAL DE CHAPADINHA", regional: "LESTE" },
+  { unidade: "HOSPITAL REGIONAL DE LAGO DA PEDRA", regional: "CENTRO" },
+  { unidade: "HOSPITAL REGIONAL DE MORROS", regional: "NORTE" },
+  { unidade: "HOSPITAL REGIONAL DE TIMBIRAS", regional: "LESTE" },
+  { unidade: "HOSPITAL REGIONAL SANTA LUZIA DO PARUA", regional: "NORTE" },
+  { unidade: "HOSPITAL VILA LUIZAO", regional: "NORTE" },
+  { unidade: "LACEN", regional: "NORTE" },
+  { unidade: "LACEN IMPERATRIZ", regional: "SUL" },
+  { unidade: "POLICLINICA AÇAILANDIA", regional: "SUL" },
+  { unidade: "POLICLINICA BARRA DO CORDA", regional: "CENTRO" },
+  { unidade: "POLICLINICA CAXIAS", regional: "LESTE" },
+  { unidade: "POLICLINICA CIDADE OPERARIA", regional: "NORTE" },
+  { unidade: "POLICLINICA COHATRAC", regional: "NORTE" },
+  { unidade: "POLICLINICA DE CODÓ", regional: "LESTE" },
+  { unidade: "POLICLINICA DE IMPERATRIZ", regional: "SUL" },
+  { unidade: "POLICLINICA DE MATOES DO NORTE", regional: "LESTE" },
+  { unidade: "POLICLINICA DO COROADINHO", regional: "NORTE" },
+  { unidade: "POLICLINICA DO CUJUPE", regional: "NORTE" },
+  { unidade: "POLICLINICA VILA LUIZAO", regional: "NORTE" },
+  { unidade: "POLICLINICA VINHAIS", regional: "NORTE" },
+  { unidade: "PROGRAMA DE ACAO INTEGRADA PARA APOSENTADOS - PAI", regional: "NORTE" },
+  { unidade: "RESIDENCIA MEDICA E MULTI - ANALISTAS TECNICOS", regional: "NORTE" },
+  { unidade: "SHOPPING DA CRIANÇA", regional: "NORTE" },
+  { unidade: "SOLAR DO OUTONO", regional: "NORTE" },
+  { unidade: "SVO -SERV. VERIFICAÇÃO DE ÓBITOS - SÃO LUÍS", regional: "NORTE" },
+  { unidade: "SVO -SERV. VERIFICAÇÃO DE ÓBITOS - TIMON", regional: "LESTE" },
+  { unidade: "SVO -SERV.VERIFICAÇÃO DE ÓBITOS - IMPERATRIZ", regional: "SUL" },
+  { unidade: "TEA - CENTRO ESPECIALIZADO DE REAB. OLHO D AGUA", regional: "NORTE" },
+  { unidade: "UPA ARACAGY", regional: "NORTE" },
+  { unidade: "UPA CIDADE OPERARIA", regional: "NORTE" },
+  { unidade: "UPA CODO", regional: "LESTE" },
+  { unidade: "UPA COROATA", regional: "LESTE" },
+  { unidade: "UPA DE IMPERATRIZ", regional: "SUL" },
+  { unidade: "UPA ITAQUI BACANGA", regional: "NORTE" },
+  { unidade: "UPA PAÇO DO LUMIAR", regional: "NORTE" },
+  { unidade: "UPA PARQUE VITORIA", regional: "NORTE" },
+  { unidade: "UPA SAO JOAO DOS PATOS", regional: "CENTRO" },
+  { unidade: "UPA TIMON", regional: "LESTE" },
+  { unidade: "UPA VINHAIS", regional: "NORTE" }
+];
+
 // === Helpers (somente visual) ===
 function stripAccents(s: string){ return (s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
 function norm(s: string){ return stripAccents(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
@@ -51,7 +150,6 @@ function formatCell(col: string, raw?: string){
   if(c.includes('cpf')) return formatCPF(value);
   if(c.includes('matricul')) return formatMatricula(value);
 
-  // datas comuns: Admissão, Nascimento, Demissão, Atestado, Início/Fim Afastamento, Próximo ASO etc.
   if (c.startsWith('data') || c.includes('admiss') || c.includes('demiss') || c.includes('nasc') || c.includes('atest') || c.includes('afast') || (c.includes('aso') && (c.includes('prox') || c.includes('proxim')))) {
     return formatDateBR(value);
   }
@@ -62,6 +160,7 @@ function formatCell(col: string, raw?: string){
 
   return value;
 }
+
 // === /Helpers ===
 
 export default function AlterdataCompletaPage(){
@@ -73,38 +172,18 @@ export default function AlterdataCompletaPage(){
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
 
-  // Unidades ↔ Regional (para join visual)
-  const [unidades, setUnidades] = useState<UnidadeMap[]>([]);
+  // Unidades ↔ Regional
+  const [unidades, setUnidades] = useState<UnidadeMap[]>(FALLBACK_UNIDADES);
   const regionalLookup = useMemo(()=>{
     const map = new Map<string,string>();
-    for(const u of unidades){
-      map.set(norm(u.unidade), u.regional);
-    }
+    for(const u of unidades) map.set(norm(u.unidade), u.regional);
     return map;
   },[unidades]);
 
   // Filtros
   const [fRegional, setFRegional] = useState('');
   const [fUnidade, setFUnidade] = useState('');
-  const [fStatus, setFStatus] = useState(''); // Demitido, Admitido, Afastado, + tipos de ASO comuns
-
-  // Detectar coluna 'Unidade' no Alterdata
-  const unidadeCol = useMemo(()=>{
-    const ncols = cols.map(c=>norm(c));
-    const candid = [
-      'unidadehospitalar','unidade','departamento','nmddepartamento','setor','lotacao','local'
-    ];
-    for(const cand of candid){
-      const idx = ncols.findIndex(n => n.includes(cand));
-      if(idx >= 0) return cols[idx];
-    }
-    // fallback por prefixo
-    for(const c of cols){
-      const n = norm(c);
-      if(n.startsWith('unid') || n.includes('depart')) return c;
-    }
-    return '';
-  },[cols]);
+  const [fStatus, setFStatus] = useState(''); // Demitido, Admitido, Afastado
 
   // Carregar colunas
   useEffect(()=>{
@@ -113,7 +192,6 @@ export default function AlterdataCompletaPage(){
       const r = await fetch('/api/alterdata/raw-columns');
       const j: ApiCols = await r.json();
       if(on && j.ok){
-        // Ocultar colunas só no visual
         const hide = (col:string)=>{
           const n = norm(col);
           return (
@@ -126,37 +204,22 @@ export default function AlterdataCompletaPage(){
           );
         };
         let filtered = (j.columns || []).filter(c => !hide(c));
-        // Garante a coluna derivada
-        if(!filtered.includes('Regional responsável')){
-          filtered.push('Regional responsável');
-        }
+        if(!filtered.includes('Regional responsável')) filtered.push('Regional responsável');
         setCols(filtered);
       }
     })();
     return ()=>{ on=false; };
   }, []);
 
-  // Carregar mapeamento Unidade→Regional
+  // Tenta carregar mapping via API; se falhar, mantém fallback
   useEffect(()=>{
     let on = true;
     (async ()=>{
       try{
-        // preferencial: endpoint de colaboradores/unidades (lista completa da tabela stg_unid_reg)
-        let r = await fetch('/api/colaboradores/unidades');
-        let j = await r.json();
-        let list: UnidadeMap[] = [];
-        if(Array.isArray(j?.unidades)){
-          list = j.unidades as UnidadeMap[];
-        }else{
-          // fallback: entregas/options
-          const r2 = await fetch('/api/entregas/options');
-          const j2 = await r2.json();
-          if(Array.isArray(j2?.unidades)) list = j2.unidades as UnidadeMap[];
-        }
-        if(on) setUnidades(list);
-      }catch{
-        /* ignore */
-      }
+        const r = await fetch('/api/colaboradores/unidades');
+        const j = await r.json();
+        if(on && Array.isArray(j?.unidades) && j.unidades.length) setUnidades(j.unidades as UnidadeMap[]);
+      }catch{ /* fica no fallback */ }
     })();
     return ()=>{ on=false; };
   }, []);
@@ -171,29 +234,45 @@ export default function AlterdataCompletaPage(){
       const r = await fetch(`/api/alterdata/raw-rows?${params.toString()}`);
       const j: ApiRows = await r.json();
       if(on){
-        if(j.ok){
-          setRows(j.rows);
-          setTotal(j.total);
-        }else{
-          console.error(j.error);
-        }
+        if(j.ok){ setRows(j.rows); setTotal(j.total); }
+        else{ console.error(j.error); }
         setLoading(false);
       }
     })();
     return ()=>{ on=false; };
   }, [page, limit, q]);
 
+  // Descobrir dinamicamente qual coluna é a de Unidade usando pontuação pelos valores
+  const unidadeCol = useMemo(()=>{
+    if(cols.length === 0) return '';
+    const unitSet = new Set(unidades.map(u=>norm(u.unidade)));
+    let bestCol = '';
+    let bestScore = -1;
+    const sample = rows.slice(0, 200);
+    for(const c of cols){
+      let score = 0;
+      for(const r of sample){
+        const v = norm(String(r.data?.[c] || ''));
+        if(unitSet.has(v)) score++;
+      }
+      // bônus se o nome da coluna sugere unidade
+      const n = norm(c);
+      if(n.includes('unid')||n.includes('depart')||n.includes('lotac')||n.includes('setor')) score += 3;
+      if(score > bestScore){ bestScore = score; bestCol = c; }
+    }
+    if(bestScore >= 3) return bestCol;
+    // fallback por nome
+    for(const c of cols){
+      const n = norm(c);
+      if(n.includes('unidadehospitalar')||n.includes('unidade')||n.includes('departamento')||n.includes('nmddepartamento')||n.includes('lotacao')||n.includes('setor')) return c;
+    }
+    return '';
+  }, [cols, rows, unidades]);
+
   // Derivações por linha
   const getRegionalOfRow = (r: Row)=>{
     const unidadeValor = unidadeCol ? (r.data?.[unidadeCol] || '') : '';
     return regionalLookup.get(norm(unidadeValor)) || '';
-  };
-  const getTipoAso = (r: Row)=>{
-    const entry = Object.entries(r.data||{}).find(([k]) => {
-      const n = norm(k);
-      return n === 'tipodeaso' || n.includes('tipodeaso') || (n.includes('aso') && n.includes('tipo'));
-    });
-    return entry ? entry[1] : '';
   };
   const hasAfastamentoAtivo = (r: Row)=>{
     const ini = Object.entries(r.data||{}).find(([k]) => norm(k).includes('inicio') && norm(k).includes('afast'));
@@ -204,51 +283,33 @@ export default function AlterdataCompletaPage(){
     if(!vFim) return true;
     const dFim = new Date(vFim);
     const hoje = new Date();
-    return dFim > hoje; // afastamento ainda válido
+    return dFim > hoje;
   };
   const isDemitido = (r: Row)=>{
+    // tenta 'situação'/'status'
+    const sit = Object.entries(r.data||{}).find(([k]) => norm(k).includes('situac') || norm(k).includes('status'));
+    if(sit){ const v = norm(String(sit[1]||'')); if(v.includes('demit')) return true; }
+    // fallback: data de demissão
     const dem = Object.entries(r.data||{}).find(([k]) => norm(k).includes('demiss'));
     const v = dem ? String(dem[1]||'').trim() : '';
     return !!v && /^\d{4}-\d{2}-\d{2}/.test(v);
-  };
-
-  // Filtro de status: inclui derivados e tipos de ASO mais comuns
-  const STATUS_OPTS = [
-    'Admitido','Demitido','Afastado',
-    'Admissional','Periódico','Demissional','Retorno ao Trabalho','Mudança de Função'
-  ] as const;
-
-  const rowMatchesStatus = (r: Row, status: string)=>{
-    const s = status.toLowerCase();
-    if(s === 'demitido') return isDemitido(r);
-    if(s === 'admitido') return !isDemitido(r);
-    if(s === 'afastado') return hasAfastamentoAtivo(r);
-    const tipo = norm(getTipoAso(r));
-    if(!tipo) return false;
-    if(s.startsWith('admission')) return tipo.includes('admiss'); // safety
-    if(s.includes('per')) return tipo.includes('period');
-    if(s.includes('demiss')) return tipo.includes('demiss');
-    if(s.includes('retorno')) return tipo.includes('retorno');
-    if(s.includes('mudan')) return tipo.includes('mudan');
-    // generic contains
-    return tipo.includes(norm(status));
   };
 
   const rowsFiltered = useMemo(()=>{
     return rows.filter(r=>{
       if(fRegional && getRegionalOfRow(r) !== fRegional) return false;
       if(fUnidade){
-        const uniVal = unidadeCol ? (r.data?.[unidadeCol] || '') : '';
-        if(norm(uniVal) !== norm(fUnidade)) return false;
+        const uv = unidadeCol ? (r.data?.[unidadeCol] || '') : '';
+        if(norm(uv) !== norm(fUnidade)) return false;
       }
-      if(fStatus){
-        if(!rowMatchesStatus(r, fStatus)) return false;
-      }
+      if(fStatus === 'Demitido') return isDemitido(r);
+      if(fStatus === 'Admitido') return !isDemitido(r);
+      if(fStatus === 'Afastado') return hasAfastamentoAtivo(r);
       return true;
     });
   }, [rows, fRegional, fUnidade, fStatus, unidadeCol, regionalLookup]);
 
-  // Opções
+  // Opções para filtros (sempre completas)
   const regionaisOpts = useMemo(()=>{
     const set = new Set(unidades.map(u=>u.regional).filter(Boolean));
     return Array.from(set).sort((a,b)=>a.localeCompare(b));
@@ -288,7 +349,7 @@ export default function AlterdataCompletaPage(){
         </select>
         <select className="select select-bordered" value={fStatus} onChange={e=>setFStatus(e.target.value)}>
           <option value="">Status (todos)</option>
-          {STATUS_OPTS.map(s => <option key={s} value={s}>{s}</option>)}
+          {['Admitido','Demitido','Afastado'].map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
 
