@@ -1,10 +1,9 @@
-
 'use client';
 import React, { useEffect, useState } from 'react';
 
-type Row = { row_no: number; data: Record<string,string> };
-type ApiRows = { ok: boolean; rows: Row[]; page: number; limit: number; total: number; error?: string };
-type ApiCols = { ok: boolean; columns: string[]; error?: string };
+type Row = Record<string,string>;
+type ApiRows = { ok: boolean; rows: Row[]; page: number; limit: number; total: number; columns: string[]; error?: string };
+type ApiFilters = { ok: boolean; regionais: string[]; unidades: string[]; error?: string };
 
 export default function AlterdataCompletaPage(){
   const [cols, setCols] = useState<string[]>([]);
@@ -12,55 +11,57 @@ export default function AlterdataCompletaPage(){
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
   const [q, setQ] = useState('');
+  const [regional, setRegional] = useState('');
+  const [unidade, setUnidade] = useState('');
+  const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
+  const [regionais, setRegionais] = useState<string[]>([]);
+  const [unidades, setUnidades] = useState<string[]>([]);
   const pages = Math.max(1, Math.ceil(total / limit));
 
-  useEffect(()=>{
-    let on = true;
-    (async ()=>{
-      const r = await fetch('/api/alterdata/raw-columns');
-      const j: ApiCols = await r.json();
-      if(on && j.ok) setCols(j.columns);
-    })();
-    return ()=>{ on=false; };
-  }, []);
+  useEffect(()=>{ (async ()=>{
+    const r = await fetch('/api/alterdata/filters');
+    const j: ApiFilters = await r.json();
+    if(j.ok){ setRegionais(j.regionais||[]); setUnidades(j.unidades||[]); }
+  })(); }, []);
 
-  useEffect(()=>{
-    let on = true;
+  useEffect(()=>{ (async ()=>{
     setLoading(true);
-    (async ()=>{
-      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
-      if(q.trim()) params.set('q', q.trim());
-      const r = await fetch(`/api/alterdata/raw-rows?${params.toString()}`);
-      const j: ApiRows = await r.json();
-      if(on){
-        if(j.ok){
-          setRows(j.rows);
-          setTotal(j.total);
-        }else{
-          console.error(j.error);
-        }
-        setLoading(false);
-      }
-    })();
-    return ()=>{ on=false; };
-  }, [page, limit, q]);
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if(q.trim()) params.set('q', q.trim());
+    if(regional) params.set('regional', regional);
+    if(unidade) params.set('unidade', unidade);
+    if(status) params.set('status', status);
+    const r = await fetch(`/api/alterdata/full-rows?${params.toString()}`);
+    const j: ApiRows = await r.json();
+    if(j.ok){ setRows(j.rows); setTotal(j.total); setCols(j.columns); }
+    setLoading(false);
+  })(); }, [page, limit, q, regional, unidade, status]);
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Alterdata — Base Completa (último upload)</h1>
-        <p className="text-muted">Exibe exatamente as colunas da planilha importada. Busca por Nome / CPF / Matrícula / Unidade / Função.</p>
+        <p className="text-muted">CPF 000.000.000-00 • Matrícula 00000 • Datas DD/MM/AAAA • Filtros por Regional/Unidade/Status.</p>
       </div>
 
-      <div className="flex gap-2 items-center">
-        <input
-          className="input input-bordered w-80"
-          placeholder="Buscar (nome, CPF, matrícula, unidade, função)"
-          value={q}
-          onChange={e=>{ setPage(1); setQ(e.target.value); }}
-        />
+      <div className="flex flex-wrap gap-2 items-center">
+        <input className="input input-bordered w-80" placeholder="Buscar (nome, CPF, matrícula, unidade, função)"
+               value={q} onChange={e=>{ setPage(1); setQ(e.target.value); }} />
+        <select className="select select-bordered" value={regional} onChange={e=>{ setPage(1); setRegional(e.target.value); }}>
+          <option value="">Todas as Regionais</option>
+          {regionais.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <select className="select select-bordered w-80" value={unidade} onChange={e=>{ setPage(1); setUnidade(e.target.value); }}>
+          <option value="">Todas as Unidades</option>
+          {unidades.map(u => <option key={u} value={u}>{u}</option>)}
+        </select>
+        <select className="select select-bordered" value={status} onChange={e=>{ setPage(1); setStatus(e.target.value); }}>
+          <option value="">Todos</option>
+          <option value="admitido">Admitidos</option>
+          <option value="demitido">Demitidos</option>
+        </select>
         <select className="select select-bordered" value={limit} onChange={e=>{ setPage(1); setLimit(parseInt(e.target.value)); }}>
           {[25,50,100,150,200].map(n => <option key={n} value={n}>{n}/página</option>)}
         </select>
@@ -71,23 +72,19 @@ export default function AlterdataCompletaPage(){
         <table className="min-w-max text-sm">
           <thead className="bg-panel sticky top-0 z-10">
             <tr>
-              <th className="px-3 py-2 text-left">#</th>
-              {cols.map(c => (
-                <th key={c} className="px-3 py-2 text-left whitespace-nowrap">{c}</th>
-              ))}
+              <th className="px-3 py-2 text-center">#</th>
+              {cols.map(c => <th key={c} className="px-3 py-2 text-center whitespace-nowrap">{c}</th>)}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="px-3 py-2" colSpan={cols.length+1}>Carregando...</td></tr>
+              <tr><td className="px-3 py-2 text-center" colSpan={cols.length+1}>Carregando...</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td className="px-3 py-2" colSpan={cols.length+1}>Nenhum registro</td></tr>
-            ) : rows.map((r) => (
-              <tr key={r.row_no} className="odd:bg-transparent even:bg-card">
-                <td className="px-3 py-2">{r.row_no}</td>
-                {cols.map(c => (
-                  <td key={c} className="px-3 py-2 whitespace-nowrap">{r.data?.[c] ?? ''}</td>
-                ))}
+              <tr><td className="px-3 py-2 text-center" colSpan={cols.length+1}>Nenhum registro</td></tr>
+            ) : rows.map((r, idx) => (
+              <tr key={idx} className="odd:bg-transparent even:bg-card">
+                <td className="px-3 py-2 text-center">{(page-1)*limit + idx + 1}</td>
+                {cols.map(c => <td key={c} className="px-3 py-2 text-center whitespace-nowrap">{r[c] ?? ''}</td>)}
               </tr>
             ))}
           </tbody>
