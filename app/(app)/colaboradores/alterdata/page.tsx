@@ -81,7 +81,7 @@ export default function AlterdataCompletaPage(){
         // Oculta colunas apenas no visual (não altera a base/subida)
         const norm = (s:string)=> (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
         const HIDE = [
-          (n:string)=> n.includes('celular') || n.includes('telefone') || n.endswith('fone'),
+          (n:string)=> n.includes('celular') || n.includes('telefone') || n.endsWith('fone'),
           (n:string)=> n.includes('cidade'),
           (n:string)=> n.includes('estadocivil'),
           (n:string)=> n.includes('medico'),
