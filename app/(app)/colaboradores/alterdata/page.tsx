@@ -7,13 +7,12 @@ type ApiCols = { ok: boolean; columns: string[]; error?: string };
 
 type UnidadeMap = { unidade: string; regional: string };
 
-// === Display formatters (visual only; não alteram a base) ===
+// === Helpers (somente visual) ===
 function stripAccents(s: string){ return (s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
 function norm(s: string){ return stripAccents(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
 
 function formatDateBR(value: string){
   if(!value) return '';
-  // captura YYYY-MM-DD e HH:MM:SS (opcional)
   const m = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
   if(!m) return value;
   const [, y, mo, d, hh, mm] = m;
@@ -52,7 +51,7 @@ function formatCell(col: string, raw?: string){
   if(c.includes('cpf')) return formatCPF(value);
   if(c.includes('matricul')) return formatMatricula(value);
 
-  // datas comuns na Alterdata (renderização): Admissão, Nascimento, Demissão, Atestado, Início/Fim Afastamento, Próximo ASO etc.
+  // datas comuns: Admissão, Nascimento, Demissão, Atestado, Início/Fim Afastamento, Próximo ASO etc.
   if (c.startsWith('data') || c.includes('admiss') || c.includes('demiss') || c.includes('nasc') || c.includes('atest') || c.includes('afast') || (c.includes('aso') && (c.includes('prox') || c.includes('proxim')))) {
     return formatDateBR(value);
   }
@@ -63,7 +62,7 @@ function formatCell(col: string, raw?: string){
 
   return value;
 }
-// === /formatters ===
+// === /Helpers ===
 
 export default function AlterdataCompletaPage(){
   const [cols, setCols] = useState<string[]>([]);
@@ -74,7 +73,7 @@ export default function AlterdataCompletaPage(){
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
 
-  // Unidades ↔ Regional (para "procv")
+  // Unidades ↔ Regional (para join visual)
   const [unidades, setUnidades] = useState<UnidadeMap[]>([]);
   const regionalLookup = useMemo(()=>{
     const map = new Map<string,string>();
@@ -84,38 +83,37 @@ export default function AlterdataCompletaPage(){
     return map;
   },[unidades]);
 
-  // Filtros extras
+  // Filtros
   const [fRegional, setFRegional] = useState('');
   const [fUnidade, setFUnidade] = useState('');
-  const [fTipoAso, setFTipoAso] = useState(''); // Admissional, Periódico, etc.
-  const [fStatus, setFStatus] = useState(''); // Demitido, Admitido, etc.
+  const [fStatus, setFStatus] = useState(''); // Demitido, Admitido, Afastado, + tipos de ASO comuns
 
-  // Descobrir nome da coluna de unidade na Alterdata
+  // Detectar coluna 'Unidade' no Alterdata
   const unidadeCol = useMemo(()=>{
     const ncols = cols.map(c=>norm(c));
     const candid = [
-      'unidade',
-      'unidadehospitalar',
-      'departamento',
-      'nmddepartamento',
-      'setor',
-      'lotacao'
+      'unidadehospitalar','unidade','departamento','nmddepartamento','setor','lotacao','local'
     ];
     for(const cand of candid){
       const idx = ncols.findIndex(n => n.includes(cand));
       if(idx >= 0) return cols[idx];
     }
-    return cols.find(c=>norm(c).includes('unid')) || cols.find(c=>norm(c).includes('depart')) || '';
+    // fallback por prefixo
+    for(const c of cols){
+      const n = norm(c);
+      if(n.startsWith('unid') || n.includes('depart')) return c;
+    }
+    return '';
   },[cols]);
 
-  // Carregar colunas da Alterdata
+  // Carregar colunas
   useEffect(()=>{
     let on = true;
     (async ()=>{
       const r = await fetch('/api/alterdata/raw-columns');
       const j: ApiCols = await r.json();
       if(on && j.ok){
-        // Oculta colunas apenas no visual (não altera a base/subida)
+        // Ocultar colunas só no visual
         const hide = (col:string)=>{
           const n = norm(col);
           return (
@@ -128,7 +126,7 @@ export default function AlterdataCompletaPage(){
           );
         };
         let filtered = (j.columns || []).filter(c => !hide(c));
-        // Adiciona coluna derivada de Regional, se detectarmos a de Unidade
+        // Garante a coluna derivada
         if(!filtered.includes('Regional responsável')){
           filtered.push('Regional responsável');
         }
@@ -138,23 +136,32 @@ export default function AlterdataCompletaPage(){
     return ()=>{ on=false; };
   }, []);
 
-  // Carregar mapeamento Unidade→Regional (reuso do endpoint de Entregas)
+  // Carregar mapeamento Unidade→Regional
   useEffect(()=>{
     let on = true;
     (async ()=>{
       try{
-        const r = await fetch('/api/entregas/options');
-        const j = await r.json();
-        if(on){
-          const list = Array.isArray(j?.unidades) ? j.unidades as UnidadeMap[] : [];
-          setUnidades(list);
+        // preferencial: endpoint de colaboradores/unidades (lista completa da tabela stg_unid_reg)
+        let r = await fetch('/api/colaboradores/unidades');
+        let j = await r.json();
+        let list: UnidadeMap[] = [];
+        if(Array.isArray(j?.unidades)){
+          list = j.unidades as UnidadeMap[];
+        }else{
+          // fallback: entregas/options
+          const r2 = await fetch('/api/entregas/options');
+          const j2 = await r2.json();
+          if(Array.isArray(j2?.unidades)) list = j2.unidades as UnidadeMap[];
         }
-      }catch{ /* ignore */ }
+        if(on) setUnidades(list);
+      }catch{
+        /* ignore */
+      }
     })();
     return ()=>{ on=false; };
   }, []);
 
-  // Carregar linhas
+  // Carregar linhas (paginado)
   useEffect(()=>{
     let on = true;
     setLoading(true);
@@ -176,23 +183,55 @@ export default function AlterdataCompletaPage(){
     return ()=>{ on=false; };
   }, [page, limit, q]);
 
-  // Helpers de filtro por linha
+  // Derivações por linha
   const getRegionalOfRow = (r: Row)=>{
     const unidadeValor = unidadeCol ? (r.data?.[unidadeCol] || '') : '';
     return regionalLookup.get(norm(unidadeValor)) || '';
   };
   const getTipoAso = (r: Row)=>{
-    const entry = Object.entries(r.data||{}).find(([k]) => norm(k).includes('tipodeaso') || norm(k) === 'tipodeaso' || norm(k).includes('aso'));
+    const entry = Object.entries(r.data||{}).find(([k]) => {
+      const n = norm(k);
+      return n === 'tipodeaso' || n.includes('tipodeaso') || (n.includes('aso') && n.includes('tipo'));
+    });
     return entry ? entry[1] : '';
   };
+  const hasAfastamentoAtivo = (r: Row)=>{
+    const ini = Object.entries(r.data||{}).find(([k]) => norm(k).includes('inicio') && norm(k).includes('afast'));
+    const fim = Object.entries(r.data||{}).find(([k]) => norm(k).includes('fim') && norm(k).includes('afast'));
+    const vIni = ini ? String(ini[1]||'') : '';
+    const vFim = fim ? String(fim[1]||'') : '';
+    if(!/^\d{4}-\d{2}-\d{2}/.test(vIni)) return false;
+    if(!vFim) return true;
+    const dFim = new Date(vFim);
+    const hoje = new Date();
+    return dFim > hoje; // afastamento ainda válido
+  };
   const isDemitido = (r: Row)=>{
-    // considera demitido se houver data de Demissão preenchida
     const dem = Object.entries(r.data||{}).find(([k]) => norm(k).includes('demiss'));
     const v = dem ? String(dem[1]||'').trim() : '';
     return !!v && /^\d{4}-\d{2}-\d{2}/.test(v);
   };
-  const isAdmitido = (r: Row)=>{
-    return !isDemitido(r);
+
+  // Filtro de status: inclui derivados e tipos de ASO mais comuns
+  const STATUS_OPTS = [
+    'Admitido','Demitido','Afastado',
+    'Admissional','Periódico','Demissional','Retorno ao Trabalho','Mudança de Função'
+  ] as const;
+
+  const rowMatchesStatus = (r: Row, status: string)=>{
+    const s = status.toLowerCase();
+    if(s === 'demitido') return isDemitido(r);
+    if(s === 'admitido') return !isDemitido(r);
+    if(s === 'afastado') return hasAfastamentoAtivo(r);
+    const tipo = norm(getTipoAso(r));
+    if(!tipo) return false;
+    if(s.startsWith('admission')) return tipo.includes('admiss'); // safety
+    if(s.includes('per')) return tipo.includes('period');
+    if(s.includes('demiss')) return tipo.includes('demiss');
+    if(s.includes('retorno')) return tipo.includes('retorno');
+    if(s.includes('mudan')) return tipo.includes('mudan');
+    // generic contains
+    return tipo.includes(norm(status));
   };
 
   const rowsFiltered = useMemo(()=>{
@@ -202,44 +241,27 @@ export default function AlterdataCompletaPage(){
         const uniVal = unidadeCol ? (r.data?.[unidadeCol] || '') : '';
         if(norm(uniVal) !== norm(fUnidade)) return false;
       }
-      if(fTipoAso){
-        if(norm(getTipoAso(r)) !== norm(fTipoAso)) return false;
-      }
       if(fStatus){
-        if(fStatus === 'Demitido' && !isDemitido(r)) return false;
-        if(fStatus === 'Admitido' && !isAdmitido(r)) return false;
+        if(!rowMatchesStatus(r, fStatus)) return false;
       }
       return true;
     });
-  }, [rows, fRegional, fUnidade, fTipoAso, fStatus, unidadeCol, regionalLookup]);
+  }, [rows, fRegional, fUnidade, fStatus, unidadeCol, regionalLookup]);
 
-  // Opções das combos
+  // Opções
   const regionaisOpts = useMemo(()=>{
     const set = new Set(unidades.map(u=>u.regional).filter(Boolean));
     return Array.from(set).sort((a,b)=>a.localeCompare(b));
   }, [unidades]);
   const unidadesOpts = useMemo(()=>{
-    const set = new Set<string>();
-    for(const r of rows){
-      const uv = unidadeCol ? (r.data?.[unidadeCol] || '') : '';
-      if(uv) set.add(uv);
-    }
-    return Array.from(set).sort((a,b)=>a.localeCompare(b));
-  }, [rows, unidadeCol]);
-  const tipoAsoOpts = useMemo(()=>{
-    const set = new Set<string>();
-    for(const r of rows){
-      const v = getTipoAso(r);
-      if(v) set.add(v);
-    }
-    return Array.from(set).sort((a,b)=>a.localeCompare(b));
-  }, [rows]);
+    return unidades.map(u=>u.unidade).sort((a,b)=>a.localeCompare(b));
+  }, [unidades]);
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Alterdata — Base Completa (último upload)</h1>
-        <p className="text-muted">Exibe exatamente as colunas da planilha importada. Busca por Nome / CPF / Matrícula / Unidade / Função. Agora com Regional e filtros.</p>
+        <p className="text-muted">Visual com Regional (join por Unidade) e filtros de Status/Regional/Unidade. Nada altera a base ou o upload.</p>
       </div>
 
       <div className="flex flex-wrap gap-2 items-center">
@@ -266,12 +288,7 @@ export default function AlterdataCompletaPage(){
         </select>
         <select className="select select-bordered" value={fStatus} onChange={e=>setFStatus(e.target.value)}>
           <option value="">Status (todos)</option>
-          <option value="Admitido">Admitido</option>
-          <option value="Demitido">Demitido</option>
-        </select>
-        <select className="select select-bordered" value={fTipoAso} onChange={e=>setFTipoAso(e.target.value)}>
-          <option value="">Tipo de ASO (todos)</option>
-          {tipoAsoOpts.map(t => <option key={t} value={t}>{t}</option>)}
+          {STATUS_OPTS.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
 
