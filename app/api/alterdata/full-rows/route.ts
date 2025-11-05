@@ -34,9 +34,10 @@ export async function GET(req: Request) {
       : ''
     ) : '';
 
+    const safeBatch = esc(batch_id);
     const latestFallback = batch_id
-      ? f"SELECT '{esc(batch_id)}'::uuid AS batch_id"
-      : "SELECT batch_id FROM stg_alterdata_v2_imports ORDER BY imported_at DESC LIMIT 1";
+      ? `SELECT '${safeBatch}'::uuid AS batch_id`
+      : `SELECT batch_id FROM stg_alterdata_v2_imports ORDER BY imported_at DESC LIMIT 1`;
 
     const sql = `
       WITH latest AS (
@@ -83,7 +84,7 @@ export async function GET(req: Request) {
           CASE WHEN n.admissao_txt ~ '^\d{4}-\d{2}-\d{2}' THEN to_char(to_date(n.admissao_txt,'YYYY-MM-DD'),'DD/MM/YYYY')
                WHEN n.admissao_txt ~ '^\d{2}/\d{2}/\d{4}' THEN to_char(to_date(n.admissao_txt,'DD/MM/YYYY'),'DD/MM/YYYY')
                ELSE NULL END AS admissao_fmt,
-          CASE WHEN n.demissao_txt ~ '^\d{4}-\d{2}-\d{2}' THEN to_char(to_date(n.demissao_txt,'YYYY-MM-DD'),'DD/MM/YYYY')
+          CASE WHEN n.demissao_txt ~ '^\d{4}-\d{2}-\d{4}' THEN to_char(to_date(n.demissao_txt,'YYYY-MM-DD'),'DD/MM/YYYY')
                WHEN n.demissao_txt ~ '^\d{2}/\d{2}/\d{4}' THEN to_char(to_date(n.demissao_txt,'DD/MM/YYYY'),'DD/MM/YYYY')
                ELSE NULL END AS demissao_fmt,
           CASE WHEN n.nasc_txt ~ '^\d{4}-\d{2}-\d{2}' THEN to_char(to_date(n.nasc_txt,'YYYY-MM-DD'),'DD/MM/YYYY')
@@ -94,7 +95,10 @@ export async function GET(req: Request) {
                ELSE NULL END AS atestado_fmt
         FROM norm n
       ),
-      joined AS ( SELECT n2.*, m.regional FROM norm2 n2 LEFT JOIN stg_unid_reg m ON m.unidade = n2.u_nome ),
+      joined AS (
+        SELECT n2.*, m.regional FROM norm2 n2
+        LEFT JOIN stg_unid_reg m ON m.unidade = n2.u_nome
+      ),
       filtered AS (
         SELECT *,
           CASE WHEN (demissao_fmt IS NULL OR demissao_fmt = '') THEN 'admitido' ELSE 'demitido' END AS status_emp
