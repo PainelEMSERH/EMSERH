@@ -22,9 +22,11 @@ function formatDateBR(value: string){
 
 function formatCPF(value: string){
   if(!value) return '';
-  const digits = value.replace(/\D/g,'');
-  if(digits.length !== 11) return value;
+  const digitsRaw = value.replace(/\D/g,'');
+  const digits = digitsRaw.padStart(11,'0').slice(-11);
   return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9)}`;
+}
+.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9)}`;
 }
 
 function formatMatricula(value: string){
@@ -42,6 +44,7 @@ function formatTelefoneBR(value: string){
   return value;
 }
 
+
 function formatCell(col: string, raw?: string){
   const value = (raw ?? '').trim();
   if(!value) return '';
@@ -50,8 +53,8 @@ function formatCell(col: string, raw?: string){
   if(c.includes('cpf')) return formatCPF(value);
   if(c.includes('matricul')) return formatMatricula(value);
 
-  // datas comuns na Alterdata: Admissão, Data Nascimento, Demissão, Data Atestado, etc.
-  if(c.startsWith('data') || c.includes('admiss') || c.includes('demiss') || c.includes('nasc') || c.includes('atest')){
+  // datas comuns na Alterdata (renderização): Admissão, Data Nascimento, Demissão, Data Atestado, Início/Fim Afastamento, etc.
+  if (c.startsWith('data') || c.includes('admiss') || c.includes('demiss') || c.includes('nasc') || c.includes('atest') || c.includes('afast')) {
     return formatDateBR(value);
   }
 
@@ -61,6 +64,7 @@ function formatCell(col: string, raw?: string){
 
   return value;
 }
+
 // === /formatters ===
 
 
@@ -127,12 +131,12 @@ export default function AlterdataCompletaPage(){
       </div>
 
       <div className="overflow-auto border border-border rounded-xl">
-        <table className="min-w-max text-sm">
+        <table className="min-w-max text-sm text-center">
           <thead className="bg-panel sticky top-0 z-10">
             <tr>
-              <th className="px-3 py-2 text-left">#</th>
+              <th className="px-3 py-2 text-center">#</th>
               {cols.map(c => (
-                <th key={c} className="px-3 py-2 text-left whitespace-nowrap">{c}</th>
+                <th key={c} className="px-3 py-2 text-center whitespace-nowrap">{c}</th>
               ))}
             </tr>
           </thead>
@@ -143,9 +147,9 @@ export default function AlterdataCompletaPage(){
               <tr><td className="px-3 py-2" colSpan={cols.length+1}>Nenhum registro</td></tr>
             ) : rows.map((r) => (
               <tr key={r.row_no} className="odd:bg-transparent even:bg-card">
-                <td className="px-3 py-2">{r.row_no}</td>
+                <td className="px-3 py-2 text-center">{r.row_no}</td>
                 {cols.map(c => (
-                  <td key={c} className="px-3 py-2 whitespace-nowrap">{formatCell(c, r.data?.[c])}</td>
+                  <td key={c} className="px-3 py-2 whitespace-nowrap text-center">{formatCell(c, r.data?.[c])}</td>
                 ))}
               </tr>
             ))}
