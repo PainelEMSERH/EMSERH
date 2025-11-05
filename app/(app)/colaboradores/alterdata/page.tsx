@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 type Row = Record<string,string>;
 type ApiRows = { ok: boolean; rows: Row[]; page: number; limit: number; total: number; columns: string[]; error?: string };
 type ApiFilters = { ok: boolean; regionais: string[]; unidades: string[]; error?: string };
+type ApiBatches = { ok: boolean; batches: { batch_id: string; label: string }[]; current?: string };
 
 export default function AlterdataCompletaPage(){
   const [cols, setCols] = useState<string[]>([]);
@@ -18,7 +19,19 @@ export default function AlterdataCompletaPage(){
   const [total, setTotal] = useState(0);
   const [regionais, setRegionais] = useState<string[]>([]);
   const [unidades, setUnidades] = useState<string[]>([]);
+  const [batches, setBatches] = useState<{batch_id:string; label:string}[]>([]);
+  const [batchId, setBatchId] = useState<string>('');
   const pages = Math.max(1, Math.ceil(total / limit));
+
+  useEffect(()=>{ (async ()=>{
+    const r = await fetch('/api/alterdata/batches');
+    const j: ApiBatches = await r.json();
+    if(j.ok){
+      setBatches(j.batches||[]);
+      if(j.current) setBatchId(j.current);
+      else if(j.batches?.length) setBatchId(j.batches[0].batch_id);
+    }
+  })(); }, []);
 
   useEffect(()=>{ (async ()=>{
     const r = await fetch('/api/alterdata/filters');
@@ -27,8 +40,9 @@ export default function AlterdataCompletaPage(){
   })(); }, []);
 
   useEffect(()=>{ (async ()=>{
+    if(!batchId) return;
     setLoading(true);
-    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    const params = new URLSearchParams({ page: String(page), limit: String(limit), batch_id: batchId });
     if(q.trim()) params.set('q', q.trim());
     if(regional) params.set('regional', regional);
     if(unidade) params.set('unidade', unidade);
@@ -37,7 +51,7 @@ export default function AlterdataCompletaPage(){
     const j: ApiRows = await r.json();
     if(j.ok){ setRows(j.rows); setTotal(j.total); setCols(j.columns); }
     setLoading(false);
-  })(); }, [page, limit, q, regional, unidade, status]);
+  })(); }, [page, limit, q, regional, unidade, status, batchId]);
 
   return (
     <div className="space-y-4">
@@ -64,6 +78,9 @@ export default function AlterdataCompletaPage(){
         </select>
         <select className="select select-bordered" value={limit} onChange={e=>{ setPage(1); setLimit(parseInt(e.target.value)); }}>
           {[25,50,100,150,200].map(n => <option key={n} value={n}>{n}/página</option>)}
+        </select>
+        <select className="select select-bordered" value={batchId} onChange={e=>{ setPage(1); setBatchId(e.target.value); }}>
+          {batches.map(b => <option key={b.batch_id} value={b.batch_id}>{b.label}</option>)}
         </select>
         <div className="text-muted">Total: {total}</div>
       </div>
