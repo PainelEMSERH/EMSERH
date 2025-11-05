@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 function esc(s: string){ return (s||'').replace(/'/g, "''"); }
+const NORM = "regexp_replace(upper(%s), '[^A-Z0-9]', '', 'g')";
 
 export async function GET(req: Request) {
   try{
@@ -14,25 +15,31 @@ export async function GET(req: Request) {
     const status = (searchParams.get('status') || '').trim(); // '', 'Admitido', 'Demitido', 'Afastado'
     const offset = (page - 1) * limit;
 
-    // Candidato de coluna para Unidade (no JSON)
-    const unitExpr = "coalesce(r.data->>'Unidade Hospitalar', r.data->>'NmdDepartamento', r.data->>'Departamento', r.data->>'Unidade', r.data->>'Lotação', r.data->>'Lotacao', r.data->>'Setor')";
-    const unitNorm = "regexp_replace(upper(" + unitExpr + "), '[^A-Z0-9]', '', 'g')";
-
     const wh: string[] = [];
+
     if(q){
       const like = `%${esc(q)}%`;
       wh.push(`r.data::text ILIKE '${like}'`);
     }
+
     if(regional){
       wh.push(`EXISTS (
-        SELECT 1 FROM stg_unid_reg ur
-        WHERE ${unitNorm} = regexp_replace(upper(ur.nmddepartamento), '[^A-Z0-9]', '', 'g')
-          AND ur.regional_responsavel = '${esc(regional)}'
+        SELECT 1
+        FROM stg_unid_reg ur
+        WHERE EXISTS (
+          SELECT 1 FROM jsonb_each_text(r.data) kv
+          WHERE ${NORM % "kv.value"} = ${NORM % "ur.nmddepartamento"}
+        ) AND ur.regional_responsavel = '${esc(regional)}'
       )`);
     }
+
     if(unidade){
-      wh.push(`${unitNorm} = regexp_replace(upper('${esc(unidade)}'), '[^A-Z0-9]', '', 'g')`);
+      wh.push(`EXISTS (
+        SELECT 1 FROM jsonb_each_text(r.data) kv
+        WHERE ${NORM % "kv.value"} = ${NORM % ("'" + esc(unidade) + "'")}
+      )`);
     }
+
     if(status === 'Demitido'){
       wh.push(`(
         (r.data ? 'Demissão' AND (substring(r.data->>'Demissão' from 1 for 10) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'))

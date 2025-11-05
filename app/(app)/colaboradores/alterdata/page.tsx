@@ -235,6 +235,9 @@ export default function AlterdataCompletaPage(){
       if(fRegional) params.set('regional', fRegional);
       if(fUnidade) params.set('unidade', fUnidade);
       if(fStatus) params.set('status', fStatus);
+      if(fRegional) params.set('regional', fRegional);
+      if(fUnidade) params.set('unidade', fUnidade);
+      if(fStatus) params.set('status', fStatus);
       const r = await fetch(`/api/alterdata/raw-rows?${params.toString()}`);
       const j: ApiRows = await r.json();
       if(on){
