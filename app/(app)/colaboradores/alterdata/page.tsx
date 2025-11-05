@@ -77,7 +77,19 @@ export default function AlterdataCompletaPage(){
     (async ()=>{
       const r = await fetch('/api/alterdata/raw-columns');
       const j: ApiCols = await r.json();
-      if(on && j.ok) setCols(j.columns);
+      if(on && j.ok){
+        // Oculta colunas apenas no visual (não altera a base/subida)
+        const norm = (s:string)=> (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+        const HIDE = [
+          (n:string)=> n.includes('celular') || n.includes('telefone') || n.endswith('fone'),
+          (n:string)=> n.includes('cidade'),
+          (n:string)=> n.includes('estadocivil'),
+          (n:string)=> n.includes('medico'),
+          (n:string)=> n.includes('periodicid'),
+        ];
+        const shouldHide = (col:string)=> HIDE.some(fn=> fn(norm(col)));
+        setCols(j.columns.filter(c => !shouldHide(c)));
+      }
     })();
     return ()=>{ on=false; };
   }, []);
