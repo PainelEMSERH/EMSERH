@@ -6,6 +6,65 @@ type Row = { row_no: number; data: Record<string,string> };
 type ApiRows = { ok: boolean; rows: Row[]; page: number; limit: number; total: number; error?: string };
 type ApiCols = { ok: boolean; columns: string[]; error?: string };
 
+// === Display formatters (visual only; não alteram a base) ===
+function stripAccents(s: string){ return s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+
+function formatDateBR(value: string){
+  if(!value) return '';
+  // captura YYYY-MM-DD e HH:MM:SS (opcional)
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if(!m) return value;
+  const [, y, mo, d, hh, mm] = m;
+  const ddmmyyyy = `${d}/${mo}/${y}`;
+  if(hh && !(hh === '00' && (mm||'00') === '00')) return `${ddmmyyyy} ${hh}:${mm||'00'}`;
+  return ddmmyyyy;
+}
+
+function formatCPF(value: string){
+  if(!value) return '';
+  const digits = value.replace(/\D/g,'');
+  if(digits.length !== 11) return value;
+  return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9)}`;
+}
+
+function formatMatricula(value: string){
+  if(!value) return '';
+  const digits = value.replace(/\D/g,'');
+  if(!digits) return value;
+  return digits.padStart(5,'0');
+}
+
+function formatTelefoneBR(value: string){
+  if(!value) return '';
+  const d = value.replace(/\D/g,'');
+  if(d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+  if(d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+  return value;
+}
+
+function formatCell(col: string, raw?: string){
+  const value = (raw ?? '').trim();
+  if(!value) return '';
+  const c = stripAccents(col).toLowerCase();
+
+  if(c.includes('cpf')) return formatCPF(value);
+  if(c.includes('matricul')) return formatMatricula(value);
+
+  // datas comuns na Alterdata: Admissão, Data Nascimento, Demissão, Data Atestado, etc.
+  if(c.startsWith('data') || c.includes('admiss') || c.includes('demiss') || c.includes('nasc') || c.includes('atest')){
+    return formatDateBR(value);
+  }
+
+  if(c.includes('celular') || c.includes('telefone') || c.includes('fone')){
+    return formatTelefoneBR(value);
+  }
+
+  return value;
+}
+// === /formatters ===
+
+
+
 export default function AlterdataCompletaPage(){
   const [cols, setCols] = useState<string[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
@@ -86,7 +145,7 @@ export default function AlterdataCompletaPage(){
               <tr key={r.row_no} className="odd:bg-transparent even:bg-card">
                 <td className="px-3 py-2">{r.row_no}</td>
                 {cols.map(c => (
-                  <td key={c} className="px-3 py-2 whitespace-nowrap">{r.data?.[c] ?? ''}</td>
+                  <td key={c} className="px-3 py-2 whitespace-nowrap">{formatCell(c, r.data?.[c])}</td>
                 ))}
               </tr>
             ))}
