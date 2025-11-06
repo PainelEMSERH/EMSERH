@@ -1,9 +1,10 @@
 import React from 'react';
-import dynamic from 'next/dynamic';
-
-const AlterdataFullClient = dynamic(() => import('@/components/alterdata/AlterdataFullClient'), { ssr: false });
+import NextDynamic from 'next/dynamic';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const AlterdataFullClient = NextDynamic(() => import('@/components/alterdata/AlterdataFullClient'), { ssr: false });
 
 export default function Page() {
   return (
