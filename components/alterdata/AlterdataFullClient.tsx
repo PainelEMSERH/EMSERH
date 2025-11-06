@@ -5,12 +5,6 @@ import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidR
 
 type AnyRow = Record<string, any>;
 
-async function fetchJson(url: string) {
-  const r = await fetch(url, { cache: 'no-store' });
-  if (!r.ok) throw new Error('Falha ao carregar: ' + url + ' [' + r.status + ']');
-  return r.json();
-}
-
 // Normalize object: if row has a `data` object, flatten it; keep row_id if present
 function flattenRow(r: AnyRow): AnyRow {
   const data = (r && typeof r.data === 'object' && r.data !== null) ? r.data : r;
@@ -19,123 +13,8 @@ function flattenRow(r: AnyRow): AnyRow {
   return out;
 }
 
-// Try to read array of rows from any shape {rows:[]}|[]|{data:[]}
-function rowsFrom(json: any): AnyRow[] {
-  if (Array.isArray(json?.rows)) return json.rows as AnyRow[];
-  if (Array.isArray(json?.data)) return json.data as AnyRow[];
-  if (Array.isArray(json)) return json as AnyRow[];
-  return [];
-}
-
-// Build query string from params
-function qs(params: Record<string, string | number | boolean | undefined>) {
-  const usp = new URLSearchParams();
-  Object.entries(params).forEach(([k,v]) => {
-    if (v === undefined) return;
-    usp.set(k, String(v));
-  });
-  const s = usp.toString();
-  return s ? ('?' + s) : '';
-}
-
-// Fetch ALL rows using multiple strategies (limit/take/all, then offset/skip/page, then cursor)
-async function fetchAllRows(baseUrl: string): Promise<AnyRow[]> {
-  // First try: one-shot gigantic size
-  const candidates = [
-    qs({ all: 1 }),
-    qs({ limit: 200000 }),
-    qs({ take: 200000 }),
-    qs({ pageSize: 200000 }),
-    qs({ perPage: 200000 }),
-    qs({ size: 200000 }),
-  ];
-  let best: AnyRow[] = [];
-  for (const q of candidates) {
-    try {
-      const j = await fetchJson(baseUrl + q);
-      const arr = rowsFrom(j);
-      if (arr.length > best.length) best = arr;
-    } catch {}
-  }
-  if (best.length >= 1000) return best; // good enough
-
-  // Second try: offset/skip loops
-  const resAccum: AnyRow[] = [];
-  const seen = new Set<string>();
-  const step = 1000;
-
-  // helper to push unique
-  function pushUnique(batch: AnyRow[]) {
-    for (const r of batch) {
-      const key = JSON.stringify(r);
-      if (!seen.has(key)) { seen.add(key); resAccum.push(r); }
-    }
-  }
-
-  // Try offset/limit
-  for (let off = 0; off < 500000; off += step) {
-    const j = await fetchJson(baseUrl + qs({ offset: off, limit: step }));
-    const arr = rowsFrom(j);
-    if (!arr.length) break;
-    pushUnique(arr);
-    if (arr.length < step) break;
-  }
-  if (resAccum.length > best.length) best = resAccum.slice();
-
-  // Try skip/take
-  if (best.length < 1000) {
-    const res2: AnyRow[] = [];
-    const seen2 = new Set<string>();
-    for (let skip = 0; skip < 500000; skip += step) {
-      const j = await fetchJson(baseUrl + qs({ skip, take: step }));
-      const arr = rowsFrom(j);
-      if (!arr.length) break;
-      for (const r of arr) {
-        const key = JSON.stringify(r);
-        if (!seen2.has(key)) { seen2.add(key); res2.push(r); }
-      }
-      if (arr.length < step) break;
-    }
-    if (res2.length > best.length) best = res2;
-  }
-
-  // Try page/pageSize
-  if (best.length < 1000) {
-    const res3: AnyRow[] = [];
-    const seen3 = new Set<string>();
-    for (let page = 1; page < 500; page++) {
-      const j = await fetchJson(baseUrl + qs({ page, pageSize: step }));
-      const arr = rowsFrom(j);
-      if (!arr.length) break;
-      for (const r of arr) {
-        const key = JSON.stringify(r);
-        if (!seen3.has(key)) { seen3.add(key); res3.push(r); }
-      }
-      if (arr.length < step) break;
-    }
-    if (res3.length > best.length) best = res3;
-  }
-
-  // Try cursor loop if available
-  if (best.length < 1000) {
-    let cursor: any = null;
-    const res4: AnyRow[] = [];
-    const seen4 = new Set<string>();
-    for (let i=0;i<500;i++) {
-      const j = await fetchJson(baseUrl + qs({ cursor: cursor ?? undefined, take: step }));
-      const arr = rowsFrom(j);
-      if (!arr.length) break;
-      for (const r of arr) {
-        const key = JSON.stringify(r);
-        if (!seen4.has(key)) { seen4.add(key); res4.push(r); }
-      }
-      cursor = j?.nextCursor ?? null;
-      if (!cursor || arr.length < step) break;
-    }
-    if (res4.length > best.length) best = res4;
-  }
-
-  return best;
+function uniqueSorted(arr: (string|null|undefined)[]) {
+  return Array.from(new Set(arr.filter(Boolean) as string[])).sort((a,b)=>a.localeCompare(b,'pt-BR'));
 }
 
 // Guess which column is Unidade
@@ -165,10 +44,6 @@ function findStatusKey(rows: AnyRow[]): string | null {
   return cand;
 }
 
-function uniqueSorted(arr: (string|null|undefined)[]) {
-  return Array.from(new Set(arr.filter(Boolean) as string[])).sort((a,b)=>a.localeCompare(b,'pt-BR'));
-}
-
 // Coerce unknown arrays to string[] safely
 function asStringArray(a: any): string[] {
   return Array.isArray(a) ? a.map((x: any) => String(x)) : [];
@@ -193,16 +68,24 @@ export default function AlterdataFullClient() {
     async function load() {
       setLoading(true); setErr(null);
       try {
-        const colsJson = await fetchJson('/api/alterdata/raw-columns');
+        // columns
+        const colsRes = await fetch('/api/alterdata/raw-columns', { cache: 'no-store' });
+        const colsJson = colsRes.ok ? await colsRes.json() : null;
         const colsArrCandidate = Array.isArray(colsJson?.columns) ? colsJson.columns
                               : Array.isArray(colsJson) ? colsJson
                               : Object.values(colsJson || {});
         const colsArr: string[] = asStringArray(colsArrCandidate);
         const baseCols: string[] = Array.from(new Set(colsArr.map(String)));
 
-        // Fetch ALL rows (multi-estratégia)
-        const all = await fetchAllRows('/api/alterdata/raw-rows');
-        const flat = all.map(flattenRow);
+        // ALL rows from new API
+        const allRes = await fetch('/api/alterdata/all', { cache: 'no-store' });
+        if (!allRes.ok) throw new Error('Falha ao carregar toda a base');
+        const allJson = await allRes.json();
+        const rawArr: AnyRow[] = Array.isArray(allJson?.rows) ? allJson.rows
+                               : Array.isArray(allJson) ? allJson
+                               : Array.isArray(allJson?.data) ? allJson.data
+                               : [];
+        const flat = rawArr.map(flattenRow);
 
         // inject regional
         const uk = findUnidadeKey(flat);
