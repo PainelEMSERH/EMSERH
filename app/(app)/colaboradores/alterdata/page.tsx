@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
 
 type RowApi = { row_no: number; data: Record<string, string> };
@@ -33,39 +33,32 @@ function detectUnidadeKey(sample: AnyRow[]): string | null {
   return byScore[0]?.score ? byScore[0].k : null;
 }
 
-// Fetch a single page
-async function fetchPage(page: number, limit: number, q: string, regional: string, unidade: string, status: string): Promise<ApiRows> {
+async function fetchPage(page: number, limit: number): Promise<ApiRows> {
   const params = new URLSearchParams({ page:String(page), limit:String(limit) });
-  if (q) params.set('q', q);
-  if (regional) params.set('regional', regional);
-  if (unidade) params.set('unidade', unidade);
-  if (status) params.set('status', status);
   const r = await fetch('/api/alterdata/raw-rows?' + params.toString(), { cache: 'no-store' });
   if(!r.ok) throw new Error('Falha ao carregar página ' + page);
   return r.json();
 }
 
-// Fetch ALL pages
-async function fetchAll(q: string, regional: string, unidade: string, status: string, onProgress?: (n:number,t:number)=>void): Promise<AnyRow[]> {
-  const first = await fetchPage(1, 200, q, regional, unidade, status);
+async function fetchAll(onProgress?: (n:number,t:number)=>void): Promise<AnyRow[]> {
+  const first = await fetchPage(1, 200);
   const total = first.total || first.rows.length;
   const limit = first.limit || 200;
   const pages = Math.max(1, Math.ceil(total / limit));
   const acc: AnyRow[] = [...first.rows.map(flatten)];
   if (onProgress) onProgress(acc.length, total);
 
-  const concurrency = 6;
+  const concurrency = Math.min(10, Math.max(1, pages-1));
   let next = 2;
-  const run = async () => {
+  async function worker() {
     while (next <= pages) {
       const p = next++;
-      const res = await fetchPage(p, limit, q, regional, unidade, status);
+      const res = await fetchPage(p, limit);
       acc.push(...res.rows.map(flatten));
       if (onProgress) onProgress(Math.min(acc.length,total), total);
     }
-  };
-  const workers = Array.from({length: Math.min(concurrency, pages-1)}, run);
-  await Promise.all(workers);
+  }
+  await Promise.all(Array.from({length: concurrency}, worker));
   return acc.slice(0, total);
 }
 
@@ -79,11 +72,15 @@ export default function Page() {
   const [q, setQ] = useState('');
   const [regional, setRegional] = useState<Regional | 'TODAS'>('TODAS');
   const [unidade, setUnidade] = useState<string | 'TODAS'>('TODAS');
-  const [status, setStatus] = useState<string | 'TODOS'>('TODOS');
 
   const unidadeKey = useMemo(()=> detectUnidadeKey(rows), [rows]);
 
+  const fetchedRef = useRef(false);
+
   useEffect(()=>{
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+
     let on = true;
     (async ()=>{
       setLoading(true); setError(null); setProgress('');
@@ -92,9 +89,7 @@ export default function Page() {
         const jCols: ApiCols = await rCols.json();
         const baseCols = (Array.isArray(jCols?.columns) ? jCols.columns : []) as string[];
 
-        const data = await fetchAll(q.trim(), regional==='TODAS'?'':regional, unidade==='TODAS'?'':unidade, status==='TODOS'?'':status,
-          (n,t)=>{ if(on) setProgress(`${n}/${t}`); }
-        );
+        const data = await fetchAll((n,t)=>{ if(on) setProgress(`${n}/${t}`); });
         const uk = detectUnidadeKey(data);
         const withReg = data.map(r => {
           const un = uk ? String(r[uk] ?? '') : '';
@@ -118,10 +113,10 @@ export default function Page() {
         if(on) setLoading(false);
       }
     })();
-    return ()=>{ on=false };
-  }, [q, regional, unidade, status]);
 
-  // Unidade options depend on Regional
+    return ()=>{ on=false };
+  }, []); // fetch once
+
   const unidadeOptions = useMemo(()=>{
     const uk = unidadeKey;
     if (!uk) return [];
@@ -129,7 +124,6 @@ export default function Page() {
     return uniqueSorted(base.map(r => String(r[uk] ?? '')).filter(Boolean));
   }, [rows, regional, unidadeKey]);
 
-  // Client-side filtering (extra, after API)
   const filtered = useMemo(()=>{
     const uk = unidadeKey;
     let list = rows;
@@ -148,7 +142,7 @@ export default function Page() {
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="text-lg font-semibold">Alterdata — Base Completa</div>
-      <p className="text-sm opacity-70">Visual com Regional (join por Unidade) e filtros de Status/Regional/Unidade. Nada altera a base ou o upload.</p>
+      <p className="text-sm opacity-70">Visual com Regional (join por Unidade) e filtros de Regional/Unidade. Nada altera a base ou o upload.</p>
 
       <div className="flex flex-wrap gap-2 items-center">
         <input
@@ -171,9 +165,10 @@ export default function Page() {
       </div>
 
       {loading && <div className="text-sm opacity-70">Carregando {progress && `(${progress})`}...</div>}
-      {error && <div className="text-sm text-red-600">Erro: {error}</div>}
+      {error && rows.length===0 && <div className="text-sm text-red-600">Erro: {error}</div>}
+      {error && rows.length>0 && <div className="text-xs text-amber-600">Aviso: {error}. Exibindo dados já carregados.</div>}
 
-      {!loading && !error && (
+      {!loading && rows.length>0 && (
         <div className="rounded-2xl overflow-auto border border-neutral-300">
           <table className="w-full text-sm">
             <thead className="bg-neutral-900 text-white">
