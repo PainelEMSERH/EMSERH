@@ -213,11 +213,11 @@ export default function Page() {
 
       {!loading && rows.length>0 && (
         <div className="rounded-2xl overflow-auto border border-neutral-300 max-w-[1320px]">
-          <table className="w-full text-sm text-center">
+          <table className="w-full text-sm">
             <thead className="bg-neutral-900 text-white">
               <tr>
                 {displayColumns.map((c,i) => (
-                  <th key={i} className="text-center px-3 py-2 font-medium sticky top-0">{prettyHeader(c)}</th>
+                  <th key={i} className={`px-3 py-2 font-medium sticky top-0 ${headerAlign(c)}`}>{prettyHeader(c)}</th>
                 ))}
               </tr>
             </thead>
@@ -225,7 +225,7 @@ export default function Page() {
               {filtered.map((r, idx) => (
                 <tr key={idx} className="hover:bg-neutral-50">
                   {displayColumns.map((c,i) => (
-                    <td key={i} className="px-3 py-2 whitespace-nowrap text-center">{isLikelyDateColumn(c) ? formatToBRDate(r[c]) : isCpfColumn(c) ? formatCpf(r[c]) : isMatriculaColumn(c) ? formatMatricula(r[c]) : String(r[c] ?? '')}</td>
+                    <td key={i} className={`px-3 py-2 whitespace-nowrap ${cellAlign(c, r[c])}`}>{isLikelyDateColumn(c) ? formatToBRDate(r[c]) : isCpfColumn(c) ? formatCpf(r[c]) : isMatriculaColumn(c) ? formatMatricula(r[c]) : String(r[c] ?? '')}</td>
                   ))}
                 </tr>
               ))}
