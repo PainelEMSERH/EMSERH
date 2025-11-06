@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
 
-type RowApi = { row_no: number; data: Record<string, any> };
+type RowApi = { row_no: number; data: Record<string, string> };
 type ApiRows = { ok: boolean; rows: RowApi[]; page: number; limit: number; total: number; error?: string };
 type ApiCols = { ok: boolean; columns: string[]; error?: string };
 
@@ -33,55 +33,43 @@ function detectUnidadeKey(sample: AnyRow[]): string | null {
   return byScore[0]?.score ? byScore[0].k : null;
 }
 
-// ---- Helpers (UI/format) ----
+// ---- Customization: hidden columns + date formatting ----
 function normHeaderLabel(s: string): string {
   if (!s) return '';
   const up = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
   return up.replace(/\s+/g, ' ').trim();
 }
-const HIDDEN_COLUMNS = new Set<string>(['CELULAR','CIDADE','ESTADO CIVIL','MOTIVO AFASTAMENTO','NOME MEDICO','TELEFONE']);
-function isHiddenColumn(label: string): boolean { return HIDDEN_COLUMNS.has(normHeaderLabel(String(label||''))); }
 
-function prettyHeader(label: string): string {
-  const raw = String(label||'');
-  const n = normHeaderLabel(raw);
-  const keep = new Set(['CPF','RG','PIS','CTPS','CNS','CBO','CNH','UF','ID']);
-  if (keep.has(n)) return n;
-  // Title Case basic
-  return raw.toLowerCase().replace(/(^|\s)\S/g, (t)=>t.toUpperCase());
+const HIDDEN_COLUMNS = new Set<string>([
+  'CELULAR','CIDADE','ESTADO CIVIL','MOTIVO AFASTAMENTO','NOME MEDICO','TELEFONE'
+]);
+
+function isHiddenColumn(label: string): boolean {
+  return HIDDEN_COLUMNS.has(normHeaderLabel(String(label||'')));
 }
 
 function isLikelyDateColumn(label: string): boolean {
   const n = normHeaderLabel(String(label||'')).toLowerCase();
   return /(data|admiss|demiss|nasc|atest|inicio|in\u00edcio|fim|afast)/.test(n);
 }
-function isCpfColumn(label: string): boolean {
-  const n = normHeaderLabel(String(label||'')).toLowerCase();
-  return n === 'cpf' || /\bc\.?p\.?f\.?/.test(n);
-}
-function isMatriculaColumn(label: string): boolean {
-  const n = normHeaderLabel(String(label||'')).toLowerCase();
-  return /matric/.test(n);
-}
 
 function formatToBRDate(value: any): string {
   if (value === null || value === undefined) return '';
   const s = String(value).trim();
   if (!s) return '';
+  // If already DD/MM/YYYY, normalize zeros and return
   let m = s.match(/^(\d{2})[\/](\d{2})[\/](\d{4})/);
   if (m) return `${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[3]}`;
-  m = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})(?:\s|T|$)/);
-  if (m) return `${m[3].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[1]}`;
+  // ISO-like: YYYY-MM-DD or YYYY/MM/DD optionally with time
+  m = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  // 'YYYY-MM-DDTHH:mm:ss' etc
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})T/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  // 'DD-MM-YYYY'
   m = s.match(/^(\d{2})-(\d{2})-(\d{4})/);
-  if (m) return `${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[3]}`;
+  if (m) return `${m[1]}/${m[2]}/${m[3]}`;
   return s;
-}
-function formatCpf(value: any): string {
-  const digits = String(value||'').replace(/\D/g,'').padStart(11,'0').slice(-11);
-  return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9,11)}`;
-}
-function formatMatricula(value: any): string {
-  return String(value||'').replace(/\D/g,'').padStart(5,'0').slice(-5);
 }
 
 async function fetchPage(page: number, limit: number): Promise<ApiRows> {
@@ -90,6 +78,7 @@ async function fetchPage(page: number, limit: number): Promise<ApiRows> {
   if(!r.ok) throw new Error('Falha ao carregar página ' + page);
   return r.json();
 }
+
 async function fetchAll(onProgress?: (n:number,t:number)=>void): Promise<AnyRow[]> {
   const first = await fetchPage(1, 200);
   const total = first.total || first.rows.length;
@@ -97,6 +86,7 @@ async function fetchAll(onProgress?: (n:number,t:number)=>void): Promise<AnyRow[
   const pages = Math.max(1, Math.ceil(total / limit));
   const acc: AnyRow[] = [...first.rows.map(flatten)];
   if (onProgress) onProgress(acc.length, total);
+
   const concurrency = Math.min(10, Math.max(1, pages-1));
   let next = 2;
   async function worker() {
@@ -124,10 +114,16 @@ export default function Page() {
 
   const unidadeKey = useMemo(()=> detectUnidadeKey(rows), [rows]);
 
+  const displayColumns = useMemo(() => {
+    return columns.filter(c => !isHiddenColumn(c));
+  }, [columns]);
+
   const fetchedRef = useRef(false);
+
   useEffect(()=>{
     if (fetchedRef.current) return;
     fetchedRef.current = true;
+
     let on = true;
     (async ()=>{
       setLoading(true); setError(null); setProgress('');
@@ -150,15 +146,19 @@ export default function Page() {
           if (i>=0) cols.splice(i+1,0,'regional'); else cols.push('regional');
         } else if (!cols.includes('regional')) cols.push('regional');
 
-        if(on){ setColumns(cols); setRows(withReg); }
+        if(on){
+          setColumns(cols);
+          setRows(withReg);
+        }
       }catch(e:any){
         if(on) setError(String(e?.message||e));
       }finally{
         if(on) setLoading(false);
       }
     })();
+
     return ()=>{ on=false };
-  }, []);
+  }, []); // fetch once
 
   const unidadeOptions = useMemo(()=>{
     const uk = unidadeKey;
@@ -182,19 +182,17 @@ export default function Page() {
     return list;
   }, [rows, regional, unidade, q, unidadeKey]);
 
-  const displayColumns = useMemo(() => columns.filter(c => !isHiddenColumn(c)), [columns]);
-
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <div className="text-lg font-semibold text-center">Alterdata — Base Completa</div>
-      <p className="text-sm opacity-70 text-center">Visual com Regional (join por Unidade) e filtros de Regional/Unidade. Nada altera a base ou o upload.</p>
+    <div className="p-4 md:p-6 space-y-4 max-w-[1320px]">
+      <div className="text-lg font-semibold">Alterdata — Base Completa</div>
+      <p className="text-sm opacity-70">Visual com Regional (join por Unidade) e filtros de Regional/Unidade. Nada altera a base ou o upload.</p>
 
-      <div className="flex flex-wrap gap-2 items-center justify-center">
+      <div className="flex flex-wrap gap-2 items-center">
         <input
           value={q}
           onChange={e=>setQ(e.target.value)}
           placeholder="Buscar por nome, CPF, matrícula, unidade..."
-          className="px-3 py-2 rounded-xl bg-neutral-100 text-sm w-full md:w-96 outline-none text-neutral-900"
+          className="px-3 py-2 rounded-xl bg-neutral-100 text-sm w-full md:w-[420px] outline-none text-neutral-900"
         />
         <select value={regional} onChange={e=>{ setRegional(e.target.value as any); setUnidade('TODAS'); }}
                 className="px-3 py-2 rounded-xl bg-neutral-100 text-sm text-neutral-900">
@@ -209,12 +207,12 @@ export default function Page() {
         </select>
       </div>
 
-      {loading && <div className="text-sm opacity-70 text-center">Carregando {progress && `(${progress})`}...</div>}
-      {error && rows.length===0 && <div className="text-sm text-red-600 text-center">Erro: {error}</div>}
-      {error && rows.length>0 && <div className="text-xs text-amber-600 text-center">Aviso: {error}. Exibindo dados já carregados.</div>}
+      {loading && <div className="text-sm opacity-70">Carregando {progress && `(${progress})`}...</div>}
+      {error && rows.length===0 && <div className="text-sm text-red-600">Erro: {error}</div>}
+      {error && rows.length>0 && <div className="text-xs text-amber-600">Aviso: {error}. Exibindo dados já carregados.</div>}
 
       {!loading && rows.length>0 && (
-        <div className="rounded-2xl overflow-auto border border-neutral-300 mx-auto">
+        <div className="rounded-2xl overflow-auto border border-neutral-300 max-w-[1320px]">
           <table className="w-full text-sm text-center">
             <thead className="bg-neutral-900 text-white">
               <tr>
@@ -227,9 +225,7 @@ export default function Page() {
               {filtered.map((r, idx) => (
                 <tr key={idx} className="hover:bg-neutral-50">
                   {displayColumns.map((c,i) => (
-                    <td key={i} className="px-3 py-2 whitespace-nowrap text-center">
-                      {isLikelyDateColumn(c) ? formatToBRDate(r[c]) : isCpfColumn(c) ? formatCpf(r[c]) : isMatriculaColumn(c) ? formatMatricula(r[c]) : String(r[c] ?? '')}
-                    </td>
+                    <td key={i} className="px-3 py-2 whitespace-nowrap text-center">{isLikelyDateColumn(c) ? formatToBRDate(r[c]) : isCpfColumn(c) ? formatCpf(r[c]) : isMatriculaColumn(c) ? formatMatricula(r[c]) : String(r[c] ?? '')}</td>
                   ))}
                 </tr>
               ))}
@@ -238,7 +234,7 @@ export default function Page() {
         </div>
       )}
 
-      <div className="text-xs opacity-60 text-center">{rows.length} registros carregados (lista completa, sem paginação)</div>
+      <div className="text-xs opacity-60">{rows.length} registros carregados (lista completa, sem paginação)</div>
     </div>
   );
 }
