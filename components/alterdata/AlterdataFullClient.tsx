@@ -44,6 +44,11 @@ function uniqueSorted(arr: (string|null|undefined)[]) {
   return Array.from(new Set(arr.filter(Boolean) as string[])).sort((a,b)=>a.localeCompare(b,'pt-BR'));
 }
 
+// Coerce unknown arrays to string[] safely
+function asStringArray(a: any): string[] {
+  return Array.isArray(a) ? a.map((x: any) => String(x)) : [];
+}
+
 export default function AlterdataFullClient() {
   const [rows, setRows] = React.useState<AnyRow[]>([]);
   const [columns, setColumns] = React.useState<string[]>([]);
@@ -72,17 +77,19 @@ export default function AlterdataFullClient() {
         const colsJson = await colsRes.json();
         const rowsJson = await rowsRes.json();
 
-        // columns can be {columns: string[]} or string[]
-        const colsArr = Array.isArray(colsJson?.columns) ? colsJson.columns
-                      : Array.isArray(colsJson) ? colsJson
-                      : Object.values(colsJson || {}).filter((v: any) => typeof v === 'string') as string[];
-        const baseCols = Array.from(new Set(colsArr));
+        // Normalize columns to string[]
+        const colsArrCandidate = Array.isArray(colsJson?.columns) ? colsJson.columns
+                              : Array.isArray(colsJson) ? colsJson
+                              : Object.values(colsJson || {});
+        const colsArr: string[] = asStringArray(colsArrCandidate);
+        const baseCols: string[] = Array.from(new Set(colsArr.map(String)));
 
-        // rows can be {rows:[{row_id, data:{...}}]} or array
-        const rawArr: AnyRow[] = Array.isArray(rowsJson?.rows) ? rowsJson.rows
+        // Normalize rows and flatten
+        const rowsArrCandidate = Array.isArray(rowsJson?.rows) ? rowsJson.rows
                                : Array.isArray(rowsJson) ? rowsJson
                                : Array.isArray(rowsJson?.data) ? rowsJson.data
                                : [];
+        const rawArr: AnyRow[] = Array.isArray(rowsArrCandidate) ? rowsArrCandidate as AnyRow[] : [];
         const flat = rawArr.map(flattenRow);
 
         // inject regional
@@ -94,7 +101,7 @@ export default function AlterdataFullClient() {
         });
 
         // final columns: move 'regional' next to unidade (if any)
-        let cols = [...baseCols.filter(c => c !== 'regional')];
+        let cols: string[] = [...baseCols.filter(c => c !== 'regional')];
         if (uk && !cols.includes('regional')) {
           const idx = cols.findIndex(c => c === uk);
           if (idx >= 0) cols.splice(idx + 1, 0, 'regional');
