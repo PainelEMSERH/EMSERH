@@ -33,6 +33,45 @@ function detectUnidadeKey(sample: AnyRow[]): string | null {
   return byScore[0]?.score ? byScore[0].k : null;
 }
 
+// ---- Customization: hidden columns + date formatting ----
+function normHeaderLabel(s: string): string {
+  if (!s) return '';
+  const up = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  return up.replace(/\s+/g, ' ').trim();
+}
+
+const HIDDEN_COLUMNS = new Set<string>([
+  'CELULAR','CIDADE','ESTADO CIVIL','MOTIVO AFASTAMENTO','NOME MEDICO','TELEFONE'
+]);
+
+function isHiddenColumn(label: string): boolean {
+  return HIDDEN_COLUMNS.has(normHeaderLabel(String(label||'')));
+}
+
+function isLikelyDateColumn(label: string): boolean {
+  const n = normHeaderLabel(String(label||'')).toLowerCase();
+  return /(data|admiss|demiss|nasc|atest|inicio|in\u00edcio|fim|afast)/.test(n);
+}
+
+function formatToBRDate(value: any): string {
+  if (value === null || value === undefined) return '';
+  const s = String(value).trim();
+  if (!s) return '';
+  // If already DD/MM/YYYY, normalize zeros and return
+  let m = s.match(/^(\d{2})[\/](\d{2})[\/](\d{4})/);
+  if (m) return `${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[3]}`;
+  // ISO-like: YYYY-MM-DD or YYYY/MM/DD optionally with time
+  m = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  // 'YYYY-MM-DDTHH:mm:ss' etc
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})T/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  // 'DD-MM-YYYY'
+  m = s.match(/^(\d{2})-(\d{2})-(\d{4})/);
+  if (m) return `${m[1]}/${m[2]}/${m[3]}`;
+  return s;
+}
+
 async function fetchPage(page: number, limit: number): Promise<ApiRows> {
   const params = new URLSearchParams({ page:String(page), limit:String(limit) });
   const r = await fetch('/api/alterdata/raw-rows?' + params.toString(), { cache: 'no-store' });
@@ -74,6 +113,10 @@ export default function Page() {
   const [unidade, setUnidade] = useState<string | 'TODAS'>('TODAS');
 
   const unidadeKey = useMemo(()=> detectUnidadeKey(rows), [rows]);
+
+  const displayColumns = useMemo(() => {
+    return columns.filter(c => !isHiddenColumn(c));
+  }, [columns]);
 
   const fetchedRef = useRef(false);
 
@@ -169,19 +212,19 @@ export default function Page() {
       {error && rows.length>0 && <div className="text-xs text-amber-600">Aviso: {error}. Exibindo dados já carregados.</div>}
 
       {!loading && rows.length>0 && (
-        <div className="rounded-2xl overflow-auto border border-neutral-300">
+        <div className="rounded-2xl overflow-auto border border-neutral-300 mx-auto">
           <table className="w-full text-sm">
             <thead className="bg-neutral-900 text-white">
               <tr>
-                {columns.map((c,i) => (
-                  <th key={i} className="text-left px-3 py-2 font-medium sticky top-0">{c}</th>
+                {displayColumns.map((c,i) => (
+                  <th key={i} className="text-center px-3 py-2 font-medium sticky top-0">{c}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200">
               {filtered.map((r, idx) => (
                 <tr key={idx} className="hover:bg-neutral-50">
-                  {columns.map((c,i) => (
+                  {displayColumns.map((c,i) => (
                     <td key={i} className="px-3 py-2 whitespace-nowrap">{String(r[c] ?? '')}</td>
                   ))}
                 </tr>
