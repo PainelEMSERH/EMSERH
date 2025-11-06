@@ -3,6 +3,31 @@
 import React from 'react';
 import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
 
+// Patch: ocultar colunas específicas e formatar datas (dd/MM/aaaa)
+const __HIDE_COLS__ = new Set(['Celular', 'Cidade', 'Data Atestado', 'Estado Civil', 'Fim Afastamento', 'Início Afastamento', 'Motivo Afastamento', 'Nome Médico', 'Periodicidade', 'Telefone']);
+function __shouldHide(col: string): boolean {
+  const n = (col||'').normalize('NFD').replace(/[^a-z0-9]/gi,'').toLowerCase();
+  const targets = new Set(['celular', 'cidade', 'dataatestado', 'estadocivil', 'fimafastamento', 'inicioafastamento', 'motivoafastamento', 'nomemedico', 'periodicidade', 'telefone']);
+  return targets.has(n);
+}
+function __fmtDate(val: any): string {
+  if (val === null || val === undefined) return '';
+  const s = String(val).trim();
+  // yyyy-mm-dd or yyyy-mm-dd HH:mm:ss
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T].*)?$/);
+  if (m) { return `${m[3]}/${m[2]}/${m[1]}`; }
+  // If already dd/mm/yyyy, keep
+  const m2 = s.match(/^(\d{2})\/(\d{2})\/(\d{2,4})$/);
+  if (m2) { return s; }
+  return s;
+}
+function __renderCell(col: string, val: any): string {
+  const n = (col||'').normalize('NFD').toLowerCase();
+  if (/data|nascimento|admiss[aã]o|afastamento|atest/.test(n)) { return __fmtDate(val); }
+  return String(val ?? '');
+}
+// /*__HIDE_ALTERDATA__*/
+
 type AnyRow = Record<string, any>;
 
 // Normalize object: if row has a `data` object, flatten it; keep row_id if present
@@ -195,7 +220,7 @@ export default function AlterdataFullClient() {
               {filtered.map((r, idx) => (
                 <tr key={idx} className="hover:bg-neutral-50">
                   {columns.map((c,i) => (
-                    <td key={i} className="px-3 py-2 whitespace-nowrap">{String(r[c] ?? '')}</td>
+                    <td key={i} className="px-3 py-2 whitespace-nowrap">{__renderCell(c, r[c])}</td>
                   ))}
                 </tr>
               ))}
