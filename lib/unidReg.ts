@@ -1,9 +1,19 @@
-  // Auto-generated mapping of Unidade -> Regional (uppercase canonical keys)
-  export const UNID_TO_REGIONAL: Record<string, 'NORTE'|'LESTE'|'CENTRO'|'SUL'> = {
-    "AGENCIA TRANSFUSIONAL BARRA DO CORDA": "CENTRO",
+// Auto-generated: Unidade -> Regional mapping and helpers
+export type Regional = 'NORTE'|'LESTE'|'CENTRO'|'SUL';
+export const REGIONALS: Regional[] = ['NORTE','LESTE','CENTRO','SUL'];
+
+export function canonUnidade(s: string | null | undefined): string {
+  if (!s) return '';
+  const up = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  return up.replace(/\s+/g,' ').replace(/\s-\s/g,'-').trim();
+}
+
+// IMPORTANT: keys in uppercase canonical form, without diacritics
+export const UNID_TO_REGIONAL: Record<string, Regional> = {
+  "AGENCIA TRANSFUSIONAL BARRA DO CORDA": "CENTRO",
   "AGENCIA TRANSFUSIONAL CHAPADINHA": "LESTE",
   "AGENCIA TRANSFUSIONAL COLINAS": "CENTRO",
-  "AGENCIA TRANSFUSIONAL DE SÃO JOÃO DOS PATOS": "CENTRO",
+  "AGENCIA TRANSFUSIONAL DE SAO JOAO DOS PATOS": "CENTRO",
   "AGENCIA TRANSFUSIONAL DE VIANA": "NORTE",
   "AGENCIA TRANSFUSIONAL TIMON": "LESTE",
   "CAF - FEME": "NORTE",
@@ -96,13 +106,3 @@
   "UPA TIMON": "LESTE",
   "UPA VINHAIS": "NORTE"
 };
-
-  export type Regional = 'NORTE'|'LESTE'|'CENTRO'|'SUL';
-  export const REGIONALS: Regional[] = ['NORTE','LESTE','CENTRO','SUL'];
-
-  // Canonicalization to maximize match robustness
-  export function canonUnidade(s: string): string {
-    if (!s) return '';
-    const up = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
-    return up.replace(/\s+/g,' ').replace(/\s-\s/g,'-').trim();
-  }
