@@ -1,4 +1,4 @@
-// Auto-generated: Unidade -> Regional mapping and helpers (v3)
+// Auto-generated: Unidade -> Regional mapping and helpers (v4)
 export type Regional = 'NORTE'|'LESTE'|'CENTRO'|'SUL';
 export const REGIONALS: Regional[] = ['NORTE','LESTE','CENTRO','SUL'];
 
