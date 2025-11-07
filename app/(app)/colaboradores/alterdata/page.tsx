@@ -88,6 +88,7 @@ async function fetchAll(onProgress?: (n:number,t:number)=>void): Promise<AnyRow[
 }
 
 export default function Page() {
+  const LS_KEY_ALTERDATA = 'alterdata_cache_v3';
   const [columns, setColumns] = useState<string[]>([]);
   const [rows, setRows] = useState<AnyRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -131,6 +132,7 @@ export default function Page() {
         if(on){
           setColumns(cols);
           setRows(withReg);
+          try { window.localStorage.setItem(LS_KEY_ALTERDATA, JSON.stringify({ rows: withReg, columns: cols })); } catch {}
         }
       }catch(e:any){
         if(on) setError(String(e?.message||e));
@@ -189,7 +191,7 @@ export default function Page() {
         </select>
       </div>
 
-      {loading && <div className="text-sm opacity-70">Carregando {progress && `(${progress})`}...</div>}
+      
       {error && rows.length===0 && <div className="text-sm text-red-600">Erro: {error}</div>}
       {error && rows.length>0 && <div className="text-xs text-amber-600">Aviso: {error}. Exibindo dados já carregados.</div>}
 
