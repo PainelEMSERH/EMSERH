@@ -88,6 +88,7 @@ async function fetchAll(onProgress?: (n:number,t:number)=>void): Promise<AnyRow[
 }
 
 export default function Page() {
+  const LS_ALTERDATA_ROWS='alt_rows_v1'; const LS_ALTERDATA_COLS='alt_cols_v1'; const LS_ALTERDATA_BATCH='alt_batch_v1';
   const LS_KEY_ALTERDATA = 'alterdata_cache_v3';
   const [columns, setColumns] = useState<string[]>([]);
   const [rows, setRows] = useState<AnyRow[]>([]);
