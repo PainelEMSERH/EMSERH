@@ -7,7 +7,7 @@ function norm(expr: string){
 }
 
 async function tableExists(name: string): Promise<boolean> {
-  const r: any[] = await prisma.$queryRawUnsafe(`SELECT to_regclass('${esc(name)}') as r`);
+  const r: any[] = await prisma.$queryRawUnsafe(`SELECT to_regclass('${name}') as r`);
   return !!r?.[0]?.r;
 }
 
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
 
     const wh: string[] = [];
 
-    // Busca livre em qualquer campo textual
+    // Busca livre
     if(q){
       const nq = esc(q);
       wh.push(`EXISTS (
@@ -56,7 +56,7 @@ export async function GET(req: Request) {
       )`);
     }
 
-    // Filtro por unidade (comparando com QUALQUER campo da linha, normalizado)
+    // Unidade
     if(unidade){
       wh.push(`EXISTS (
         SELECT 1 FROM jsonb_each_text(data) kv_un
@@ -64,8 +64,11 @@ export async function GET(req: Request) {
       )`);
     }
 
-    // Filtro por regional: forma robusta que usa stg_unid_reg sem depender do nome da coluna.
-    if(regional && hasUnidReg){
+    // Regional (JOIN genérico — sem dependência de nome de coluna)
+    if(regional){
+      if(!hasUnidReg){
+        return NextResponse.json({ ok:false, error: 'Filtro de Regional exige a tabela stg_unid_reg (não encontrada).' }, { status: 500 });
+      }
       wh.push(`EXISTS (
         SELECT 1
         FROM stg_unid_reg ur
@@ -91,14 +94,14 @@ export async function GET(req: Request) {
              OR upper(kv.key) LIKE '%RESPONS%'
           ORDER BY
             CASE
-              WHEN upper(kv.key) LIKE '%REGIONAL_RESpons%' THEN 3
+              WHEN upper(kv.key) LIKE '%REGIONAL_RES%' THEN 3
               WHEN upper(kv.key) LIKE '%REGIONAL%' THEN 2
               WHEN upper(kv.key) LIKE '%RESPONS%' THEN 1
               ELSE 0
             END DESC
           LIMIT 1
         ) rg
-        WHERE upper(rg.regional_map) = upper('${esc(regional)}')
+        WHERE ${norm('rg.regional_map')} = ${norm(`'${esc(regional)}'`)}
           AND EXISTS (
             SELECT 1 FROM jsonb_each_text(data) rv
             WHERE ${norm('rv.value')} = ${norm('u.unidade_map')}
@@ -106,7 +109,7 @@ export async function GET(req: Request) {
       )`);
     }
 
-    // Situação (Admitido/Afastado/Demitido) — heurística textual sobre a linha JSON
+    // Situação
     if(status === 'Demitido'){
       wh.push(`(
         (data ? 'Demissão' AND (substring(data->>'Demissão' from 1 for 10) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'))
