@@ -1,302 +1,383 @@
 'use client';
-import React, { useEffect, useMemo, useState } from 'react';
 
-type ColabRow = {
-  id: string;                // cpf ou id interno
-  nome: string;
-  funcao: string;
-  unidade: string;
-  regional: string;
-  nome_site?: string | null; // kit de exibição (derivado do stg_epi_map)
-};
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-type EpiItem = { epi_item: string; quantidade: number };
-type EpiPayloadItem = { epi_item: string; quantidade: number; entregue: boolean };
-
-type ListResponse = {
-  rows: ColabRow[];
-  total: number;
-  page: number;
-  pageSize: number;
-};
-
-async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, { ...options, cache: 'no-store' });
-  if (!res.ok) {
-    const msg = await res.text().catch(() => '');
-    throw new Error(`HTTP ${res.status} — ${msg || res.statusText}`);
-  }
-  return res.json() as Promise<T>;
+// Helpers importados da página Alterdata (vamos reusar as mesmas heurísticas de normalização/formatação)
+function norm(s: string) {
+  return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
 }
 
-export default function EntregasPage() {
-  // Filters
-  const [regionais, setRegionais] = useState<string[]>([]);
-  const [unidades, setUnidades] = useState<{ unidade: string; regional: string }[]>([]);
-  const [regional, setRegional] = useState<string>('');
-  const [unidade, setUnidade] = useState<string>('');
-  const [q, setQ] = useState('');
+function parseDate(s: any): string | null {
+  if (!s) return null;
+  const str = String(s).trim();
+  let m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  m = str.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  return null;
+}
+function fmtDateBR(s?: string|null) {
+  if (!s) return '';
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return s;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+function maskCPF(v: any) {
+  const d = String(v||'').replace(/\D/g,'').slice(-11).padStart(11,'0');
+  return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`;
+}
+function padMatricula(v: any) {
+  const d = String(v||'').replace(/\D/g,'').slice(-5).padStart(5,'0');
+  return d;
+}
 
-  // List state
+type RowApi = { row_no: number; data: Record<string, any> };
+type ApiRows = { ok: boolean; rows: RowApi[]; page: number; limit: number; total: number; error?: string };
+
+type Colab = {
+  source: 'alterdata'|'manual';
+  cpf: string;
+  matricula?: string|null;
+  nome?: string|null;
+  funcao?: string|null;
+  unidade?: string|null;
+  regional?: string|null;
+  admissao?: string|null;
+  demissao?: string|null;
+};
+
+async function fetchJSON(url: string, init?: RequestInit) {
+  const r = await fetch(url, init);
+  const text = await r.text();
+  let json:any;
+  try{ json = JSON.parse(text); }catch{ json = { ok:false, error:'JSON inválido', raw:text }; }
+  return { json, headers: r.headers };
+}
+
+async function fetchAlterdataAll(): Promise<Colab[]> {
+  // Vamos reaproveitar os endpoints raw-rows para montar a lista mínima necessária
+  const { json: firstJ } = await fetchJSON('/api/alterdata/raw-rows?page=1&limit=200', { cache: 'force-cache' });
+  if (!firstJ?.ok) return [];
+  const first = firstJ as ApiRows;
+  const total = first.total || first.rows.length;
+  const limit = first.limit || 200;
+  const pages = Math.max(1, Math.ceil(total / limit));
+  const acc = [...first.rows];
+  for (let p=2;p<=pages;p++){
+    const { json } = await fetchJSON('/api/alterdata/raw-rows?page='+p+'&limit='+limit, { cache: 'force-cache' });
+    if (json?.ok) acc.push(...(json.rows||[]));
+  }
+  // Detecta chaves
+  const sample = acc[0]?.data || {};
+  const keys = Object.keys(sample);
+  const keyFor = (want: string[]) => {
+    // encontra por score de substrings
+    let best: string|null = null; let score = -1;
+    for (const k of keys) {
+      const n = norm(k);
+      const s = want.reduce((t,w)=> t + (n.includes(w) ? 1 : 0), 0);
+      if (s > score) { score = s; best = k; }
+    }
+    return best;
+  };
+  const kCPF = keyFor(['cpf']) || 'CPF';
+  const kNome = keyFor(['nome']) || 'Nome';
+  const kFunc = keyFor(['funcao','função','funca']) || 'Função';
+  const kUnid = keyFor(['unidade','lotacao','lotação','setor','departamento','empresa','hospital']) || 'Unidade';
+  const kReg  = keyFor(['regional']) || 'Regional';
+  const kAdm  = keyFor(['admissao','admissão']) || 'Admissão';
+  const kDem  = keyFor(['demissao','demissão','deslig']) || 'Demissão';
+
+  const out: Colab[] = acc.map(r => {
+    const d = r.data || {};
+    return {
+      source: 'alterdata',
+      cpf: String(d[kCPF]||'').replace(/\D/g,''),
+      matricula: d[kNome] && d['Matrícula'] ? String(d['Matrícula']) : (d['Matricula']? String(d['Matricula']) : null),
+      nome: d[kNome]? String(d[kNome]) : null,
+      funcao: d[kFunc]? String(d[kFunc]) : null,
+      unidade: d[kUnid]? String(d[kUnid]) : null,
+      regional: d[kReg]? String(d[kReg]) : null,
+      admissao: parseDate(d[kAdm]),
+      demissao: parseDate(d[kDem]),
+    };
+  }).filter(x => x.cpf);
+
+  return out;
+}
+
+async function fetchManualAll(): Promise<Colab[]> {
+  const { json } = await fetchJSON('/api/entregas/manual', { cache: 'no-store' });
+  if (!json?.ok) return [];
+  const rows = (json.rows||[]) as any[];
+  return rows.map(r => ({
+    source: 'manual' as const,
+    cpf: String(r.cpf||''),
+    matricula: r.matricula? String(r.matricula): null,
+    nome: r.nome? String(r.nome): null,
+    funcao: r.funcao? String(r.funcao): null,
+    unidade: r.unidade? String(r.unidade): null,
+    regional: r.regional? String(r.regional): null,
+    admissao: r.admissao? String(r.admissao).substring(0,10): null,
+    demissao: r.demissao? String(r.demissao).substring(0,10): null,
+  }));
+}
+
+async function fetchEpiMap(): Promise<Array<{funcao:string, epi:string, quantidade:number}>> {
+  const { json } = await fetchJSON('/api/epi/map', { cache: 'force-cache' });
+  if (!json?.ok) return [];
+  return (json.rows||[]) as any[];
+}
+
+async function fetchDeliveries(cpf: string) {
+  const { json } = await fetchJSON('/api/entregas/deliver?cpf='+encodeURIComponent(cpf), { cache: 'no-store' });
+  if (!json?.ok) return [];
+  return (json.rows||[]) as any[];
+}
+
+export default function EntregasPage(){
+  const [list, setList] = useState<Colab[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [rows, setRows] = useState<ColabRow[]>([]);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-  const [total, setTotal] = useState(0);
+  const [epiMap, setEpiMap] = useState<Array<{funcao:string, epi:string, quantidade:number}>>([]);
+  const [q, setQ] = useState('');
+  const [modal, setModal] = useState<{ open: boolean, colab?: Colab|null }>({ open: false });
+  const [form, setForm] = useState<any>({ cpf:'', nome:'', matricula:'', funcao:'', unidade:'', regional:'', admissao:'', demissao:'' });
+  const [deliv, setDeliv] = useState<any[]>([]);
+  const [deliverForm, setDeliverForm] = useState<{ item:string, qtd:number, data:string }>({ item:'', qtd:1, data: new Date().toISOString().substring(0,10) });
 
-  // Drawer state (delivery editor)
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [openColab, setOpenColab] = useState<ColabRow | null>(null);
-  const [epi, setEpi] = useState<EpiItem[]>([]);
-  const [dataEntrega, setDataEntrega] = useState<string>('');
-  const [saving, setSaving] = useState(false);
+  useEffect(()=>{
+    let on = true;
+    (async ()=>{
+      setLoading(true);
+      const [alt, man, map] = await Promise.all([fetchAlterdataAll(), fetchManualAll(), fetchEpiMap()]);
+      if (!on) return;
+      setEpiMap(map);
 
-  // Load options
-  useEffect(() => {
-    (async () => {
-      try {
-        const opt = await fetchJSON<{ regionais: string[]; unidades: { unidade: string; regional: string }[] }>('/api/entregas/options');
-        setRegionais(opt.regionais);
-        setUnidades(opt.unidades);
-      } catch (e) {
-        console.error(e);
+      // Unifica por CPF (manual tem precedência para preencher campos vazios)
+      const byCpf = new Map<string, Colab>();
+      for (const x of alt) {
+        byCpf.set(x.cpf, x);
       }
+      for (const m of man) {
+        const cur = byCpf.get(m.cpf);
+        if (cur) byCpf.set(m.cpf, { ...cur, ...m }); else byCpf.set(m.cpf, m);
+      }
+      // Filtro: excluir demitidos antes de 2025
+      const filtered: Colab[] = [];
+      for (const c of byCpf.values()) {
+        const dem = c.demissao ? Number((c.demissao||'').substring(0,4)) : null;
+        if (dem && dem < 2025) continue;
+        filtered.push(c);
+      }
+      setList(filtered.sort((a,b)=> (a.nome||'').localeCompare(b.nome||'', 'pt-BR')));
+      setLoading(false);
     })();
+    return ()=>{ on=false };
   }, []);
 
-  // Load list
-  async function loadList(p = page) {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (regional) params.set('regional', regional);
-      if (unidade) params.set('unidade', unidade);
-      if (q.trim()) params.set('q', q.trim());
-      params.set('page', String(p));
-      params.set('pageSize', String(pageSize));
-      const data = await fetchJSON<ListResponse>(`/api/entregas/list?${params.toString()}`);
-      setRows(data.rows);
-      setTotal(data.total);
-      setPage(data.page);
-      setPageSize(data.pageSize);
-    } catch (e: any) {
-      setError(e.message || 'Erro ao carregar');
-    } finally {
-      setLoading(false);
+  const filtered = useMemo(()=>{
+    if (!q.trim()) return list;
+    const needles = q.toLowerCase().split(/\s+/).filter(Boolean);
+    return list.filter(r => {
+      const blob = [r.nome, r.cpf, r.matricula, r.funcao, r.unidade, r.regional].join(' ').toLowerCase();
+      return needles.every(n => blob.includes(n));
+    });
+  }, [list, q]);
+
+  function openNew(){
+    setForm({ cpf:'', nome:'', matricula:'', funcao:'', unidade:'', regional:'', admissao:'', demissao:'' });
+    setModal({ open: true, colab: null });
+  }
+
+  async function saveNew(){
+    const body = { ...form };
+    const { json } = await fetchJSON('/api/entregas/manual', { method:'POST', body: JSON.stringify(body), headers: { 'Content-Type':'application/json' } });
+    if (json?.ok) {
+      // Recarrega lista
+      const man = await fetchManualAll();
+      const alt = await fetchAlterdataAll();
+      const byCpf = new Map<string, Colab>();
+      for (const x of alt) byCpf.set(x.cpf, x);
+      for (const m of man) {
+        const cur = byCpf.get(m.cpf);
+        if (cur) byCpf.set(m.cpf, { ...cur, ...m }); else byCpf.set(m.cpf, m);
+      }
+      const filtered: Colab[] = [];
+      for (const c of byCpf.values()) {
+        const dem = c.demissao ? Number((c.demissao||'').substring(0,4)) : null;
+        if (dem && dem < 2025) continue;
+        filtered.push(c);
+      }
+      setList(filtered.sort((a,b)=> (a.nome||'').localeCompare(b.nome||'', 'pt-BR')));
+      setModal({ open: false });
+    } else {
+      alert('Erro ao salvar: ' + (json?.error||'desconhecido'));
     }
   }
 
-  useEffect(() => { loadList(1); /* eslint-disable-next-line */ }, [regional, unidade, pageSize]);
-  // Explicit search
-  const onSearch = () => loadList(1);
-
-  // Open drawer
-  async function openEntregaEditor(row: ColabRow) {
-    setOpenId(row.id);
-    setOpenColab(row);
-    setDataEntrega(new Date().toISOString().slice(0,10)); // YYYY-MM-DD
-    try {
-      const data = await fetchJSON<{ itens: EpiItem[] }>(`/api/entregas/epi?funcao=${encodeURIComponent(row.funcao)}`);
-      setEpi(data.itens);
-    } catch (e) {
-      console.error(e);
-      setEpi([]);
-    }
+  async function openDeliver(c: Colab){
+    setDeliverForm({ item:'', qtd:1, data: new Date().toISOString().substring(0,10) });
+    setModal({ open: true, colab: c });
+    const rows = await fetchDeliveries(c.cpf);
+    setDeliv(rows);
   }
 
-  // Save delivery
-  async function saveEntrega(entregueAll = false) {
-    if (!openColab) return;
-    setSaving(true);
-    try {
-      // Build payload with entregue flags
-      const payloadItens: EpiPayloadItem[] = epi.map(it => ({
-        epi_item: it.epi_item,
-        quantidade: it.quantidade,
-        entregue: entregueAll ? true : it.quantidade > 0, // default: considera itens com qtd>0 como entregues, ajustável futuramente
-      }));
-
-      await fetchJSON('/api/entregas/record', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          colaborador: {
-            id: openColab.id,
-            nome: openColab.nome,
-            funcao: openColab.funcao,
-            unidade: openColab.unidade,
-            regional: openColab.regional,
-            nome_site: openColab.nome_site || null,
-          },
-          data_entrega: dataEntrega,
-          itens: payloadItens
-        }),
-      });
-      setOpenId(null);
-      setOpenColab(null);
-      setEpi([]);
-    } catch (e: any) {
-      alert(e.message || 'Erro ao salvar entrega');
-    } finally {
-      setSaving(false);
-    }
+  function kitFor(funcao?: string|null){
+    const f = (funcao||'').trim().toLowerCase();
+    return epiMap.filter(r => r.funcao.trim().toLowerCase() === f);
   }
 
-  const unidadesFiltradas = useMemo(() => {
-    if (!regional) return unidades;
-    return unidades.filter(u => u.regional === regional);
-  }, [regional, unidades]);
+  async function doDeliver(){
+    if (!modal.colab) return;
+    const body = {
+      cpf: modal.colab.cpf,
+      item: deliverForm.item,
+      qty: Number(deliverForm.qtd||1),
+      date: deliverForm.data,
+      qty_required: kitFor(modal.colab.funcao).find(k => k.epi === deliverForm.item)?.quantidade || 1,
+    };
+    const { json } = await fetchJSON('/api/entregas/deliver', { method:'POST', body: JSON.stringify(body), headers:{'Content-Type':'application/json'} });
+    if (json?.ok) {
+      const rows = await fetchDeliveries(modal.colab.cpf);
+      setDeliv(rows);
+      // Mantém modal aberto
+    } else {
+      alert('Erro ao registrar entrega: '+(json?.error||'desconhecido'));
+    }
+  }
 
   return (
-    <div className="p-4 lg:p-6">
-      <div className="mb-4">
-        <h1 className="text-2xl font-semibold">Entregas</h1>
-        <p className="text-sm text-muted">Marque entregas por colaborador, com registro de data e itens. Filtre por Regional/Unidade.</p>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-card rounded-2xl border shadow-sm p-3 mb-4 grid grid-cols-1 md:grid-cols-4 gap-2">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted">Regional</label>
-          <select value={regional} onChange={e=>setRegional(e.target.value)} className="rounded-xl border px-3 py-2">
-            <option value="">Todas</option>
-            {regionais.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted">Unidade</label>
-          <select value={unidade} onChange={e=>setUnidade(e.target.value)} className="rounded-xl border px-3 py-2">
-            <option value="">Todas</option>
-            {unidadesFiltradas.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1 md:col-span-2">
-          <label className="text-xs text-muted">Buscar colaborador</label>
-          <div className="flex gap-2">
-            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Nome ou CPF" className="flex-1 rounded-xl border px-3 py-2" />
-            <button onClick={onSearch} className="btn btn-primary">Buscar</button>
-          </div>
+    <div className="p-4 md:p-6 space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="text-lg font-semibold">Entregas de EPI</div>
+        <div className="ml-auto flex gap-2">
+          <button className="px-3 py-2 rounded-xl bg-neutral-800 text-white" onClick={openNew}>Cadastro</button>
         </div>
       </div>
 
-      {/* List */}
-      <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
-        <table className="text-text table w-full text-sm">
-          <thead className="bg-panel">
-            <tr className="text-text">
-              <th className="text-left px-3 py-2">Colaborador</th>
-              <th className="text-left px-3 py-2">Função</th>
-              <th className="text-left px-3 py-2">Unidade</th>
-              <th className="text-left px-3 py-2">Regional</th>
-              <th className="text-left px-3 py-2">Kit</th>
-              <th className="text-right px-3 py-2 w-[220px]">Ações</th>
+      <div className="flex gap-2 items-center">
+        <input className="px-3 py-2 rounded-xl bg-neutral-100 text-sm w-full md:w-96 outline-none text-neutral-900"
+               placeholder="Buscar por nome, CPF, matrícula, função, unidade..."
+               value={q} onChange={e=>setQ(e.target.value)} />
+        {loading && <span className="text-sm opacity-60">Carregando…</span>}
+      </div>
+
+      <div className="overflow-auto rounded-2xl border">
+        <table className="min-w-full text-sm">
+          <thead className="sticky top-0 bg-white">
+            <tr>
+              <th className="px-3 py-2 text-left border-b">Nome</th>
+              <th className="px-3 py-2 text-left border-b">CPF</th>
+              <th className="px-3 py-2 text-left border-b">Matrícula</th>
+              <th className="px-3 py-2 text-left border-b">Função</th>
+              <th className="px-3 py-2 text-left border-b">Unidade</th>
+              <th className="px-3 py-2 text-left border-b">Regional</th>
+              <th className="px-3 py-2 text-left border-b">Admissão</th>
+              <th className="px-3 py-2 text-left border-b">Demissão</th>
+              <th className="px-3 py-2 text-left border-b"></th>
             </tr>
           </thead>
           <tbody>
-            {loading && (
-              <tr><td colSpan={6} className="px-3 py-6 text-center text-muted">Carregando...</td></tr>
-            )}
-            {!loading && rows.length === 0 && (
-              <tr><td colSpan={6} className="px-3 py-6 text-center text-muted">Nenhum colaborador encontrado.</td></tr>
-            )}
-            {!loading && rows.map(r => (
-              <tr key={r.id} className="border-t">
-                <td className="px-3 py-2">{r.nome}</td>
-                <td className="px-3 py-2">{r.funcao}</td>
-                <td className="px-3 py-2">{r.unidade}</td>
-                <td className="px-3 py-2">{r.regional}</td>
-                <td className="px-3 py-2">{r.nome_site || '—'}</td>
-                <td className="px-3 py-2 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <a
-                      href={`/colaboradores?focus=${encodeURIComponent(r.id)}`}
-                      className="px-3 py-1.5 rounded-xl border hover:bg-panel"
-                      title="Abrir cadastro do colaborador"
-                    >
-                      Cadastro
-                    </a>
-                    <button
-                      onClick={()=>openEntregaEditor(r)}
-                      className="btn btn-primary"
-                    >
-                      Entregar
-                    </button>
-                  </div>
+            {filtered.map((r, idx) => (
+              <tr key={idx} className="odd:bg-neutral-50">
+                <td className="px-3 py-2 whitespace-nowrap">{r.nome||''}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{maskCPF(r.cpf)}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{padMatricula(r.matricula)}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{r.funcao||''}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{r.unidade||''}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{r.regional||''}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{fmtDateBR(r.admissao)}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{fmtDateBR(r.demissao)}</td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <button className="px-2 py-1 rounded border" onClick={()=>openDeliver(r)}>Entregar</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-
-        {/* Pagination */}
-        <div className="flex items-center justify-between px-3 py-2 border-t text-sm">
-          <div className="text-muted">Total: {total}</div>
-          <div className="flex items-center gap-2">
-            <button onClick={()=>loadList(Math.max(1, page-1))} className="px-2 py-1 rounded border disabled:opacity-50" disabled={page<=1}>‹</button>
-            <div>Página {page}</div>
-            <button onClick={()=>loadList(page+1)} className="px-2 py-1 rounded border disabled:opacity-50" disabled={(page*pageSize)>=total}>›</button>
-            <select value={pageSize} onChange={e=>{setPageSize(Number(e.target.value)); setPage(1)}} className="rounded border px-2 py-1">
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-            </select>
-          </div>
-        </div>
       </div>
 
-      {/* Drawer / Modal */}
-      {openColab && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40" onClick={()=>setOpenId(null)}>
-          <div className="absolute right-0 top-0 h-full w-full max-w-[560px] bg-card shadow-2xl p-4 overflow-auto" onClick={(e)=>e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <div className="text-xs text-muted">Entrega para</div>
-                <div className="text-lg font-semibold">{openColab.nome}</div>
-                <div className="text-xs text-muted">{openColab.funcao} • {openColab.unidade} • {openColab.regional}</div>
+      {/* Modal de cadastro */}
+      {modal.open && !modal.colab && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-4 w-full max-w-2xl space-y-3">
+            <div className="text-lg font-semibold">Novo colaborador (cadastro manual)</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <input placeholder="CPF" value={form.cpf} onChange={e=>setForm({...form, cpf:e.target.value})} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100"/>
+              <input placeholder="Matrícula" value={form.matricula} onChange={e=>setForm({...form, matricula:e.target.value})} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100"/>
+              <input placeholder="Nome" value={form.nome} onChange={e=>setForm({...form, nome:e.target.value})} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100"/>
+              <input placeholder="Função" value={form.funcao} onChange={e=>setForm({...form, funcao:e.target.value})} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100"/>
+              <input placeholder="Unidade" value={form.unidade} onChange={e=>setForm({...form, unidade:e.target.value})} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100"/>
+              <input placeholder="Regional" value={form.regional} onChange={e=>setForm({...form, regional:e.target.value})} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100"/>
+              <input placeholder="Admissão (dd/mm/aaaa)" value={form.admissao} onChange={e=>setForm({...form, admissao:e.target.value})} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100"/>
+              <input placeholder="Demissão (dd/mm/aaaa)" value={form.demissao} onChange={e=>setForm({...form, demissao:e.target.value})} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100"/>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button className="px-3 py-2 rounded-xl border" onClick={()=>setModal({open:false})}>Cancelar</button>
+              <button className="px-3 py-2 rounded-xl bg-neutral-800 text-white" onClick={saveNew}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de entrega */}
+      {modal.open && modal.colab && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-4 w-full max-w-3xl space-y-3">
+            <div className="text-lg font-semibold">Registrar entrega — {modal.colab?.nome}</div>
+
+            <div className="p-2 rounded-xl bg-neutral-50">
+              <div className="font-medium text-sm">Kit esperado (função: {modal.colab?.funcao||'—'})</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                {kitFor(modal.colab?.funcao).map((k, i) => {
+                  const deliveredRow = deliv.find(d => d.item === k.epi);
+                  const delivered = deliveredRow?.qty_delivered || 0;
+                  return (
+                    <div key={i} className="border rounded-xl p-2">
+                      <div className="text-sm">{k.epi}</div>
+                      <div className="text-xs opacity-70">Qtd esperada: {k.quantidade} • Entregue: {delivered}</div>
+                    </div>
+                  );
+                })}
+                {kitFor(modal.colab?.funcao).length === 0 && (
+                  <div className="text-sm opacity-70">Nenhum kit mapeado para esta função.</div>
+                )}
               </div>
-              <button onClick={()=>{setOpenId(null); setOpenColab(null); setEpi([]);}} className="rounded-xl border px-3 py-1.5">Fechar</button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted">Data da entrega</label>
-                <input type="date" value={dataEntrega} onChange={e=>setDataEntrega(e.target.value)} className="rounded-xl border px-3 py-2" />
-              </div>
-              <div className="flex items-end justify-end gap-2">
-                <button onClick={()=>saveEntrega(true)} disabled={saving} className="btn btn-primary">Marcar tudo entregue</button>
-                <button onClick={()=>saveEntrega(false)} disabled={saving} className="input-xl border hover:bg-panel disabled:opacity-50">Salvar</button>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <select className="px-3 py-2 rounded-xl bg-neutral-100"
+                      value={deliverForm.item} onChange={e=>setDeliverForm({...deliverForm, item:e.target.value})}>
+                <option value="">Selecione o EPI…</option>
+                {kitFor(modal.colab?.funcao).map((k,i)=> <option key={i} value={k.epi}>{k.epi}</option>)}
+              </select>
+              <input className="px-3 py-2 rounded-xl bg-neutral-100" type="number" min={1}
+                     value={deliverForm.qtd} onChange={e=>setDeliverForm({...deliverForm, qtd:Number(e.target.value)})} placeholder="Qtd"/>
+              <input className="px-3 py-2 rounded-xl bg-neutral-100" type="date"
+                     value={deliverForm.data} onChange={e=>setDeliverForm({...deliverForm, data:e.target.value})}/>
             </div>
 
-            <div className="rounded-xl border overflow-hidden">
-              <table className="table w-full text-sm">
-                <thead className="bg-panel">
-                  <tr className="text-text">
-                    <th className="text-left px-3 py-2">Item</th>
-                    <th className="text-left px-3 py-2 w-24">Qtd</th>
-                    <th className="text-center px-3 py-2 w-28">Entregue</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {epi.map((it, idx) => (
-                    <tr key={it.epi_item} className={idx % 2 ? 'bg-card' : 'bg-panel/50'}>
-                      <td className="px-3 py-2">{it.epi_item}</td>
-                      <td className="px-3 py-2">{it.quantidade}</td>
-                      <td className="px-3 py-2 text-center">
-                        <input type="checkbox" defaultChecked={it.quantidade > 0} onChange={(e)=>{
-                          // update local "entregue" state by toggling quantity > 0 as proxy (kept simple for now)
-                          // (a edição fina de quantidade pode vir depois)
-                        }} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="flex justify-end gap-2">
+              <button className="px-3 py-2 rounded-xl border" onClick={()=>setModal({open:false})}>Fechar</button>
+              <button className="px-3 py-2 rounded-xl bg-neutral-800 text-white"
+                      disabled={!deliverForm.item || deliverForm.qtd<=0}
+                      onClick={doDeliver}>Dar baixa</button>
             </div>
 
-            <p className="text-xs text-muted mt-2">Itens não marcados como “entregue” serão registrados como pendência automaticamente.</p>
+            <div className="mt-2">
+              <div className="font-medium text-sm">Entregas registradas</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                {deliv.map((d,i)=> (
+                  <div key={i} className="border rounded-xl p-2">
+                    <div className="text-sm">{d.item} — {d.qty_delivered} entregue(s)</div>
+                    <div className="text-xs opacity-70">Lançamentos: {Array.isArray(d.deliveries) ? d.deliveries.map((x:any)=> `${x.qty} em ${x.date}`).join(', ') : ''}</div>
+                  </div>
+                ))}
+                {deliv.length===0 && <div className="text-sm opacity-70">Nenhuma entrega lançada.</div>}
+              </div>
+            </div>
           </div>
         </div>
       )}
