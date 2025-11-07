@@ -1,0 +1,9 @@
+
+{
+  "dependencies": {
+    "@tanstack/react-query": "^5.59.0",
+    "@tanstack/react-virtual": "^3.1.0",
+    "@tanstack/table-core": "^8.20.5",
+    "zod": "^3.23.8"
+  }
+}
