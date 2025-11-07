@@ -1,9 +1,9 @@
+
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 function esc(s: string){ return (s||'').replace(/'/g, "''"); }
 function norm(expr: string){
-  // Normaliza removendo acentos/espaços/sinais e coloca em maiúsculas (lado SQL)
   return `regexp_replace(upper(${expr}), '[^A-Z0-9]', '', 'g')`;
 }
 
@@ -15,14 +15,17 @@ export async function GET(req: Request) {
     const q      = (searchParams.get('q')        || '').trim();
     const regional = (searchParams.get('regional') || '').trim();
     const unidade  = (searchParams.get('unidade')  || '').trim();
-    const status   = (searchParams.get('status')   || '').trim(); // '', 'Admitido', 'Demitido', 'Afastado'
-    const offset = (page - 1) * limit;
+    const status   = (searchParams.get('status')   || '').trim();
 
+    const offset = (page - 1) * limit;
     const wh: string[] = [];
 
     if(q){
-      const like = `%${esc(q)}%`;
-      wh.push(`r.data::text ILIKE '${like}'`);
+      const nq = esc(q);
+      wh.push(`EXISTS (
+        SELECT 1 FROM jsonb_each_text(r.data) kv
+        WHERE ${norm('kv.value')} LIKE ${norm(`'%${nq}%'`)}
+      )`);
     }
 
     if(regional){
@@ -91,7 +94,7 @@ export async function GET(req: Request) {
     `;
     const rows: any[] = await prisma.$queryRawUnsafe(sql);
 
-    const countSql = `
+    const countSql = \`
       WITH latest AS (
         SELECT batch_id FROM stg_alterdata_v2_imports ORDER BY imported_at DESC LIMIT 1
       )
@@ -99,11 +102,13 @@ export async function GET(req: Request) {
       FROM stg_alterdata_v2_raw r, latest
       WHERE r.batch_id = latest.batch_id
       ${where}
-    `;
+    \`;
     const totalRes: any[] = await prisma.$queryRawUnsafe(countSql);
     const total = totalRes?.[0]?.total ?? 0;
 
-    return NextResponse.json({ ok:true, rows, page, limit, total });
+    const res = NextResponse.json({ ok:true, rows, page, limit, total });
+    res.headers.set('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
+    return res;
   }catch(e:any){
     return NextResponse.json({ ok:false, error: String(e?.message||e) }, { status:500 });
   }
