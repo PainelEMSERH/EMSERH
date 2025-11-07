@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
 
-const LS_KEY_ALTERDATA = 'alterdata_cache_v5'; // nova chave para evitar cache antigo
+const LS_KEY_ALTERDATA = 'alterdata_cache_v6'; // nova chave
 
 const __HIDE_COLS__ = new Set(['Celular', 'Cidade', 'Data Atestado', 'Motivo Afastamento', 'Nome Médico', 'Periodicidade', 'Telefone']);
 function __shouldHide(col: string): boolean {
@@ -93,14 +93,12 @@ export default function Page() {
     (async ()=>{
       setLoading(true); setError(null); setProgress('');
       try{
-        // columns + batch
         const { json: jCols, headers: h1 } = await fetchJSON('/api/alterdata/raw-columns2', { cache: 'force-cache' });
         if (!jCols?.ok) throw new Error(jCols?.error || 'Falha em raw-columns2');
         setRouteTag(h1.get('x-alterdata-route') || '');
         const baseCols = (Array.isArray(jCols?.columns) ? jCols.columns : []) as string[];
         const batchId = jCols?.batch_id || null;
 
-        // tenta LS
         try{
           const raw = window.localStorage.getItem(LS_KEY_ALTERDATA);
           if (raw) {
@@ -127,7 +125,6 @@ export default function Page() {
           }
         }catch{}
 
-        // baixa tudo (paginado)
         const first = await fetchPage(1, 200);
         setRouteTag(first.headers.get('x-alterdata-route') || routeTag);
         const total = first.data.total || first.data.rows.length;

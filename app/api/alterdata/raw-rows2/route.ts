@@ -7,8 +7,9 @@ function norm(expr: string){
 }
 
 async function tableExists(name: string): Promise<boolean> {
-  const r: any[] = await prisma.$queryRawUnsafe(`SELECT to_regclass('${name}') as r`);
-  return !!r?.[0]?.r;
+  const q = `SELECT (to_regclass('${esc(name)}') IS NOT NULL) AS ok`;
+  const r: any[] = await prisma.$queryRawUnsafe(q);
+  return !!r?.[0]?.ok;
 }
 
 async function latestBatchId(): Promise<string | null> {
@@ -42,7 +43,7 @@ export async function GET(req: Request) {
 
     if (!hasV2Raw && !hasLegacy) {
       const res = NextResponse.json({ ok:false, error: 'Nenhuma tabela Alterdata encontrada (stg_alterdata_v2_raw ou stg_alterdata).' }, { status: 500 });
-      res.headers.set('x-alterdata-route', 'raw-rows2-nojoin');
+      res.headers.set('x-alterdata-route', 'raw-rows2-nojoin-v2');
       return res;
     }
 
@@ -148,11 +149,11 @@ export async function GET(req: Request) {
     const total = totalRes?.[0]?.total ?? 0;
     const res = NextResponse.json({ ok:true, rows, page, limit, total });
     res.headers.set('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
-    res.headers.set('x-alterdata-route', 'raw-rows2-nojoin');
+    res.headers.set('x-alterdata-route', 'raw-rows2-nojoin-v2');
     return res;
   }catch(e:any){
     const res = NextResponse.json({ ok:false, error: String(e?.message||e) }, { status:500 });
-    res.headers.set('x-alterdata-route', 'raw-rows2-nojoin');
+    res.headers.set('x-alterdata-route', 'raw-rows2-nojoin-v2');
     return res;
   }
 }

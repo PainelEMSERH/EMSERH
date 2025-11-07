@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+function esc(s: string){ return (s||'').replace(/'/g, "''"); }
+
 async function tableExists(name: string): Promise<boolean> {
-  const r: any[] = await prisma.$queryRawUnsafe(`SELECT to_regclass('${name}') as r`);
-  return !!r?.[0]?.r;
+  const q = `SELECT (to_regclass('${esc(name)}') IS NOT NULL) AS ok`;
+  const r: any[] = await prisma.$queryRawUnsafe(q);
+  return !!r?.[0]?.ok;
 }
 
 export async function GET() {
@@ -13,7 +16,7 @@ export async function GET() {
 
     if (!hasV2Raw && !hasLegacy) {
       const res = NextResponse.json({ ok:false, error: 'Nenhuma tabela Alterdata encontrada (stg_alterdata_v2_raw ou stg_alterdata).' }, { status: 500 });
-      res.headers.set('x-alterdata-route', 'raw-columns2');
+      res.headers.set('x-alterdata-route', 'raw-columns2-v2');
       return res;
     }
 
@@ -28,7 +31,7 @@ export async function GET() {
       const batch_id = b?.[0]?.batch_id || null;
       const res = NextResponse.json({ ok:true, columns, batch_id });
       res.headers.set('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
-      res.headers.set('x-alterdata-route', 'raw-columns2');
+      res.headers.set('x-alterdata-route', 'raw-columns2-v2');
       return res;
     }
 
@@ -44,11 +47,11 @@ export async function GET() {
 
     const res = NextResponse.json({ ok:true, columns, batch_id });
     res.headers.set('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
-    res.headers.set('x-alterdata-route', 'raw-columns2');
+    res.headers.set('x-alterdata-route', 'raw-columns2-v2');
     return res;
   }catch(e:any){
     const res = NextResponse.json({ ok:false, error: String(e?.message||e) }, { status:500 });
-    res.headers.set('x-alterdata-route', 'raw-columns2');
+    res.headers.set('x-alterdata-route', 'raw-columns2-v2');
     return res;
   }
 }
