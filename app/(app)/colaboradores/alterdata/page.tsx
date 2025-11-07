@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
 
-const LS_KEY_ALTERDATA = 'alterdata_cache_v4'; // inclui batch_id
+const LS_KEY_ALTERDATA = 'alterdata_cache_prod_v1'; // cache por batch_id
 
 const __HIDE_COLS__ = new Set(['Celular', 'Cidade', 'Data Atestado', 'Motivo Afastamento', 'Nome Médico', 'Periodicidade', 'Telefone']);
 function __shouldHide(col: string): boolean {
@@ -14,7 +14,7 @@ function __shouldHide(col: string): boolean {
 function __fmtDate(val: any): string {
   if (val === null || val === undefined) return '';
   const s = String(val).trim();
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T].*)?$/);
+  const m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})(?:[ T].*)?$/);
   if (m) return `${m[3]}/${m[2]}/${m[1]}`;
   return s;
 }
@@ -27,12 +27,8 @@ function __renderCell(col: string, val: any) {
 type RowApi = { row_no: number; data: Record<string, string> };
 type ApiRows = { ok: boolean; rows: RowApi[]; page: number; limit: number; total: number; error?: string };
 type ApiCols = { ok: boolean; columns: string[]; batch_id?: string | null; error?: string };
-
 type AnyRow = Record<string, any>;
-
-function flatten(r: RowApi): AnyRow {
-  return { row_no: r.row_no, ...r.data };
-}
+type Cached = { batch_id: string | null; rows: AnyRow[]; columns: string[] };
 
 function uniqueSorted(arr: (string|null|undefined)[]) {
   return Array.from(new Set(arr.filter(Boolean) as string[])).sort((a,b)=>a.localeCompare(b,'pt-BR'));
@@ -41,54 +37,32 @@ function uniqueSorted(arr: (string|null|undefined)[]) {
 function detectUnidadeKey(sample: AnyRow[]): string | null {
   if (!sample?.length) return null;
   const keys = Object.keys(sample[0]);
-  const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const norm = (s: string) => s.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();
   const byScore = keys.map(k => {
     const n = norm(k);
     let score = 0;
     if (n.includes('unid')) score += 4;
     if (n.includes('hospital')) score += 3;
     if (n.includes('estab')) score += 2;
-    if (/^unidade(\s|$)/.test(n)) score += 5;
+    if (/^unidade(\\s|$)/.test(n)) score += 5;
     return { k, score };
   }).sort((a,b)=>b.score - a.score);
   return byScore[0]?.score ? byScore[0].k : null;
 }
 
-async function fetchPage(page: number, limit: number): Promise<ApiRows> {
-  const params = new URLSearchParams({ page:String(page), limit:String(limit) });
-  const r = await fetch('/api/alterdata/raw-rows?' + params.toString(), { cache: 'force-cache' });
+async function fetchJSON(url: string, init?: RequestInit): Promise<{json:any, headers: Headers}> {
+  const r = await fetch(url, init);
   const text = await r.text();
-  try {
-    const json = JSON.parse(text);
-    if (!r.ok || json?.ok === false) {
-      throw new Error(json?.error || `HTTP ${r.status} - ${text.slice(0,200)}`);
-    }
-    return json;
-  } catch (e:any) {
-    throw new Error(e?.message || text || `Falha ao carregar página ${page}`);
-  }
+  let json: any;
+  try { json = JSON.parse(text); } catch { json = { ok:false, error: 'JSON inválido', raw: text }; }
+  return { json, headers: r.headers };
 }
 
-async function fetchAll(onProgress?: (n:number,t:number)=>void): Promise<AnyRow[]> {
-  const first = await fetchPage(1, 200);
-  const total = first.total || first.rows.length;
-  const limit = first.limit || 200;
-  const pages = Math.max(1, Math.ceil(total / limit));
-  const acc: AnyRow[] = [...first.rows.map(flatten)];
-  if (onProgress) onProgress(acc.length, total);
-
-  const concurrency = Math.min(10, Math.max(1, pages-1));
-  let next = 2;
-  async function worker() {
-    while (next <= pages) {
-      const p = next++;
-      const res = await fetchPage(p, limit);
-      acc.push(...res.rows.map(flatten));
-      if (onProgress) onProgress(Math.min(acc.length,total), total);
-    }
-  }
-  await Promise.all(Array.from({length: concurrency}, worker));
-  return acc.slice(0, total);
+async function fetchPage(page: number, limit: number): Promise<{data: ApiRows, headers: Headers}> {
+  const params = new URLSearchParams({ page:String(page), limit:String(limit) });
+  const { json, headers } = await fetchJSON('/api/alterdata/raw-rows?' + params.toString(), { cache: 'force-cache' });
+  if (!json?.ok) throw new Error(json?.error || 'Falha ao carregar página '+page);
+  return { data: json as ApiRows, headers };
 }
 
 export default function Page() {
@@ -103,7 +77,6 @@ export default function Page() {
   const [unidade, setUnidade] = useState<string | 'TODAS'>('TODAS');
 
   const unidadeKey = useMemo(()=> detectUnidadeKey(rows), [rows]);
-
   const fetchedRef = useRef(false);
 
   useEffect(()=>{
@@ -114,35 +87,20 @@ export default function Page() {
     (async ()=>{
       setLoading(true); setError(null); setProgress('');
       try{
-        const rCols = await fetch('/api/alterdata/raw-columns', { cache: 'force-cache' });
-        const txt = await rCols.text();
-        const jCols: ApiCols = JSON.parse(txt);
-        if (!rCols.ok || jCols?.ok === false) {
-          throw new Error(jCols?.error || `HTTP ${rCols.status} - ${txt.slice(0,200)}`);
-        }
+        const { json: jCols } = await fetchJSON('/api/alterdata/raw-columns', { cache: 'force-cache' });
+        if (!jCols?.ok) throw new Error(jCols?.error || 'Falha em raw-columns');
         const baseCols = (Array.isArray(jCols?.columns) ? jCols.columns : []) as string[];
         const batchId = jCols?.batch_id || null;
 
-        // tenta LS
+        // Tenta cache local por batch_id
         try{
           const raw = window.localStorage.getItem(LS_KEY_ALTERDATA);
           if (raw) {
-            const cached = JSON.parse(raw);
+            const cached = JSON.parse(raw) as Cached;
             if (cached && cached.batch_id === batchId && Array.isArray(cached.rows) && Array.isArray(cached.columns)) {
-              const uk = detectUnidadeKey(cached.rows);
-              const withReg = cached.rows.map((r:any) => {
-                let regional = r.regional;
-                if (!regional) {
-                  const ukv = uk ? String(r[uk] ?? '') : '';
-                  const c = canonUnidade(ukv);
-                  regional = (UNID_TO_REGIONAL as any)[c] || '';
-                }
-                return { ...r, regional };
-              });
-              const cols = cached.columns.includes('regional') ? cached.columns : ['regional', ...cached.columns];
               if(on){
-                setColumns(cols);
-                setRows(withReg);
+                setColumns(cached.columns);
+                setRows(cached.rows);
                 setLoading(false);
                 return;
               }
@@ -150,10 +108,23 @@ export default function Page() {
           }
         }catch{}
 
-        // baixa tudo
-        const data = await fetchAll((n,t)=>{ if(on) setProgress(`${n}/${t}`); });
-        const uk = detectUnidadeKey(data);
-        const withReg = data.map(r => {
+        // Carrega todas as páginas (com prefetch) e salva no cache
+        const first = await fetchPage(1, 200);
+        const total = first.data.total || first.data.rows.length;
+        const limit = first.data.limit || 200;
+        const pages = Math.max(1, Math.ceil(total / limit));
+        const acc: AnyRow[] = [...first.data.rows.map(r => ({ row_no: r.row_no, ...r.data }))];
+        if (on) setProgress(`${acc.length}/${total}`);
+
+        for (let p = 2; p <= pages; p++) {
+          const res = await fetchPage(p, limit);
+          acc.push(...res.data.rows.map(r => ({ row_no: r.row_no, ...r.data })));
+          if (on) setProgress(`${Math.min(acc.length,total)}/${total}`);
+        }
+
+        // Mapeia regional no cliente com UNID_TO_REGIONAL
+        const uk = detectUnidadeKey(acc);
+        const withReg = acc.map(r => {
           const un = uk ? String(r[uk] ?? '') : '';
           const c = canonUnidade(un);
           const reg = (UNID_TO_REGIONAL as any)[c] || '';
@@ -190,7 +161,7 @@ export default function Page() {
     if (regional !== 'TODAS') list = list.filter(r => r.regional === regional);
     if (uk && unidade !== 'TODAS') list = list.filter(r => String(r[uk] ?? '') === unidade);
     if (q.trim()) {
-      const needles = q.toLowerCase().split(/\s+/).filter(Boolean);
+      const needles = q.toLowerCase().split(/\\s+/).filter(Boolean);
       list = list.filter(r => {
         const blob = Object.values(r).join(' ').toLowerCase();
         return needles.every(n => blob.includes(n));
@@ -202,7 +173,7 @@ export default function Page() {
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="text-lg font-semibold">Alterdata — Base Completa</div>
-      <p className="text-sm opacity-70">Visual com Regional (join por unidade), busca livre e filtros de Regional/Unidade. Nada altera a base ou o upload.</p>
+      <p className="text-sm opacity-70">Visual com Regional (join por unidade no cliente), busca livre e filtros de Regional/Unidade. Nada altera a base ou o upload.</p>
 
       <div className="flex flex-wrap gap-2 items-center">
         <input
