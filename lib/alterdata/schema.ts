@@ -1,39 +1,66 @@
 
 // lib/alterdata/schema.ts
-import { z } from "zod";
+export type SortDirection = "asc" | "desc";
 
-export const SortDirection = z.enum(["asc", "desc"]);
-export const SortField = z.string().min(1);
+export type Filters = {
+  regional?: string;
+  unidade?: string;
+  cpf?: string;
+  nome?: string;
+  cargo?: string;
+  funcao?: string;
+  situacao?: string;
+  admissaoFrom?: string; // yyyy-mm-dd
+  admissaoTo?: string;   // yyyy-mm-dd
+};
 
-export const FiltersSchema = z.object({
-  regional: z.string().optional(),
-  unidade: z.string().optional(),
-  cpf: z.string().trim().optional(),
-  nome: z.string().trim().optional(),
-  cargo: z.string().optional(),
-  funcao: z.string().optional(),
-  situacao: z.string().optional(),
-  // datas no formato yyyy-mm-dd
-  admissaoFrom: z.string().optional(),
-  admissaoTo: z.string().optional(),
-});
+export type Pagination = {
+  page: number;
+  pageSize: number;
+  sortBy: string;
+  sortDir: SortDirection;
+  afterId?: string;
+};
 
-export type Filters = z.infer<typeof FiltersSchema>;
+export type QueryInput = {
+  filters: Filters;
+  pagination: Pagination;
+};
 
-export const PaginationSchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(10).max(500).default(50),
-  sortBy: SortField.default("nome"),
-  sortDir: SortDirection.default("asc"),
-  // keyset opcional
-  afterId: z.string().optional(),
-});
+const int = (v: any, def: number) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return def;
+  return Math.floor(n);
+};
 
-export type Pagination = z.infer<typeof PaginationSchema>;
+const str = (v: any) => (typeof v === "string" ? v.trim() : undefined);
 
-export const QuerySchema = z.object({
-  filters: FiltersSchema.default({} as any),
-  pagination: PaginationSchema.default({} as any),
-});
+export function normalizeQuery(raw: any): QueryInput {
+  const filters: Filters = {
+    regional: str(raw?.filters?.regional),
+    unidade: str(raw?.filters?.unidade),
+    cpf: str(raw?.filters?.cpf)?.replace(/\D/g, ""),
+    nome: str(raw?.filters?.nome),
+    cargo: str(raw?.filters?.cargo),
+    funcao: str(raw?.filters?.funcao),
+    situacao: str(raw?.filters?.situacao),
+    admissaoFrom: str(raw?.filters?.admissaoFrom),
+    admissaoTo: str(raw?.filters?.admissaoTo),
+  };
 
-export type QueryInput = z.infer<typeof QuerySchema>;
+  const pageSizeRaw = int(raw?.pagination?.pageSize, 50);
+  const pageSize = Math.min(Math.max(pageSizeRaw, 10), 500);
+
+  const sortBy = str(raw?.pagination?.sortBy) || "nome";
+  const sortDir: SortDirection = raw?.pagination?.sortDir === "desc" ? "desc" : "asc";
+
+  const pagination: Pagination = {
+    page: Math.max(1, int(raw?.pagination?.page, 1)),
+    pageSize,
+    sortBy,
+    sortDir,
+    afterId: str(raw?.pagination?.afterId),
+  };
+
+  return { filters, pagination };
+}

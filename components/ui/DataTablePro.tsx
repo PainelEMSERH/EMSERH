@@ -2,8 +2,7 @@
 // components/ui/DataTablePro.tsx
 "use client";
 
-import { useRef, useMemo } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useRef, useState, useMemo, useEffect } from "react";
 
 type Column = {
   key: string;
@@ -33,13 +32,21 @@ export default function DataTablePro({
   onSortChange?: (key: string, dir: "asc" | "desc") => void;
 }) {
   const parentRef = useRef<HTMLDivElement | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
 
-  const rowVirtualizer = useVirtualizer({
-    count: data.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => rowHeight,
-    overscan: 10,
-  });
+  useEffect(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    const onScroll = () => setScrollTop(el.scrollTop);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const totalRows = data.length;
+  const totalHeight = totalRows * rowHeight;
+  const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 10);
+  const visibleCount = Math.ceil(height / rowHeight) + 20;
+  const endIndex = Math.min(totalRows, startIndex + visibleCount);
 
   const totalWidth = useMemo(
     () => columns.reduce((acc, c) => acc + (c.width ?? 180), 0),
@@ -53,7 +60,7 @@ export default function DataTablePro({
   };
 
   return (
-    <div className="relative">
+    <div className="relative rounded-2xl border">
       <div className="border-b rounded-t-2xl overflow-hidden">
         <div className="flex bg-muted/50 sticky top-0 z-10" style={{ minWidth: totalWidth }}>
           {columns.map((col) => (
@@ -76,21 +83,18 @@ export default function DataTablePro({
         </div>
       </div>
 
-      <div
-        ref={parentRef}
-        style={{ height, overflow: "auto" }}
-        className="rounded-b-2xl"
-      >
-        <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative", minWidth: totalWidth }}>
-          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-            const row = data[virtualRow.index];
+      <div ref={parentRef} style={{ height, overflow: "auto" }} className="rounded-b-2xl">
+        <div style={{ height: totalHeight, position: "relative", minWidth: totalWidth }}>
+          {Array.from({ length: endIndex - startIndex }, (_, i) => startIndex + i).map((rowIndex) => {
+            const row = data[rowIndex];
+            const top = rowIndex * rowHeight;
             return (
               <div
-                key={virtualRow.key}
-                className={`flex border-b absolute left-0 right-0`}
+                key={rowIndex}
+                className="flex border-b absolute left-0 right-0"
                 style={{
-                  transform: `translateY(${virtualRow.start}px)`,
-                  height: virtualRow.size,
+                  transform: `translateY(${top}px)`,
+                  height: rowHeight,
                 }}
               >
                 {columns.map((col) => (
@@ -98,9 +102,9 @@ export default function DataTablePro({
                     key={col.key}
                     className={`px-3 flex items-center text-sm border-r last:border-r-0 ${col.pin ? "sticky bg-background" : ""} ${col.pin === "left" ? "left-0" : col.pin === "right" ? "right-0" : ""}`}
                     style={{ width: col.width ?? 180 }}
-                    title={String(row[col.key] ?? "")}
+                    title={String(row?.[col.key] ?? "")}
                   >
-                    {String(row[col.key] ?? "")}
+                    {String(row?.[col.key] ?? "")}
                   </div>
                 ))}
               </div>

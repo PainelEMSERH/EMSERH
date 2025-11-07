@@ -4,9 +4,8 @@
 
 import { useMemo, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useQuery, QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { FiltersSchema, PaginationSchema, QuerySchema, type Filters } from "@/lib/alterdata/schema";
 import DataTablePro from "@/components/ui/DataTablePro";
+import type { Filters, QueryInput } from "@/lib/alterdata/schema";
 
 function parseURL(search: URLSearchParams) {
   const filters: Filters = {
@@ -26,7 +25,7 @@ function parseURL(search: URLSearchParams) {
     sortBy: search.get("sortBy") || "nome",
     sortDir: (search.get("sortDir") || "asc") as "asc" | "desc",
   };
-  return QuerySchema.parse({ filters, pagination });
+  return { filters, pagination };
 }
 
 function useAlterdataState() {
@@ -49,23 +48,72 @@ function useAlterdataState() {
   return [state, setState] as const;
 }
 
-function fetchPage(body: any) {
-  return fetch("/api/alterdata/paginated", {
+// Simple in-memory client cache keyed by JSON.stringify(input)
+const memoryCache = new Map<string, any>();
+
+async function fetchPage(body: QueryInput) {
+  const key = JSON.stringify(body);
+  if (memoryCache.has(key)) {
+    return memoryCache.get(key);
+  }
+  const res = await fetch("/api/alterdata/paginated", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     cache: "force-cache",
-  }).then((r) => r.json());
+  });
+  const json = await res.json();
+  memoryCache.set(key, json);
+  return json;
 }
 
-function useAlterdataQuery(input: ReturnType<typeof parseURL>) {
-  return useQuery({
-    queryKey: ["alterdata", input],
-    queryFn: () => fetchPage(input),
-    staleTime: Infinity,
-    gcTime: 1000 * 60 * 60 * 12, // 12h
-    refetchOnWindowFocus: false,
-  });
+export default function AlterdataClient() {
+  const [state, setState] = useAlterdataState();
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    fetchPage(state as any).then((json) => {
+      if (!active) return;
+      setData(json);
+      setLoading(false);
+    });
+    return () => { active = false; };
+  }, [state]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <FilterBar value={state} onChange={setState} />
+      <Pager value={state} onChange={setState} totalCount={data?.totalCount} pageCount={data?.pageCount} />
+
+      <div className="rounded-2xl border bg-background">
+        <DataTablePro
+          loading={loading}
+          data={data?.rows || []}
+          columns={[
+            { key: "cpf", header: "CPF", width: 140, pin: "left" },
+            { key: "nome", header: "Nome", width: 240, sortable: true },
+            { key: "regional", header: "Regional", width: 160 },
+            { key: "unidade", header: "Unidade", width: 220 },
+            { key: "cargo", header: "Cargo", width: 200 },
+            { key: "funcao", header: "Função", width: 200 },
+            { key: "situacao", header: "Situação", width: 140 },
+            { key: "admissao", header: "Admissão", width: 140 },
+            { key: "updated_at", header: "Atualizado", width: 160 },
+          ]}
+          sortBy={state.pagination.sortBy}
+          sortDir={state.pagination.sortDir}
+          onSortChange={(s, d) => setState({ pagination: { ...state.pagination, sortBy: s, sortDir: d as any, page: 1 } })}
+          height={600}
+          rowHeight={44}
+        />
+      </div>
+
+      <Pager value={state} onChange={setState} totalCount={data?.totalCount} pageCount={data?.pageCount} />
+    </div>
+  );
 }
 
 function FilterBar({
@@ -75,7 +123,6 @@ function FilterBar({
   value: ReturnType<typeof parseURL>;
   onChange: (next: Partial<ReturnType<typeof parseURL>>) => void;
 }) {
-  // Mantido simples/protegido para não "bagunçar" filtros
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
       <input className="px-3 py-2 rounded-lg border w-full" placeholder="Nome" defaultValue={value.filters.nome || ""}
@@ -102,68 +149,9 @@ function Pager({
         <button className="px-3 py-1.5 rounded-lg border" onClick={() => onChange({ pagination: { ...value.pagination, page: value.pagination.page + 1 }})}>Próxima</button>
         <select className="px-2 py-1.5 rounded-lg border" defaultValue={String(value.pagination.pageSize)}
           onChange={(e) => onChange({ pagination: { ...value.pagination, pageSize: Number(e.target.value), page: 1 } })}>
-          {[25,50,100,200,500].map(n => <option key={n} value={n}>{n}/página</option>)}
+          {[25,50,100,200,500].map((n: number) => <option key={n} value={n}>{n}/página</option>)}
         </select>
       </div>
     </div>
-  );
-}
-
-function AlterdataView() {
-  const [state, setState] = useAlterdataState();
-  const q = useAlterdataQuery(state);
-
-  useEffect(() => {
-    // Pré-busca da próxima página (UX)
-    if (q.data?.ok && state.pagination.page < (q.data.pageCount || 1)) {
-      const next = { ...state, pagination: { ...state.pagination, page: state.pagination.page + 1 } };
-      // prefetch com a mesma queryKey base
-      // usar setTimeout para evitar colisão com render em lote
-      setTimeout(() => {
-        // nota: o prefetch é opcional; removido para simplificar se necessário
-      }, 0);
-    }
-  }, [q.data, state]);
-
-  return (
-    <div className="flex flex-col gap-3">
-      <FilterBar value={state} onChange={setState} />
-      <Pager value={state} onChange={setState} totalCount={q.data?.totalCount} pageCount={q.data?.pageCount} />
-
-      <div className="rounded-2xl border bg-background">
-        <DataTablePro
-          loading={q.isLoading}
-          data={q.data?.rows || []}
-          columns={[
-            { key: "cpf", header: "CPF", width: 140, pin: "left" },
-            { key: "nome", header: "Nome", width: 240, sortable: true },
-            { key: "regional", header: "Regional", width: 160 },
-            { key: "unidade", header: "Unidade", width: 220 },
-            { key: "cargo", header: "Cargo", width: 200 },
-            { key: "funcao", header: "Função", width: 200 },
-            { key: "situacao", header: "Situação", width: 140 },
-            { key: "admissao", header: "Admissão", width: 140 },
-            { key: "updated_at", header: "Atualizado", width: 160 },
-          ]}
-          sortBy={state.pagination.sortBy}
-          sortDir={state.pagination.sortDir}
-          onSortChange={(s, d) => setState({ pagination: { ...state.pagination, sortBy: s, sortDir: d as any, page: 1 } })}
-          height={600}
-          rowHeight={44}
-        />
-      </div>
-
-      <Pager value={state} onChange={setState} totalCount={q.data?.totalCount} pageCount={q.data?.pageCount} />
-    </div>
-  );
-}
-
-export default function AlterdataClient() {
-  // Cria o QueryClient apenas uma vez por montagem
-  const [queryClient] = useState(() => new QueryClient());
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AlterdataView />
-    </QueryClientProvider>
   );
 }

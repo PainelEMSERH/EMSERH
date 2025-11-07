@@ -1,6 +1,6 @@
 
 // lib/alterdata/query.ts
-import { type QueryInput } from "./schema";
+import type { QueryInput } from "./schema";
 
 type Where = { sql: string; params: any[] };
 

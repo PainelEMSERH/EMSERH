@@ -2,23 +2,23 @@
 // app/api/alterdata/paginated/route.ts
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
-import { QuerySchema, type QueryInput } from "@/lib/alterdata/schema";
+import { normalizeQuery } from "@/lib/alterdata/schema";
 import { buildOrder, buildWhere } from "@/lib/alterdata/query";
 
 const prisma = new PrismaClient();
 
-export const dynamic = "force-dynamic"; // aceita filtros dinâmicos
+export const dynamic = "force-dynamic";
 export const fetchCache = "force-cache";
-export const revalidate = 3600; // 1 hora
+export const revalidate = 3600;
 export const runtime = "nodejs";
 export const preferredRegion = "auto";
 
-const SOURCE = "mv_alterdata_flat"; // se não existir, troque para "stg_alterdata_v2"
+const SOURCE = "mv_alterdata_flat"; // fallback para stg_alterdata_v2 se necessário
 
 export async function POST(req: Request) {
   try {
-    const json = await req.json();
-    const input = QuerySchema.parse(json) as QueryInput;
+    const json = await req.json().catch(() => ({}));
+    const input = normalizeQuery(json);
 
     const { sql: whereSql, params } = buildWhere(input);
     const orderBy = buildOrder(input);
