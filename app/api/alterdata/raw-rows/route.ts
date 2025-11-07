@@ -31,7 +31,8 @@ export async function GET(req: Request) {
     const page   = Math.max(1, parseInt(searchParams.get('page')  || '1', 10));
     const limit  = Math.min(200, Math.max(10, parseInt(searchParams.get('limit') || '50', 10)));
     const q      = (searchParams.get('q')        || '').trim();
-    const regional = (searchParams.get('regional') || '').trim();
+    // regional **intencionalmente ignorado** no backend para evitar dependência de stg_unid_reg
+    // a UI filtra por regional no cliente usando UNID_TO_REGIONAL
     const unidade  = (searchParams.get('unidade')  || '').trim();
     const status   = (searchParams.get('status')   || '').trim();
 
@@ -39,10 +40,11 @@ export async function GET(req: Request) {
 
     const hasV2Raw = await tableExists('stg_alterdata_v2_raw');
     const hasLegacy = await tableExists('stg_alterdata');
-    const hasUnidReg = await tableExists('stg_unid_reg');
 
     if (!hasV2Raw && !hasLegacy) {
-      return NextResponse.json({ ok:false, error: 'Nenhuma tabela Alterdata encontrada (stg_alterdata_v2_raw ou stg_alterdata).' }, { status: 500 });
+      const res = NextResponse.json({ ok:false, error: 'Nenhuma tabela Alterdata encontrada (stg_alterdata_v2_raw ou stg_alterdata).' }, { status: 500 });
+      res.headers.set('x-alterdata-route', 'no-join-v1');
+      return res;
     }
 
     const wh: string[] = [];
@@ -61,51 +63,6 @@ export async function GET(req: Request) {
       wh.push(`EXISTS (
         SELECT 1 FROM jsonb_each_text(data) kv_un
         WHERE ${norm('kv_un.value')} = ${norm(`'${esc(unidade)}'`)}
-      )`);
-    }
-
-    // Regional (JOIN genérico — sem dependência de nome de coluna)
-    if(regional){
-      if(!hasUnidReg){
-        return NextResponse.json({ ok:false, error: 'Filtro de Regional exige a tabela stg_unid_reg (não encontrada).' }, { status: 500 });
-      }
-      wh.push(`EXISTS (
-        SELECT 1
-        FROM stg_unid_reg ur
-        CROSS JOIN LATERAL (
-          SELECT kv.value AS unidade_map
-          FROM jsonb_each_text(to_jsonb(ur)) kv
-          WHERE upper(kv.key) LIKE '%UNID%'
-             OR upper(kv.key) LIKE '%DEPART%'
-             OR upper(kv.key) LIKE '%HOSP%'
-          ORDER BY
-            CASE
-              WHEN upper(kv.key) LIKE '%UNID%' THEN 3
-              WHEN upper(kv.key) LIKE '%DEPART%' THEN 2
-              WHEN upper(kv.key) LIKE '%HOSP%' THEN 1
-              ELSE 0
-            END DESC
-          LIMIT 1
-        ) u
-        CROSS JOIN LATERAL (
-          SELECT kv.value AS regional_map
-          FROM jsonb_each_text(to_jsonb(ur)) kv
-          WHERE upper(kv.key) LIKE '%REGIONAL%'
-             OR upper(kv.key) LIKE '%RESPONS%'
-          ORDER BY
-            CASE
-              WHEN upper(kv.key) LIKE '%REGIONAL_RES%' THEN 3
-              WHEN upper(kv.key) LIKE '%REGIONAL%' THEN 2
-              WHEN upper(kv.key) LIKE '%RESPONS%' THEN 1
-              ELSE 0
-            END DESC
-          LIMIT 1
-        ) rg
-        WHERE ${norm('rg.regional_map')} = ${norm(`'${esc(regional)}'`)}
-          AND EXISTS (
-            SELECT 1 FROM jsonb_each_text(data) rv
-            WHERE ${norm('rv.value')} = ${norm('u.unidade_map')}
-          )
       )`);
     }
 
@@ -195,8 +152,11 @@ export async function GET(req: Request) {
     const total = totalRes?.[0]?.total ?? 0;
     const res = NextResponse.json({ ok:true, rows, page, limit, total });
     res.headers.set('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
+    res.headers.set('x-alterdata-route', 'no-join-v1');
     return res;
   }catch(e:any){
-    return NextResponse.json({ ok:false, error: String(e?.message||e) }, { status:500 });
+    const res = NextResponse.json({ ok:false, error: String(e?.message||e) }, { status:500 });
+    res.headers.set('x-alterdata-route', 'no-join-v1');
+    return res;
   }
 }
