@@ -3,8 +3,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
 
-// Atualizamos a chave para forçar novo cache após as mudanças de formatação
-const LS_KEY_ALTERDATA = 'alterdata_cache_prod_v4';
+// Força novo cache após o hotfix
+const LS_KEY_ALTERDATA = 'alterdata_cache_prod_v4_hotfix';
 
 // ---------- Ocultação de colunas ----------
 const HIDE_LABELS = [
@@ -30,7 +30,7 @@ const HIDE_NORMS = new Set([
 ]);
 
 function __norm(s: string){
-  return (s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
+  return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
 }
 
 function __shouldHide(col: string): boolean {
@@ -45,19 +45,19 @@ function fmtDateDDMMYYYY(val: any): string {
   if (!s) return '';
 
   // ISO ou ISO com tempo: 2024-11-07, 2024-11-07T00:00:00
-  let m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (m) return `${m[3]}/${m[2]}/${m[1]}`;
 
   // dd/mm/yyyy (mantém só a data)
-  m = s.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
   if (m) return `${m[1]}/${m[2]}/${m[3]}`;
 
   // yyyymmdd
-  m = s.match(/^(\\d{4})(\\d{2})(\\d{2})$/);
+  m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
   if (m) return `${m[3]}/${m[2]}/${m[1]}`;
 
   // Pega qualquer padrão de 8+ dígitos que forme Y-M-D
-  m = s.match(/(\\d{4})[^\\d]?(\\d{2})[^\\d]?(\\d{2})/);
+  m = s.match(/(\d{4})[^\d]?(\d{2})[^\d]?(\d{2})/);
   if (m) return `${m[3]}/${m[2]}/${m[1]}`;
 
   return s; // fallback
@@ -65,14 +65,14 @@ function fmtDateDDMMYYYY(val: any): string {
 
 function fmtCPF(val: any): string {
   if (val === null || val === undefined) return '';
-  const digits = String(val).replace(/\\D/g,'') || '';
+  const digits = String(val).replace(/\D/g,'') || '';
   const last11 = digits.slice(-11).padStart(11, '0');
   return `${last11.slice(0,3)}.${last11.slice(3,6)}.${last11.slice(6,9)}-${last11.slice(9)}`;
 }
 
 function fmtMatricula5(val: any): string {
   if (val === null || val === undefined) return '';
-  const digits = String(val).replace(/\\D/g,'') || '';
+  const digits = String(val).replace(/\D/g,'') || '';
   const last5 = digits.slice(-5).padStart(5, '0');
   return last5;
 }
@@ -278,7 +278,7 @@ export default function Page() {
     if (regional !== 'TODAS') list = list.filter(r => r.regional === regional);
     if (uk && unidade !== 'TODAS') list = list.filter(r => String(r[uk] ?? '') === unidade);
     if (q.trim()) {
-      const needles = q.toLowerCase().split(/\\s+/).filter(Boolean);
+      const needles = q.toLowerCase().split(/\s+/).filter(Boolean);
       list = list.filter(r => {
         const blob = Object.values(r).join(' ').toLowerCase();
         return needles.every(n => blob.includes(n));
