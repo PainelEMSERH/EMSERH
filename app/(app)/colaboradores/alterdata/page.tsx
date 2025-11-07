@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
 
-const LS_KEY_ALTERDATA = 'alterdata_cache_v7'; // nova chave (evita cache antigo)
+const LS_KEY_ALTERDATA = 'alterdata_cache_v4'; // inclui batch_id
 
 const __HIDE_COLS__ = new Set(['Celular', 'Cidade', 'Data Atestado', 'Motivo Afastamento', 'Nome Médico', 'Periodicidade', 'Telefone']);
 function __shouldHide(col: string): boolean {
@@ -30,6 +30,10 @@ type ApiCols = { ok: boolean; columns: string[]; batch_id?: string | null; error
 
 type AnyRow = Record<string, any>;
 
+function flatten(r: RowApi): AnyRow {
+  return { row_no: r.row_no, ...r.data };
+}
+
 function uniqueSorted(arr: (string|null|undefined)[]) {
   return Array.from(new Set(arr.filter(Boolean) as string[])).sort((a,b)=>a.localeCompare(b,'pt-BR'));
 }
@@ -50,19 +54,41 @@ function detectUnidadeKey(sample: AnyRow[]): string | null {
   return byScore[0]?.score ? byScore[0].k : null;
 }
 
-async function fetchJSON(url: string, init?: RequestInit): Promise<{json:any, headers: Headers}> {
-  const r = await fetch(url, init);
+async function fetchPage(page: number, limit: number): Promise<ApiRows> {
+  const params = new URLSearchParams({ page:String(page), limit:String(limit) });
+  const r = await fetch('/api/alterdata/raw-rows?' + params.toString(), { cache: 'force-cache' });
   const text = await r.text();
-  let json: any;
-  try { json = JSON.parse(text); } catch { json = { ok:false, error: 'JSON inválido', raw: text }; }
-  return { json, headers: r.headers };
+  try {
+    const json = JSON.parse(text);
+    if (!r.ok || json?.ok === false) {
+      throw new Error(json?.error || `HTTP ${r.status} - ${text.slice(0,200)}`);
+    }
+    return json;
+  } catch (e:any) {
+    throw new Error(e?.message || text || `Falha ao carregar página ${page}`);
+  }
 }
 
-async function fetchPage(page: number, limit: number): Promise<{data: ApiRows, headers: Headers}> {
-  const params = new URLSearchParams({ page:String(page), limit:String(limit) });
-  const { json, headers } = await fetchJSON('/api/alterdata/raw-rows2?' + params.toString(), { cache: 'force-cache' });
-  if (!json?.ok) throw new Error(json?.error || 'Falha ao carregar página '+page);
-  return { data: json as ApiRows, headers };
+async function fetchAll(onProgress?: (n:number,t:number)=>void): Promise<AnyRow[]> {
+  const first = await fetchPage(1, 200);
+  const total = first.total || first.rows.length;
+  const limit = first.limit || 200;
+  const pages = Math.max(1, Math.ceil(total / limit));
+  const acc: AnyRow[] = [...first.rows.map(flatten)];
+  if (onProgress) onProgress(acc.length, total);
+
+  const concurrency = Math.min(10, Math.max(1, pages-1));
+  let next = 2;
+  async function worker() {
+    while (next <= pages) {
+      const p = next++;
+      const res = await fetchPage(p, limit);
+      acc.push(...res.rows.map(flatten));
+      if (onProgress) onProgress(Math.min(acc.length,total), total);
+    }
+  }
+  await Promise.all(Array.from({length: concurrency}, worker));
+  return acc.slice(0, total);
 }
 
 export default function Page() {
@@ -71,7 +97,6 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string>('');
-  const [routeTag, setRouteTag] = useState<string>('');
 
   const [q, setQ] = useState('');
   const [regional, setRegional] = useState<Regional | 'TODAS'>('TODAS');
@@ -89,20 +114,35 @@ export default function Page() {
     (async ()=>{
       setLoading(true); setError(null); setProgress('');
       try{
-        const { json: jCols, headers: h1 } = await fetchJSON('/api/alterdata/raw-columns2', { cache: 'force-cache' });
-        if (!jCols?.ok) throw new Error(jCols?.error || 'Falha em raw-columns2');
-        setRouteTag(h1.get('x-alterdata-route') || '');
+        const rCols = await fetch('/api/alterdata/raw-columns', { cache: 'force-cache' });
+        const txt = await rCols.text();
+        const jCols: ApiCols = JSON.parse(txt);
+        if (!rCols.ok || jCols?.ok === false) {
+          throw new Error(jCols?.error || `HTTP ${rCols.status} - ${txt.slice(0,200)}`);
+        }
         const baseCols = (Array.isArray(jCols?.columns) ? jCols.columns : []) as string[];
         const batchId = jCols?.batch_id || null;
 
+        // tenta LS
         try{
           const raw = window.localStorage.getItem(LS_KEY_ALTERDATA);
           if (raw) {
             const cached = JSON.parse(raw);
             if (cached && cached.batch_id === batchId && Array.isArray(cached.rows) && Array.isArray(cached.columns)) {
+              const uk = detectUnidadeKey(cached.rows);
+              const withReg = cached.rows.map((r:any) => {
+                let regional = r.regional;
+                if (!regional) {
+                  const ukv = uk ? String(r[uk] ?? '') : '';
+                  const c = canonUnidade(ukv);
+                  regional = (UNID_TO_REGIONAL as any)[c] || '';
+                }
+                return { ...r, regional };
+              });
+              const cols = cached.columns.includes('regional') ? cached.columns : ['regional', ...cached.columns];
               if(on){
-                setColumns(cached.columns);
-                setRows(cached.rows);
+                setColumns(cols);
+                setRows(withReg);
                 setLoading(false);
                 return;
               }
@@ -110,24 +150,10 @@ export default function Page() {
           }
         }catch{}
 
-        const first = await fetchPage(1, 200);
-        setRouteTag(first.headers.get('x-alterdata-route') || routeTag);
-        const total = first.data.total || first.data.rows.length;
-        const limit = first.data.limit || 200;
-        const pages = Math.max(1, Math.ceil(total / limit));
-        const acc: AnyRow[] = [...first.data.rows.map(r => ({ row_no: r.row_no, ...r.data }))];
-        if (on) setProgress(`${acc.length}/${total}`);
-
-        for (let p = 2; p <= pages; p++) {
-          const res = await fetchPage(p, limit);
-          setRouteTag(res.headers.get('x-alterdata-route') || routeTag);
-          acc.push(...res.data.rows.map(r => ({ row_no: r.row_no, ...r.data })));
-          if (on) setProgress(`${Math.min(acc.length,total)}/${total}`);
-        }
-
-        // Mapeia regional no cliente
-        const uk = detectUnidadeKey(acc);
-        const withReg = acc.map(r => {
+        // baixa tudo
+        const data = await fetchAll((n,t)=>{ if(on) setProgress(`${n}/${t}`); });
+        const uk = detectUnidadeKey(data);
+        const withReg = data.map(r => {
           const un = uk ? String(r[uk] ?? '') : '';
           const c = canonUnidade(un);
           const reg = (UNID_TO_REGIONAL as any)[c] || '';
@@ -175,11 +201,8 @@ export default function Page() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="text-lg font-semibold">Alterdata — Base Completa</div>
-        {routeTag && <span className="text-xs px-2 py-1 rounded-lg bg-neutral-100">API: {routeTag}</span>}
-      </div>
-      <p className="text-sm opacity-70">Visual com Regional (join por unidade no cliente), busca livre e filtros de Regional/Unidade. Nada altera a base ou o upload.</p>
+      <div className="text-lg font-semibold">Alterdata — Base Completa</div>
+      <p className="text-sm opacity-70">Visual com Regional (join por unidade), busca livre e filtros de Regional/Unidade. Nada altera a base ou o upload.</p>
 
       <div className="flex flex-wrap gap-2 items-center">
         <input

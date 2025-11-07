@@ -6,23 +6,11 @@ function norm(expr: string){
   return `regexp_replace(upper(${expr}), '[^A-Z0-9]', '', 'g')`;
 }
 
-// Checagem de existência de tabela **sem** usar to_regclass/regclass
 async function tableExists(name: string): Promise<boolean> {
-  const q = `
-    SELECT EXISTS (
-      SELECT 1
-      FROM pg_catalog.pg_class c
-      JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-      WHERE c.relkind IN ('r','m','v')
-        AND n.nspname = 'public'
-        AND c.relname = '${esc(name)}'
-    ) AS ok
-  `;
-  const r: any[] = await prisma.$queryRawUnsafe(q);
-  return !!r?.[0]?.ok;
+  const r: any[] = await prisma.$queryRawUnsafe(`SELECT to_regclass('${name}') as r`);
+  return !!r?.[0]?.r;
 }
 
-// Último batch_id (quando existir)
 async function latestBatchId(): Promise<string | null> {
   const hasImports = await tableExists('stg_alterdata_v2_imports');
   if (hasImports) {
@@ -43,7 +31,8 @@ export async function GET(req: Request) {
     const page   = Math.max(1, parseInt(searchParams.get('page')  || '1', 10));
     const limit  = Math.min(200, Math.max(10, parseInt(searchParams.get('limit') || '50', 10)));
     const q      = (searchParams.get('q')        || '').trim();
-    // regional é filtrado no **cliente**; aqui não há JOIN nem dependência de stg_unid_reg
+    // regional **intencionalmente ignorado** no backend para evitar dependência de stg_unid_reg
+    // a UI filtra por regional no cliente usando UNID_TO_REGIONAL
     const unidade  = (searchParams.get('unidade')  || '').trim();
     const status   = (searchParams.get('status')   || '').trim();
 
@@ -54,12 +43,13 @@ export async function GET(req: Request) {
 
     if (!hasV2Raw && !hasLegacy) {
       const res = NextResponse.json({ ok:false, error: 'Nenhuma tabela Alterdata encontrada (stg_alterdata_v2_raw ou stg_alterdata).' }, { status: 500 });
-      res.headers.set('x-alterdata-route', 'legacy-v3');
+      res.headers.set('x-alterdata-route', 'no-join-v1');
       return res;
     }
 
     const wh: string[] = [];
 
+    // Busca livre
     if(q){
       const nq = esc(q);
       wh.push(`EXISTS (
@@ -68,13 +58,15 @@ export async function GET(req: Request) {
       )`);
     }
 
+    // Unidade
     if(unidade){
       wh.push(`EXISTS (
         SELECT 1 FROM jsonb_each_text(data) kv_un
-        WHERE ${norm('kv_un.value')} = ${norm(\"'${esc(unidade)}'\")}
+        WHERE ${norm('kv_un.value')} = ${norm(`'${esc(unidade)}'`)}
       )`);
     }
 
+    // Situação
     if(status === 'Demitido'){
       wh.push(`(
         (data ? 'Demissão' AND (substring(data->>'Demissão' from 1 for 10) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'))
@@ -132,7 +124,7 @@ export async function GET(req: Request) {
         ${andOrWhere}
       `;
     } else {
-      const base = \"SELECT row_number() over() as row_no, to_jsonb(t) as data FROM stg_alterdata t\";
+      const base = `SELECT row_number() over() as row_no, to_jsonb(t) as data FROM stg_alterdata t`;
       const baseAlias = 'base';
 
       rowsSql = `
@@ -160,11 +152,11 @@ export async function GET(req: Request) {
     const total = totalRes?.[0]?.total ?? 0;
     const res = NextResponse.json({ ok:true, rows, page, limit, total });
     res.headers.set('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
-    res.headers.set('x-alterdata-route', 'legacy-v3');
+    res.headers.set('x-alterdata-route', 'no-join-v1');
     return res;
   }catch(e:any){
     const res = NextResponse.json({ ok:false, error: String(e?.message||e) }, { status:500 });
-    res.headers.set('x-alterdata-route', 'legacy-v3');
+    res.headers.set('x-alterdata-route', 'no-join-v1');
     return res;
   }
 }
