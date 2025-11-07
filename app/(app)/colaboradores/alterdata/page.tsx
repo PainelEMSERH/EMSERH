@@ -3,10 +3,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
 
-// ==== Config de cache local (persistência entre navegações) ====
 const LS_KEY_ALTERDATA = 'alterdata_cache_v4'; // inclui batch_id
 
-// Patch: ocultar colunas específicas e formatar datas (dd/MM/aaaa)
 const __HIDE_COLS__ = new Set(['Celular', 'Cidade', 'Data Atestado', 'Motivo Afastamento', 'Nome Médico', 'Periodicidade', 'Telefone']);
 function __shouldHide(col: string): boolean {
   const n = (col||'').normalize('NFD').replace(/[^a-z0-9]/gi,'').toLowerCase();
@@ -16,7 +14,6 @@ function __shouldHide(col: string): boolean {
 function __fmtDate(val: any): string {
   if (val === null || val === undefined) return '';
   const s = String(val).trim();
-  // yyyy-mm-dd or yyyy-mm-dd HH:mm:ss
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T].*)?$/);
   if (m) return `${m[3]}/${m[2]}/${m[1]}`;
   return s;
@@ -60,8 +57,16 @@ function detectUnidadeKey(sample: AnyRow[]): string | null {
 async function fetchPage(page: number, limit: number): Promise<ApiRows> {
   const params = new URLSearchParams({ page:String(page), limit:String(limit) });
   const r = await fetch('/api/alterdata/raw-rows?' + params.toString(), { cache: 'force-cache' });
-  if(!r.ok) throw new Error('Falha ao carregar página ' + page);
-  return r.json();
+  const text = await r.text();
+  try {
+    const json = JSON.parse(text);
+    if (!r.ok || json?.ok === false) {
+      throw new Error(json?.error || `HTTP ${r.status} - ${text.slice(0,200)}`);
+    }
+    return json;
+  } catch (e:any) {
+    throw new Error(e?.message || text || `Falha ao carregar página ${page}`);
+  }
 }
 
 async function fetchAll(onProgress?: (n:number,t:number)=>void): Promise<AnyRow[]> {
@@ -109,13 +114,16 @@ export default function Page() {
     (async ()=>{
       setLoading(true); setError(null); setProgress('');
       try{
-        // 1) Pega colunas + batch_id com cache de CDN
         const rCols = await fetch('/api/alterdata/raw-columns', { cache: 'force-cache' });
-        const jCols: ApiCols = await rCols.json();
+        const txt = await rCols.text();
+        const jCols: ApiCols = JSON.parse(txt);
+        if (!rCols.ok || jCols?.ok === false) {
+          throw new Error(jCols?.error || `HTTP ${rCols.status} - ${txt.slice(0,200)}`);
+        }
         const baseCols = (Array.isArray(jCols?.columns) ? jCols.columns : []) as string[];
         const batchId = jCols?.batch_id || null;
 
-        // 2) Tenta carregar do localStorage se batch_id coincide
+        // tenta LS
         try{
           const raw = window.localStorage.getItem(LS_KEY_ALTERDATA);
           if (raw) {
@@ -136,13 +144,13 @@ export default function Page() {
                 setColumns(cols);
                 setRows(withReg);
                 setLoading(false);
-                return; // pronto, sem refetch
+                return;
               }
             }
           }
         }catch{}
 
-        // 3) Carrega tudo (com progresso) e salva no LS com batch_id
+        // baixa tudo
         const data = await fetchAll((n,t)=>{ if(on) setProgress(`${n}/${t}`); });
         const uk = detectUnidadeKey(data);
         const withReg = data.map(r => {
@@ -167,7 +175,7 @@ export default function Page() {
     })();
 
     return ()=>{ on=false };
-  }, []); // fetch once
+  }, []);
 
   const unidadeOptions = useMemo(()=>{
     const uk = unidadeKey;
