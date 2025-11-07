@@ -3,7 +3,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
 
-const LS_KEY_ALTERDATA = 'alterdata_cache_prod_v1'; // cache por batch_id
+// Nova versão focada em restaurar REGIONAL: detecção robusta da coluna de UNIDADE por votação.
+const LS_KEY_ALTERDATA = 'alterdata_cache_prod_v2'; // força recarregar cache anterior
 
 const __HIDE_COLS__ = new Set(['Celular', 'Cidade', 'Data Atestado', 'Motivo Afastamento', 'Nome Médico', 'Periodicidade', 'Telefone']);
 function __shouldHide(col: string): boolean {
@@ -27,29 +28,67 @@ function __renderCell(col: string, val: any) {
 type RowApi = { row_no: number; data: Record<string, string> };
 type ApiRows = { ok: boolean; rows: RowApi[]; page: number; limit: number; total: number; error?: string };
 type ApiCols = { ok: boolean; columns: string[]; batch_id?: string | null; error?: string };
+
 type AnyRow = Record<string, any>;
-type Cached = { batch_id: string | null; rows: AnyRow[]; columns: string[] };
 
 function uniqueSorted(arr: (string|null|undefined)[]) {
   return Array.from(new Set(arr.filter(Boolean) as string[])).sort((a,b)=>a.localeCompare(b,'pt-BR'));
 }
 
-function detectUnidadeKey(sample: AnyRow[]): string | null {
-  if (!sample?.length) return null;
-  const keys = Object.keys(sample[0]);
-  const norm = (s: string) => s.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();
-  const byScore = keys.map(k => {
-    const n = norm(k);
-    let score = 0;
-    if (n.includes('unid')) score += 4;
-    if (n.includes('hospital')) score += 3;
-    if (n.includes('estab')) score += 2;
-    if (/^unidade(\\s|$)/.test(n)) score += 5;
-    return { k, score };
-  }).sort((a,b)=>b.score - a.score);
-  return byScore[0]?.score ? byScore[0].k : null;
+// ---- Regional detection core ----
+const _NORM = (s: string) => s.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
+
+// 1) heurística por *nome* de coluna (rápido)
+const NAME_HINTS = [
+  'unidade','unid','nmdeunidade','nm_unidade','unidade_lotacao','lotacao','estabelecimento',
+  'hospital','empresa','localtrabalho','localdetrabalho','setor','departamento'
+];
+
+// 2) votação por *conteúdo*: para cada chave, conta quantos valores
+// viram uma unidade válida em UNID_TO_REGIONAL via canonUnidade().
+function detectUnidadeKeyByVoting(rows: AnyRow[], sampleSize = 200): { key: string|null, votes: Record<string, number> } {
+  const votes: Record<string, number> = {};
+  if (!rows?.length) return { key: null, votes };
+
+  const keys = Object.keys(rows[0] || {});
+  const top = rows.slice(0, Math.min(sampleSize, rows.length));
+
+  for (const k of keys) {
+    let v = 0;
+    for (const r of top) {
+      const raw = r?.[k];
+      if (raw == null) continue;
+      const s = String(raw);
+      if (!s) continue;
+      const canon = canonUnidade(s);
+      if (canon && (UNID_TO_REGIONAL as any)[canon]) v++;
+    }
+    votes[k] = v;
+  }
+  // escolhe a chave com maior votação
+  const best = Object.entries(votes).sort((a,b)=>b[1]-a[1])[0];
+  return { key: (best && best[1] > 0) ? best[0] : null, votes };
 }
 
+// 3) combine: se a votação falhar (tudo zero), use hints por nome.
+function detectUnidadeKey(rows: AnyRow[]): { key: string|null, votes: Record<string, number> } {
+  const byVote = detectUnidadeKeyByVoting(rows);
+  if (byVote.key) return byVote;
+
+  if (!rows?.length) return { key: null, votes: byVote.votes };
+  const keys = Object.keys(rows[0] || {});
+  const scoreByName: Record<string, number> = {};
+  for (const k of keys) {
+    const n = _NORM(k);
+    let s = 0;
+    for (const hint of NAME_HINTS) if (n.includes(hint)) s++;
+    scoreByName[k] = s;
+  }
+  const best = Object.entries(scoreByName).sort((a,b)=>b[1]-a[1])[0];
+  return { key: (best && best[1] > 0) ? best[0] : null, votes: byVote.votes };
+}
+
+// ---- Fetch helpers ----
 async function fetchJSON(url: string, init?: RequestInit): Promise<{json:any, headers: Headers}> {
   const r = await fetch(url, init);
   const text = await r.text();
@@ -71,12 +110,13 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string>('');
+  const [unidKey, setUnidKey] = useState<string | null>(null);
+  const [votePeek, setVotePeek] = useState<string>(''); // debug leve no UI
 
   const [q, setQ] = useState('');
   const [regional, setRegional] = useState<Regional | 'TODAS'>('TODAS');
   const [unidade, setUnidade] = useState<string | 'TODAS'>('TODAS');
 
-  const unidadeKey = useMemo(()=> detectUnidadeKey(rows), [rows]);
   const fetchedRef = useRef(false);
 
   useEffect(()=>{
@@ -92,15 +132,17 @@ export default function Page() {
         const baseCols = (Array.isArray(jCols?.columns) ? jCols.columns : []) as string[];
         const batchId = jCols?.batch_id || null;
 
-        // Tenta cache local por batch_id
+        // Cache por batch_id
         try{
           const raw = window.localStorage.getItem(LS_KEY_ALTERDATA);
           if (raw) {
-            const cached = JSON.parse(raw) as Cached;
+            const cached = JSON.parse(raw);
             if (cached && cached.batch_id === batchId && Array.isArray(cached.rows) && Array.isArray(cached.columns)) {
               if(on){
                 setColumns(cached.columns);
                 setRows(cached.rows);
+                setUnidKey(cached.unidKey || null);
+                setVotePeek(cached.votePeek || '');
                 setLoading(false);
                 return;
               }
@@ -108,7 +150,7 @@ export default function Page() {
           }
         }catch{}
 
-        // Carrega todas as páginas (com prefetch) e salva no cache
+        // Carrega todas as páginas
         const first = await fetchPage(1, 200);
         const total = first.data.total || first.data.rows.length;
         const limit = first.data.limit || 200;
@@ -122,21 +164,27 @@ export default function Page() {
           if (on) setProgress(`${Math.min(acc.length,total)}/${total}`);
         }
 
-        // Mapeia regional no cliente com UNID_TO_REGIONAL
-        const uk = detectUnidadeKey(acc);
+        // Detecta coluna de unidade por votação
+        const det = detectUnidadeKey(acc);
+        const uk = det.key;
+
+        // Mapeia regional no cliente
         const withReg = acc.map(r => {
-          const un = uk ? String(r[uk] ?? '') : '';
-          const c = canonUnidade(un);
-          const reg = (UNID_TO_REGIONAL as any)[c] || '';
+          const rawUn = uk ? String(r[uk] ?? '') : '';
+          const canon = canonUnidade(rawUn);
+          const reg = (UNID_TO_REGIONAL as any)[canon] || '';
           return { ...r, regional: reg };
         });
 
         const cols = baseCols.includes('regional') ? baseCols : ['regional', ...baseCols];
+        const peek = uk ? `unidKey=${uk} votes=${JSON.stringify(det.votes)}` : `unidKey=? votes=${JSON.stringify(det.votes)}`;
 
         if(on){
           setColumns(cols);
           setRows(withReg);
-          try { window.localStorage.setItem(LS_KEY_ALTERDATA, JSON.stringify({ batch_id: batchId, rows: withReg, columns: cols })); } catch {}
+          setUnidKey(uk);
+          setVotePeek(peek);
+          try { window.localStorage.setItem(LS_KEY_ALTERDATA, JSON.stringify({ batch_id: batchId, rows: withReg, columns: cols, unidKey: uk, votePeek: peek })); } catch {}
         }
       }catch(e:any){
         if(on) setError(String(e?.message||e));
@@ -149,14 +197,14 @@ export default function Page() {
   }, []);
 
   const unidadeOptions = useMemo(()=>{
-    const uk = unidadeKey;
+    const uk = unidKey;
     if (!uk) return [];
     const base = regional === 'TODAS' ? rows : rows.filter(r => r.regional === regional);
     return uniqueSorted(base.map(r => String(r[uk] ?? '')).filter(Boolean));
-  }, [rows, regional, unidadeKey]);
+  }, [rows, regional, unidKey]);
 
   const filtered = useMemo(()=>{
-    const uk = unidadeKey;
+    const uk = unidKey;
     let list = rows;
     if (regional !== 'TODAS') list = list.filter(r => r.regional === regional);
     if (uk && unidade !== 'TODAS') list = list.filter(r => String(r[uk] ?? '') === unidade);
@@ -168,11 +216,15 @@ export default function Page() {
       });
     }
     return list;
-  }, [rows, regional, unidade, q, unidadeKey]);
+  }, [rows, regional, unidade, q, unidKey]);
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="text-lg font-semibold">Alterdata — Base Completa</div>
+      <div className="flex items-center gap-3">
+        <div className="text-lg font-semibold">Alterdata — Base Completa</div>
+        {/* Mostra um ping de diagnóstico discreto para confirmar chave/unidade detectada */}
+        {votePeek && <span className="text-[10px] px-2 py-1 rounded bg-neutral-100">{votePeek}</span>}
+      </div>
       <p className="text-sm opacity-70">Visual com Regional (join por unidade no cliente), busca livre e filtros de Regional/Unidade. Nada altera a base ou o upload.</p>
 
       <div className="flex flex-wrap gap-2 items-center">
@@ -188,7 +240,7 @@ export default function Page() {
           {REGIONALS.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
         <select value={unidade} onChange={e=>setUnidade(e.target.value as any)}
-                disabled={!unidadeKey}
+                disabled={!unidKey}
                 className="px-3 py-2 rounded-xl bg-neutral-100 text-sm text-neutral-900">
           <option value="TODAS">Unidade (todas)</option>
           {unidadeOptions.map(u => <option key={u} value={u}>{u}</option>)}
