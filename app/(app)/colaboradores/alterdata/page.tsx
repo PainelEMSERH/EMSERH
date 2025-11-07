@@ -88,6 +88,7 @@ async function fetchAll(onProgress?: (n:number,t:number)=>void): Promise<AnyRow[
 }
 
 export default function Page() {
+  const LS_ALTERDATA_ROWS='alt_rows_v2'; const LS_ALTERDATA_COLS='alt_cols_v2'; const LS_ALTERDATA_BATCH='alt_batch_v2';
   const LS_ALTERDATA_ROWS='alt_rows_v1'; const LS_ALTERDATA_COLS='alt_cols_v1'; const LS_ALTERDATA_BATCH='alt_batch_v1';
   const LS_KEY_ALTERDATA = 'alterdata_cache_v3';
   const [columns, setColumns] = useState<string[]>([]);
@@ -133,6 +134,7 @@ export default function Page() {
         if(on){
           setColumns(cols);
           setRows(withReg);
+          try { localStorage.setItem(LS_ALTERDATA_ROWS, JSON.stringify(withReg)); localStorage.setItem(LS_ALTERDATA_COLS, JSON.stringify(cols)); if (typeof batch_id!=='undefined' && batch_id!==null) localStorage.setItem(LS_ALTERDATA_BATCH, String(batch_id)); } catch {}
           try { window.localStorage.setItem(LS_KEY_ALTERDATA, JSON.stringify({ rows: withReg, columns: cols })); } catch {}
         }
       }catch(e:any){
