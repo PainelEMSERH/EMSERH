@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
@@ -94,7 +93,7 @@ export async function GET(req: Request) {
     `;
     const rows: any[] = await prisma.$queryRawUnsafe(sql);
 
-    const countSql = \`
+    const countSql = `
       WITH latest AS (
         SELECT batch_id FROM stg_alterdata_v2_imports ORDER BY imported_at DESC LIMIT 1
       )
@@ -102,7 +101,7 @@ export async function GET(req: Request) {
       FROM stg_alterdata_v2_raw r, latest
       WHERE r.batch_id = latest.batch_id
       ${where}
-    \`;
+    `;
     const totalRes: any[] = await prisma.$queryRawUnsafe(countSql);
     const total = totalRes?.[0]?.total ?? 0;
 

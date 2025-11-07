@@ -1,10 +1,9 @@
-
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 export async function GET() {
   try{
-    const sql = \`
+    const sql = `
       WITH latest AS (
         SELECT batch_id FROM stg_alterdata_v2_imports ORDER BY imported_at DESC LIMIT 1
       )
@@ -12,10 +11,10 @@ export async function GET() {
       FROM stg_alterdata_v2_raw r, latest
       WHERE r.batch_id = latest.batch_id
       ORDER BY 1
-    \`;
+    `;
     const rows: any[] = await prisma.$queryRawUnsafe(sql);
     const columns = rows.map((r: any) => r.key);
-    const batch = await prisma.$queryRawUnsafe(\`SELECT batch_id, imported_at FROM stg_alterdata_v2_imports ORDER BY imported_at DESC LIMIT 1\`);
+    const batch = await prisma.$queryRawUnsafe(`SELECT batch_id, imported_at FROM stg_alterdata_v2_imports ORDER BY imported_at DESC LIMIT 1`);
     const batch_id = batch?.[0]?.batch_id || null;
     const res = NextResponse.json({ ok:true, columns, batch_id });
     res.headers.set('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
