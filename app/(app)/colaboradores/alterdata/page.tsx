@@ -3,8 +3,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
 
-// Nova versão focada em restaurar REGIONAL: detecção robusta da coluna de UNIDADE por votação.
-const LS_KEY_ALTERDATA = 'alterdata_cache_prod_v2'; // força recarregar cache anterior
+// Mantém cache por batch_id; nova chave para evitar resquícios de cache antigo
+const LS_KEY_ALTERDATA = 'alterdata_cache_prod_v3';
 
 const __HIDE_COLS__ = new Set(['Celular', 'Cidade', 'Data Atestado', 'Motivo Afastamento', 'Nome Médico', 'Periodicidade', 'Telefone']);
 function __shouldHide(col: string): boolean {
@@ -38,21 +38,18 @@ function uniqueSorted(arr: (string|null|undefined)[]) {
 // ---- Regional detection core ----
 const _NORM = (s: string) => s.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
 
-// 1) heurística por *nome* de coluna (rápido)
+// Pistas por nome
 const NAME_HINTS = [
   'unidade','unid','nmdeunidade','nm_unidade','unidade_lotacao','lotacao','estabelecimento',
   'hospital','empresa','localtrabalho','localdetrabalho','setor','departamento'
 ];
 
-// 2) votação por *conteúdo*: para cada chave, conta quantos valores
-// viram uma unidade válida em UNID_TO_REGIONAL via canonUnidade().
+// Votação por conteúdo (qual coluna parece mais "unidade" olhando os valores)
 function detectUnidadeKeyByVoting(rows: AnyRow[], sampleSize = 200): { key: string|null, votes: Record<string, number> } {
   const votes: Record<string, number> = {};
   if (!rows?.length) return { key: null, votes };
-
   const keys = Object.keys(rows[0] || {});
   const top = rows.slice(0, Math.min(sampleSize, rows.length));
-
   for (const k of keys) {
     let v = 0;
     for (const r of top) {
@@ -65,16 +62,12 @@ function detectUnidadeKeyByVoting(rows: AnyRow[], sampleSize = 200): { key: stri
     }
     votes[k] = v;
   }
-  // escolhe a chave com maior votação
   const best = Object.entries(votes).sort((a,b)=>b[1]-a[1])[0];
   return { key: (best && best[1] > 0) ? best[0] : null, votes };
 }
-
-// 3) combine: se a votação falhar (tudo zero), use hints por nome.
 function detectUnidadeKey(rows: AnyRow[]): { key: string|null, votes: Record<string, number> } {
   const byVote = detectUnidadeKeyByVoting(rows);
   if (byVote.key) return byVote;
-
   if (!rows?.length) return { key: null, votes: byVote.votes };
   const keys = Object.keys(rows[0] || {});
   const scoreByName: Record<string, number> = {};
@@ -111,13 +104,20 @@ export default function Page() {
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string>('');
   const [unidKey, setUnidKey] = useState<string | null>(null);
-  const [votePeek, setVotePeek] = useState<string>(''); // debug leve no UI
+  const [votePeek, setVotePeek] = useState<string>(''); // diagnóstico leve
+
+  // Paginação (cliente)
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100);
 
   const [q, setQ] = useState('');
   const [regional, setRegional] = useState<Regional | 'TODAS'>('TODAS');
   const [unidade, setUnidade] = useState<string | 'TODAS'>('TODAS');
 
   const fetchedRef = useRef(false);
+
+  // Resetar página quando filtros mudarem
+  useEffect(()=>{ setPage(1); }, [q, regional, unidade, pageSize]);
 
   useEffect(()=>{
     if (fetchedRef.current) return;
@@ -168,7 +168,7 @@ export default function Page() {
         const det = detectUnidadeKey(acc);
         const uk = det.key;
 
-        // Mapeia regional no cliente
+        // Mapeia regional
         const withReg = acc.map(r => {
           const rawUn = uk ? String(r[uk] ?? '') : '';
           const canon = canonUnidade(rawUn);
@@ -203,6 +203,7 @@ export default function Page() {
     return uniqueSorted(base.map(r => String(r[uk] ?? '')).filter(Boolean));
   }, [rows, regional, unidKey]);
 
+  // Aplica filtros (client-side)
   const filtered = useMemo(()=>{
     const uk = unidKey;
     let list = rows;
@@ -218,14 +219,21 @@ export default function Page() {
     return list;
   }, [rows, regional, unidade, q, unidKey]);
 
+  // Paginação (client-side) sobre os filtrados
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageSafe = Math.min(page, pageCount);
+  const start = (pageSafe - 1) * pageSize;
+  const end = start + pageSize;
+  const paged = filtered.slice(start, end);
+
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center gap-3">
         <div className="text-lg font-semibold">Alterdata — Base Completa</div>
-        {/* Mostra um ping de diagnóstico discreto para confirmar chave/unidade detectada */}
+        {/* Selo de diagnóstico */}
         {votePeek && <span className="text-[10px] px-2 py-1 rounded bg-neutral-100">{votePeek}</span>}
       </div>
-      <p className="text-sm opacity-70">Visual com Regional (join por unidade no cliente), busca livre e filtros de Regional/Unidade. Nada altera a base ou o upload.</p>
+      <p className="text-sm opacity-70">Visual com Regional (join no cliente), busca livre, filtros e **paginação no cliente**. Nada altera a base ou o upload.</p>
 
       <div className="flex flex-wrap gap-2 items-center">
         <input
@@ -246,7 +254,26 @@ export default function Page() {
           {unidadeOptions.map(u => <option key={u} value={u}>{u}</option>)}
         </select>
 
-        <div className="ml-auto flex items-center gap-2 text-sm">
+        <div className="ml-auto flex items-center gap-3 text-sm">
+          {/* Controles de paginação */}
+          <div className="flex items-center gap-2">
+            <button className="px-3 py-1 rounded border disabled:opacity-40"
+                    disabled={pageSafe<=1}
+                    onClick={()=>setPage(p=>Math.max(1, p-1))}>
+              ◀
+            </button>
+            <div>Página {pageSafe} / {pageCount}</div>
+            <button className="px-3 py-1 rounded border disabled:opacity-40"
+                    disabled={pageSafe>=pageCount}
+                    onClick={()=>setPage(p=>Math.min(pageCount, p+1))}>
+              ▶
+            </button>
+          </div>
+          <select value={pageSize} onChange={e=>setPageSize(parseInt(e.target.value,10))}
+                  className="px-2 py-1 rounded border text-sm">
+            {[25,50,100,200,500].map(n=> <option key={n} value={n}>{n}/página</option>)}
+          </select>
+          <div className="opacity-60">{filtered.length.toLocaleString()} registros</div>
           {loading && <span className="opacity-60">Carregando {progress && `(${progress})`}…</span>}
           {error && <span className="text-red-600">Erro: {error}</span>}
         </div>
@@ -263,7 +290,7 @@ export default function Page() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r, idx) => (
+              {paged.map((r, idx) => (
                 <tr key={idx} className="odd:bg-neutral-50">
                   {columns.filter(c => !__HIDE_COLS__.has(c) && !__shouldHide(c)).map((c,i) => (
                     <td key={i} className="px-3 py-2 whitespace-nowrap">{__renderCell(c, r[c])}</td>
@@ -275,7 +302,9 @@ export default function Page() {
         </div>
       )}
 
-      <div className="text-xs opacity-60">{rows.length} registros carregados (lista completa, sem paginação)</div>
+      <div className="text-xs opacity-60">
+        Exibindo {start+1}–{Math.min(end, filtered.length)} de {filtered.length} registros (lista completa em cache, paginação no cliente)
+      </div>
     </div>
   );
 }
