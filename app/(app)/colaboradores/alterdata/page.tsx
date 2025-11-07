@@ -3,48 +3,115 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
 
-// Mantém cache por batch_id; nova chave para evitar resquícios de cache antigo
-const LS_KEY_ALTERDATA = 'alterdata_cache_prod_v3';
+// Atualizamos a chave para forçar novo cache após as mudanças de formatação
+const LS_KEY_ALTERDATA = 'alterdata_cache_prod_v4';
 
-const __HIDE_COLS__ = new Set(['Celular', 'Cidade', 'Data Atestado', 'Motivo Afastamento', 'Nome Médico', 'Periodicidade', 'Telefone']);
-function __shouldHide(col: string): boolean {
-  const n = (col||'').normalize('NFD').replace(/[^a-z0-9]/gi,'').toLowerCase();
-  const targets = new Set(['celular', 'cidade', 'dataatestado', 'motivoafastamento', 'nomemedico', 'periodicidade', 'telefone']);
-  return targets.has(n);
+// ---------- Ocultação de colunas ----------
+const HIDE_LABELS = [
+  'Celular',
+  'Cidade',
+  'Data Atestado',
+  'Motivo Afastamento',
+  'Nome Médico',
+  'Periodicidade',
+  'Telefone',
+  // Novas
+  'Fim Afastamento',
+  'Estado Civil',
+  'Início Afastamento',
+  'Mês Ultimo ASO',
+  'Sexo',
+  'Tipo de ASO',
+];
+
+const HIDE_NORMS = new Set([
+  'celular','cidade','dataatestado','motivoafastamento','nomemedico','periodicidade','telefone',
+  'fimafastamento','estadocivil','inicioafastamento','mesultimoaso','sexo','tipodeaso','tipoaso'
+]);
+
+function __norm(s: string){
+  return (s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
 }
-function __fmtDate(val: any): string {
+
+function __shouldHide(col: string): boolean {
+  const n = __norm(col);
+  return HIDE_NORMS.has(n) || HIDE_LABELS.some(lbl => __norm(lbl) === n);
+}
+
+// ---------- Formatações ----------
+function fmtDateDDMMYYYY(val: any): string {
   if (val === null || val === undefined) return '';
   const s = String(val).trim();
-  const m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})(?:[ T].*)?$/);
+  if (!s) return '';
+
+  // ISO ou ISO com tempo: 2024-11-07, 2024-11-07T00:00:00
+  let m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
   if (m) return `${m[3]}/${m[2]}/${m[1]}`;
-  return s;
+
+  // dd/mm/yyyy (mantém só a data)
+  m = s.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
+  if (m) return `${m[1]}/${m[2]}/${m[3]}`;
+
+  // yyyymmdd
+  m = s.match(/^(\\d{4})(\\d{2})(\\d{2})$/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+
+  // Pega qualquer padrão de 8+ dígitos que forme Y-M-D
+  m = s.match(/(\\d{4})[^\\d]?(\\d{2})[^\\d]?(\\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+
+  return s; // fallback
 }
-function __renderCell(col: string, val: any) {
-  const n = (col||'').normalize('NFD').replace(/[^a-z0-9]/gi,'').toLowerCase();
-  if (n.includes('data')) return __fmtDate(val);
+
+function fmtCPF(val: any): string {
+  if (val === null || val === undefined) return '';
+  const digits = String(val).replace(/\\D/g,'') || '';
+  const last11 = digits.slice(-11).padStart(11, '0');
+  return `${last11.slice(0,3)}.${last11.slice(3,6)}.${last11.slice(6,9)}-${last11.slice(9)}`;
+}
+
+function fmtMatricula5(val: any): string {
+  if (val === null || val === undefined) return '';
+  const digits = String(val).replace(/\\D/g,'') || '';
+  const last5 = digits.slice(-5).padStart(5, '0');
+  return last5;
+}
+
+function isDateKey(n: string): boolean {
+  return n.includes('data') || n.includes('admissao') || n.includes('demissao') || n.includes('aso') || n.includes('afastamento') || n.includes('nascimento');
+}
+
+function headerLabel(col: string): string {
+  const n = __norm(col);
+  if (n === 'regional') return 'Regional';
+  return col;
+}
+
+function renderValue(col: string, val: any): string {
+  const n = __norm(col);
+  if (n.includes('cpf')) return fmtCPF(val);
+  if (n.includes('matric')) return fmtMatricula5(val);
+  if (isDateKey(n)) return fmtDateDDMMYYYY(val);
   return String(val ?? '');
 }
 
+// ---------- Tipos ----------
 type RowApi = { row_no: number; data: Record<string, string> };
 type ApiRows = { ok: boolean; rows: RowApi[]; page: number; limit: number; total: number; error?: string };
 type ApiCols = { ok: boolean; columns: string[]; batch_id?: string | null; error?: string };
-
 type AnyRow = Record<string, any>;
 
+// ---------- Aux ----------
 function uniqueSorted(arr: (string|null|undefined)[]) {
   return Array.from(new Set(arr.filter(Boolean) as string[])).sort((a,b)=>a.localeCompare(b,'pt-BR'));
 }
 
 // ---- Regional detection core ----
-const _NORM = (s: string) => s.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
-
-// Pistas por nome
 const NAME_HINTS = [
   'unidade','unid','nmdeunidade','nm_unidade','unidade_lotacao','lotacao','estabelecimento',
   'hospital','empresa','localtrabalho','localdetrabalho','setor','departamento'
 ];
 
-// Votação por conteúdo (qual coluna parece mais "unidade" olhando os valores)
 function detectUnidadeKeyByVoting(rows: AnyRow[], sampleSize = 200): { key: string|null, votes: Record<string, number> } {
   const votes: Record<string, number> = {};
   if (!rows?.length) return { key: null, votes };
@@ -65,6 +132,7 @@ function detectUnidadeKeyByVoting(rows: AnyRow[], sampleSize = 200): { key: stri
   const best = Object.entries(votes).sort((a,b)=>b[1]-a[1])[0];
   return { key: (best && best[1] > 0) ? best[0] : null, votes };
 }
+
 function detectUnidadeKey(rows: AnyRow[]): { key: string|null, votes: Record<string, number> } {
   const byVote = detectUnidadeKeyByVoting(rows);
   if (byVote.key) return byVote;
@@ -72,7 +140,7 @@ function detectUnidadeKey(rows: AnyRow[]): { key: string|null, votes: Record<str
   const keys = Object.keys(rows[0] || {});
   const scoreByName: Record<string, number> = {};
   for (const k of keys) {
-    const n = _NORM(k);
+    const n = __norm(k);
     let s = 0;
     for (const hint of NAME_HINTS) if (n.includes(hint)) s++;
     scoreByName[k] = s;
@@ -220,11 +288,16 @@ export default function Page() {
   }, [rows, regional, unidade, q, unidKey]);
 
   // Paginação (client-side) sobre os filtrados
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageSafe = Math.min(page, pageCount);
-  const start = (pageSafe - 1) * pageSize;
-  const end = start + pageSize;
-  const paged = filtered.slice(start, end);
+  const [pageState, pageData] = useMemo(()=>{
+    const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+    const pageSafe = Math.min(page, pageCount);
+    const start = (pageSafe - 1) * pageSize;
+    const end = start + pageSize;
+    const paged = filtered.slice(start, end);
+    return [{ pageCount, pageSafe, start, end }, paged] as const;
+  }, [filtered, page, pageSize]);
+  const { pageCount, pageSafe, start, end } = pageState;
+  const paged = pageData;
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -233,7 +306,7 @@ export default function Page() {
         {/* Selo de diagnóstico */}
         {votePeek && <span className="text-[10px] px-2 py-1 rounded bg-neutral-100">{votePeek}</span>}
       </div>
-      <p className="text-sm opacity-70">Visual com Regional (join no cliente), busca livre, filtros e **paginação no cliente**. Nada altera a base ou o upload.</p>
+      <p className="text-sm opacity-70">Visual com Regional (join no cliente), busca livre, filtros e paginação no cliente. Nada altera a base ou o upload.</p>
 
       <div className="flex flex-wrap gap-2 items-center">
         <input
@@ -284,16 +357,20 @@ export default function Page() {
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 bg-white">
               <tr>
-                {columns.filter(c => !__HIDE_COLS__.has(c) && !__shouldHide(c)).map((c,i) => (
-                  <th key={i} className="px-3 py-2 text-left border-b whitespace-nowrap">{c}</th>
+                {columns
+                  .filter(c => !__shouldHide(c))
+                  .map((c,i) => (
+                  <th key={i} className="px-3 py-2 text-left border-b whitespace-nowrap">{headerLabel(c)}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {paged.map((r, idx) => (
                 <tr key={idx} className="odd:bg-neutral-50">
-                  {columns.filter(c => !__HIDE_COLS__.has(c) && !__shouldHide(c)).map((c,i) => (
-                    <td key={i} className="px-3 py-2 whitespace-nowrap">{__renderCell(c, r[c])}</td>
+                  {columns
+                    .filter(c => !__shouldHide(c))
+                    .map((c,i) => (
+                    <td key={i} className="px-3 py-2 whitespace-nowrap">{renderValue(c, r[c])}</td>
                   ))}
                 </tr>
               ))}
