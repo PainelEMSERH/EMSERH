@@ -2,12 +2,14 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 
-// Helpers (normalize and formatting)
-function norm(s: string) {
-  return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+function norm(s: any) {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/gi, '')
+    .toLowerCase();
 }
-
-function parseDate(s: any): string | null {
+function parseDateIso(s: any): string | null {
   if (!s) return null;
   const str = String(s).trim();
   let m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -21,7 +23,7 @@ function parseDate(s: any): string | null {
 function fmtDateBR(s?: string | null) {
   if (!s) return '';
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return s;
+  if (!m) return s || '';
   return `${m[3]}/${m[2]}/${m[1]}`;
 }
 function maskCPF(v: any) {
@@ -29,8 +31,19 @@ function maskCPF(v: any) {
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
 }
 function padMatricula(v: any) {
-  const d = String(v || '').replace(/\D/g, '').slice(-5).padStart(5, '0');
-  return d;
+  return String(v || '').replace(/\D/g, '').slice(-5).padStart(5, '0');
+}
+function keyForWeighted(keys: string[], include: string[], exclude: string[] = []) {
+  let best: string | null = null;
+  let bestScore = -1;
+  for (const k of keys) {
+    const n = norm(k);
+    let score = 0;
+    for (const inc of include) if (n.includes(norm(inc))) score += 2;
+    for (const exc of exclude) if (n.includes(norm(exc))) score -= 3;
+    if (score > bestScore) { bestScore = score; best = k; }
+  }
+  return best;
 }
 
 type RowApi = { row_no: number; data: Record<string, any> };
@@ -57,7 +70,6 @@ async function fetchJSON(url: string, init?: RequestInit) {
 }
 
 async function fetchAlterdataAll(): Promise<Colab[]> {
-  // Reaproveita endpoints raw-rows
   const { json: firstJ } = await fetchJSON('/api/alterdata/raw-rows?page=1&limit=200', { cache: 'force-cache' });
   if (!firstJ?.ok) return [];
   const first = firstJ as ApiRows;
@@ -69,38 +81,30 @@ async function fetchAlterdataAll(): Promise<Colab[]> {
     const { json } = await fetchJSON('/api/alterdata/raw-rows?page=' + p + '&limit=' + limit, { cache: 'force-cache' });
     if (json?.ok) acc.push(...(json.rows || []));
   }
-  // Detecta chaves
   const sample = acc[0]?.data || {};
   const keys = Object.keys(sample);
-  const keyFor = (want: string[]) => {
-    let best: string | null = null; let score = -1;
-    for (const k of keys) {
-      const n = norm(k);
-      const s = want.reduce((t, w) => t + (n.includes(w) ? 1 : 0), 0);
-      if (s > score) { score = s; best = k; }
-    }
-    return best;
-  };
-  const kCPF = keyFor(['cpf']) || 'CPF';
-  const kNome = keyFor(['nome']) || 'Nome';
-  const kFunc = keyFor(['funcao', 'função', 'funca']) || 'Função';
-  const kUnid = keyFor(['unidade', 'lotacao', 'lotação', 'setor', 'departamento', 'empresa', 'hospital']) || 'Unidade';
-  const kReg = keyFor(['regional']) || 'Regional';
-  const kAdm = keyFor(['admissao', 'admissão']) || 'Admissão';
-  const kDem = keyFor(['demissao', 'demissão', 'deslig']) || 'Demissão';
+
+  const kCPF = keyForWeighted(keys, ['cpf']) || 'CPF';
+  const kNome = keyForWeighted(keys, ['nome', 'colaborador', 'funcionario', 'empregado'], ['medico', 'crm', 'medico(a)']) || 'Nome';
+  const kFunc = keyForWeighted(keys, ['funcao', 'função', 'cargo']) || 'Função';
+  const kUnid = keyForWeighted(keys, ['unidade', 'lotacao', 'lotação', 'setor', 'departamento', 'empresa', 'hospital']) || 'Unidade';
+  const kReg = keyForWeighted(keys, ['regional', 'regiao', 'região'], ['rg', 'registro', 'orgao', 'emissor']) || null;
+  const kAdm = keyForWeighted(keys, ['admissao', 'admissão', 'entrada']) || 'Admissão';
+  const kDem = keyForWeighted(keys, ['demissao', 'demissão', 'deslig', 'rescisao']) || 'Demissão';
+  const kMat = keyForWeighted(keys, ['matricula', 'matrícula', 'id funcional', 'idfuncional']) || 'Matrícula';
 
   const out: Colab[] = acc.map(r => {
     const d = r.data || {};
     return {
       source: 'alterdata' as const,
       cpf: String(d[kCPF] || '').replace(/\D/g, ''),
-      matricula: d['Matrícula'] ? String(d['Matrícula']) : (d['Matricula'] ? String(d['Matricula']) : null),
-      nome: d[kNome] ? String(d[kNome]) : null,
-      funcao: d[kFunc] ? String(d[kFunc]) : null,
-      unidade: d[kUnid] ? String(d[kUnid]) : null,
-      regional: d[kReg] ? String(d[kReg]) : null,
-      admissao: parseDate(d[kAdm]),
-      demissao: parseDate(d[kDem]),
+      matricula: d[kMat] != null ? String(d[kMat]) : null,
+      nome: d[kNome] != null ? String(d[kNome]) : null,
+      funcao: d[kFunc] != null ? String(d[kFunc]) : null,
+      unidade: d[kUnid] != null ? String(d[kUnid]) : null,
+      regional: kReg ? (d[kReg] != null ? String(d[kReg]) : null) : null,
+      admissao: parseDateIso(d[kAdm]),
+      demissao: parseDateIso(d[kDem]),
     };
   }).filter(x => x.cpf);
 
@@ -124,7 +128,7 @@ async function fetchManualAll(): Promise<Colab[]> {
   }));
 }
 
-async function fetchEpiMap(): Promise<Array<{ funcao: string, epi: string, quantidade: number }>> {
+async function fetchEpiMap(): Promise<Array<any>> {
   const { json } = await fetchJSON('/api/epi/map', { cache: 'force-cache' });
   if (!json?.ok) return [];
   return (json.rows || []) as any[];
@@ -139,7 +143,7 @@ async function fetchDeliveries(cpf: string) {
 export default function EntregasPage() {
   const [list, setList] = useState<Colab[]>([]);
   const [loading, setLoading] = useState(false);
-  const [epiMap, setEpiMap] = useState<Array<{ funcao: string, epi: string, quantidade: number }>>([]);
+  const [epiMap, setEpiMap] = useState<Array<any>>([]);
   const [q, setQ] = useState('');
   const [modal, setModal] = useState<{ open: boolean, colab?: Colab | null }>({ open: false });
   const [form, setForm] = useState<any>({ cpf: '', nome: '', matricula: '', funcao: '', unidade: '', regional: '', admissao: '', demissao: '' });
@@ -152,25 +156,29 @@ export default function EntregasPage() {
       setLoading(true);
       const [alt, man, map] = await Promise.all([fetchAlterdataAll(), fetchManualAll(), fetchEpiMap()]);
       if (!on) return;
-      setEpiMap(map);
 
-      // Unifica por CPF (manual tem precedência)
+      const fixedMap = (map || []).map((m: any) => ({
+        funcao: m.funcao ?? m.alterdata_funcao ?? m.nome_site ?? '',
+        epi: m.epi ?? m.epi_item ?? m.item ?? '',
+        quantidade: Number(m.quantidade ?? m.qtd ?? 1)
+      }));
+      setEpiMap(fixedMap);
+
       const byCpf = new Map<string, Colab>();
-      for (const x of alt) {
-        byCpf.set(x.cpf, x);
-      }
+      for (const x of alt) byCpf.set(x.cpf, x);
       for (const m of man) {
         const cur = byCpf.get(m.cpf);
         if (cur) byCpf.set(m.cpf, { ...cur, ...m }); else byCpf.set(m.cpf, m);
       }
-      // Filtro: excluir demitidos antes de 2025
+
       const filtered: Colab[] = [];
       for (const c of byCpf.values()) {
         const dem = c.demissao ? Number((c.demissao || '').substring(0, 4)) : null;
         if (dem && dem < 2025) continue;
         filtered.push(c);
       }
-      setList(filtered.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR')));
+      filtered.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+      setList(filtered);
       setLoading(false);
     })();
     return () => { on = false };
@@ -194,26 +202,28 @@ export default function EntregasPage() {
     const body = { ...form };
     const { json } = await fetchJSON('/api/entregas/manual', { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
     if (json?.ok) {
-      // reload list
       const man = await fetchManualAll();
-      const alt = await fetchAlterdataAll();
-      const byCpf = new Map<string, Colab>();
-      for (const x of alt) byCpf.set(x.cpf, x);
+      const byCpf = new Map<string, Colab>(list.map(x => [x.cpf, x]));
       for (const m of man) {
         const cur = byCpf.get(m.cpf);
         if (cur) byCpf.set(m.cpf, { ...cur, ...m }); else byCpf.set(m.cpf, m);
       }
-      const filtered: Colab[] = [];
-      for (const c of byCpf.values()) {
-        const dem = c.demissao ? Number((c.demissao || '').substring(0, 4)) : null;
-        if (dem && dem < 2025) continue;
-        filtered.push(c);
-      }
-      setList(filtered.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR')));
+      const out = Array.from(byCpf.values());
+      out.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+      setList(out);
       setModal({ open: false });
     } else {
       alert('Erro ao salvar: ' + (json?.error || 'desconhecido'));
     }
+  }
+
+  function kitFor(funcao?: string | null) {
+    const f = norm(funcao || '');
+    if (!f) return [];
+    return epiMap.filter((r: any) => {
+      const mapF = norm(r.funcao || '');
+      return mapF === f || mapF.includes(f) || f.includes(mapF);
+    });
   }
 
   async function openDeliver(c: Colab) {
@@ -223,11 +233,6 @@ export default function EntregasPage() {
     setDeliv(rows);
   }
 
-  function kitFor(funcao?: string | null) {
-    const f = (funcao || '').trim().toLowerCase();
-    return epiMap.filter(r => r.funcao.trim().toLowerCase() === f);
-  }
-
   async function doDeliver() {
     if (!modal.colab) return;
     const body = {
@@ -235,13 +240,12 @@ export default function EntregasPage() {
       item: deliverForm.item,
       qty: Number(deliverForm.qtd || 1),
       date: deliverForm.data,
-      qty_required: kitFor(modal.colab.funcao).find(k => k.epi === deliverForm.item)?.quantidade || 1,
+      qty_required: kitFor(modal.colab.funcao).find((k: any) => norm(k.epi) === norm(deliverForm.item))?.quantidade || 1,
     };
     const { json } = await fetchJSON('/api/entregas/deliver', { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
     if (json?.ok) {
       const rows = await fetchDeliveries(modal.colab.cpf);
       setDeliv(rows);
-      // keep modal open
     } else {
       alert('Erro ao registrar entrega: ' + (json?.error || 'desconhecido'));
     }
@@ -301,20 +305,19 @@ export default function EntregasPage() {
         </table>
       </div>
 
-      {/* Modal de cadastro */}
       {modal.open && !modal.colab && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-4 w-full max-w-2xl space-y-3">
             <div className="text-lg font-semibold">Novo colaborador (cadastro manual)</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <input placeholder="CPF" value={form.cpf} onChange={e => setForm({ ...form, cpf: e.target.value })} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100" />
-              <input placeholder="Matrícula" value={form.matricula} onChange={e => setForm({ ...form, matricula: e.target.value })} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100" />
-              <input placeholder="Nome" value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100" />
-              <input placeholder="Função" value={form.funcao} onChange={e => setForm({ ...form, funcao: e.target.value })} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100" />
-              <input placeholder="Unidade" value={form.unidade} onChange={e => setForm({ ...form, unidade: e.target.value })} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100" />
-              <input placeholder="Regional" value={form.regional} onChange={e => setForm({ ...form, regional: e.target.value })} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100" />
-              <input placeholder="Admissão (dd/mm/aaaa)" value={form.admissao} onChange={e => setForm({ ...form, admissao: e.target.value })} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100" />
-              <input placeholder="Demissão (dd/mm/aaaa)" value={form.demissao} onChange={e => setForm({ ...form, demissao: e.target.value })} className="input input-bordered px-3 py-2 rounded-xl bg-neutral-100" />
+              <input placeholder="CPF" value={form.cpf} onChange={e => setForm({ ...form, cpf: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100" />
+              <input placeholder="Matrícula" value={form.matricula} onChange={e => setForm({ ...form, matricula: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100" />
+              <input placeholder="Nome" value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100" />
+              <input placeholder="Função" value={form.funcao} onChange={e => setForm({ ...form, funcao: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100" />
+              <input placeholder="Unidade" value={form.unidade} onChange={e => setForm({ ...form, unidade: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100" />
+              <input placeholder="Regional" value={form.regional} onChange={e => setForm({ ...form, regional: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100" />
+              <input placeholder="Admissão (dd/mm/aaaa)" value={form.admissao} onChange={e => setForm({ ...form, admissao: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100" />
+              <input placeholder="Demissão (dd/mm/aaaa)" value={form.demissao} onChange={e => setForm({ ...form, demissao: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100" />
             </div>
             <div className="flex justify-end gap-2">
               <button className="px-3 py-2 rounded-xl border" onClick={() => setModal({ open: false })}>Cancelar</button>
@@ -324,7 +327,6 @@ export default function EntregasPage() {
         </div>
       )}
 
-      {/* Modal de entrega */}
       {modal.open && modal.colab && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-4 w-full max-w-3xl space-y-3">
@@ -333,8 +335,8 @@ export default function EntregasPage() {
             <div className="p-2 rounded-xl bg-neutral-50">
               <div className="font-medium text-sm">Kit esperado (função: {modal.colab?.funcao || '—'})</div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                {kitFor(modal.colab?.funcao).map((k, i) => {
-                  const deliveredRow = deliv.find(d => d.item === k.epi);
+                {kitFor(modal.colab?.funcao).map((k: any, i: number) => {
+                  const deliveredRow = deliv.find(d => norm(d.item) === norm(k.epi));
                   const delivered = deliveredRow?.qty_delivered || 0;
                   return (
                     <div key={i} className="border rounded-xl p-2">
@@ -353,7 +355,7 @@ export default function EntregasPage() {
               <select className="px-3 py-2 rounded-xl bg-neutral-100"
                 value={deliverForm.item} onChange={e => setDeliverForm({ ...deliverForm, item: e.target.value })}>
                 <option value="">Selecione o EPI…</option>
-                {kitFor(modal.colab?.funcao).map((k, i) => <option key={i} value={k.epi}>{k.epi}</option>)}
+                {kitFor(modal.colab?.funcao).map((k: any, i: number) => <option key={i} value={k.epi}>{k.epi}</option>)}
               </select>
               <input className="px-3 py-2 rounded-xl bg-neutral-100" type="number" min={1}
                 value={deliverForm.qtd} onChange={e => setDeliverForm({ ...deliverForm, qtd: Number(e.target.value) })} placeholder="Qtd" />
