@@ -88,10 +88,9 @@ async function fetchAll(onProgress?: (n:number,t:number)=>void): Promise<AnyRow[
 }
 
 export default function Page() {
-  const LS_ALTERDATA_ROWS='alt_rows_v1'; const LS_ALTERDATA_COLS='alt_cols_v1'; const LS_ALTERDATA_BATCH='alt_batch_v1';
-  const LS_KEY_ALTERDATA = 'alterdata_cache_v3';
-  const [columns, setColumns] = useState<string[]>([]);
-  const [rows, setRows] = useState<AnyRow[]>([]);
+  const LS_ALTERDATA_ROWS='alt_rows'; const LS_ALTERDATA_COLS='alt_cols'; const LS_ALTERDATA_BATCH='alt_batch'; let batchId: string | null = null;
+const [columns, setColumns] = useState<string[]>(()=>{ try{ return typeof window!=='undefined' ? (JSON.parse(localStorage.getItem(LS_ALTERDATA_COLS)||'[]')||[]) : [] }catch{return []} });
+  const [rows, setRows] = useState<AnyRow[]>(()=>{ try{ return typeof window!=='undefined' ? (JSON.parse(localStorage.getItem(LS_ALTERDATA_ROWS)||'[]')||[]) : [] }catch{return []} });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string>('');
@@ -133,6 +132,7 @@ export default function Page() {
         if(on){
           setColumns(cols);
           setRows(withReg);
+          try{ localStorage.setItem(LS_ALTERDATA_ROWS, JSON.stringify(withReg)); localStorage.setItem(LS_ALTERDATA_COLS, JSON.stringify(cols)); if (batchId!==null) localStorage.setItem(LS_ALTERDATA_BATCH, String(batchId)); }catch{}
           try { window.localStorage.setItem(LS_KEY_ALTERDATA, JSON.stringify({ rows: withReg, columns: cols })); } catch {}
         }
       }catch(e:any){
