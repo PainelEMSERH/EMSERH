@@ -23,7 +23,7 @@ export async function GET() {
       ORDER BY row_no
     `);
 
-    const cols = await prisma.$queryRawUnsafe(`
+    const colRows = await prisma.$queryRawUnsafe(`
       WITH latest AS (
         SELECT batch_id FROM stg_alterdata_v2_imports ORDER BY imported_at DESC LIMIT 1
       )
@@ -32,9 +32,9 @@ export async function GET() {
       WHERE r.batch_id = latest.batch_id
       ORDER BY 1
     `);
-    const columns = Array.isArray(cols) ? cols.map((r:any)=>r.key) : [];
+    const columns = Array.isArray(colRows) ? colRows.map((r:any) => r.key) : [];
 
-    const res = NextResponse.json({ ok:true, batch_id, columns, rows }, { status: 200 });
+    const res = NextResponse.json({ ok: true, batch_id, columns, rows }, { status: 200 });
     res.headers.set('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=604800');
     return res;
   } catch (e:any) {
