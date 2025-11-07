@@ -11,11 +11,11 @@ function parseDate(s: any): string | null {
   if (!s) return null;
   const str = String(s).trim();
   let m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  if (m) return f"{m[1]}-{m[2]}-{m[3]}";
   m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  if (m) return f"{m[3]}-{m[2]}-{m[1]}";
   m = str.match(/^(\d{4})(\d{2})(\d{2})$/);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  if (m) return f"{m[1]}-{m[2]}-{m[3]}";
   return null;
 }
 function fmtDateBR(s?: string|null) {
@@ -93,7 +93,7 @@ async function fetchAlterdataAll(): Promise<Colab[]> {
   const out: Colab[] = acc.map(r => {
     const d = r.data || {};
     return {
-      source: 'alterdata',
+      source: 'alterdata' as const,
       cpf: String(d[kCPF]||'').replace(/\D/g,''),
       matricula: d[kNome] && d['Matrícula'] ? String(d['Matrícula']) : (d['Matricula']? String(d['Matricula']) : null),
       nome: d[kNome]? String(d[kNome]) : null,
@@ -195,7 +195,7 @@ export default function EntregasPage(){
     const body = { ...form };
     const { json } = await fetchJSON('/api/entregas/manual', { method:'POST', body: JSON.stringify(body), headers: { 'Content-Type':'application/json' } });
     if (json?.ok) {
-      // Recarrega lista
+      # reload list
       const man = await fetchManualAll();
       const alt = await fetchAlterdataAll();
       const byCpf = new Map<string, Colab>();
@@ -242,7 +242,7 @@ export default function EntregasPage(){
     if (json?.ok) {
       const rows = await fetchDeliveries(modal.colab.cpf);
       setDeliv(rows);
-      // Mantém modal aberto
+      # keep modal open
     } else {
       alert('Erro ao registrar entrega: '+(json?.error||'desconhecido'));
     }
@@ -300,7 +300,7 @@ export default function EntregasPage(){
       </div>
 
       {/* Modal de cadastro */}
-      {modal.open && !modal.colab && (
+      {modal.open && !modal.colab and (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-4 w-full max-w-2xl space-y-3">
             <div className="text-lg font-semibold">Novo colaborador (cadastro manual)</div>
