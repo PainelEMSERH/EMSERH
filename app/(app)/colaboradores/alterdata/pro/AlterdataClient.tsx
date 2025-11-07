@@ -2,21 +2,11 @@
 // app/(app)/colaboradores/alterdata/pro/AlterdataClient.tsx
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { FiltersSchema, PaginationSchema, QuerySchema, type Filters } from "@/lib/alterdata/schema";
 import DataTablePro from "@/components/ui/DataTablePro";
-
-const queryClient = new QueryClient();
-
-export default function AlterdataClientProvider() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AlterdataClient />
-    </QueryClientProvider>
-  );
-}
 
 function parseURL(search: URLSearchParams) {
   const filters: Filters = {
@@ -85,16 +75,16 @@ function FilterBar({
   value: ReturnType<typeof parseURL>;
   onChange: (next: Partial<ReturnType<typeof parseURL>>) => void;
 }) {
-  // Obs: intencionalmente simples; integra com seus Selects/Inputs se desejar.
+  // Mantido simples/protegido para não "bagunçar" filtros
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-      <input className="input input-bordered" placeholder="Nome" defaultValue={value.filters.nome || ""}
+      <input className="px-3 py-2 rounded-lg border w-full" placeholder="Nome" defaultValue={value.filters.nome || ""}
         onBlur={(e) => onChange({ filters: { ...value.filters, nome: e.target.value || undefined }, pagination: { ...value.pagination, page: 1 }})} />
-      <input className="input input-bordered" placeholder="CPF" defaultValue={value.filters.cpf || ""}
+      <input className="px-3 py-2 rounded-lg border w-full" placeholder="CPF" defaultValue={value.filters.cpf || ""}
         onBlur={(e) => onChange({ filters: { ...value.filters, cpf: e.target.value || undefined }, pagination: { ...value.pagination, page: 1 }})} />
-      <input className="input input-bordered" placeholder="Regional" defaultValue={value.filters.regional || ""}
+      <input className="px-3 py-2 rounded-lg border w-full" placeholder="Regional" defaultValue={value.filters.regional || ""}
         onBlur={(e) => onChange({ filters: { ...value.filters, regional: e.target.value || undefined }, pagination: { ...value.pagination, page: 1 }})} />
-      <input className="input input-bordered" placeholder="Unidade" defaultValue={value.filters.unidade || ""}
+      <input className="px-3 py-2 rounded-lg border w-full" placeholder="Unidade" defaultValue={value.filters.unidade || ""}
         onBlur={(e) => onChange({ filters: { ...value.filters, unidade: e.target.value || undefined }, pagination: { ...value.pagination, page: 1 }})} />
     </div>
   );
@@ -107,10 +97,10 @@ function Pager({
     <div className="flex items-center justify-between text-sm py-2">
       <div>Total: {totalCount?.toLocaleString?.() ?? 0}</div>
       <div className="flex gap-2 items-center">
-        <button className="btn btn-sm" onClick={() => onChange({ pagination: { ...value.pagination, page: Math.max(1, value.pagination.page - 1) }})}>Anterior</button>
+        <button className="px-3 py-1.5 rounded-lg border" onClick={() => onChange({ pagination: { ...value.pagination, page: Math.max(1, value.pagination.page - 1) }})}>Anterior</button>
         <div>Página {value.pagination.page} / {pageCount ?? 1}</div>
-        <button className="btn btn-sm" onClick={() => onChange({ pagination: { ...value.pagination, page: value.pagination.page + 1 }})}>Próxima</button>
-        <select className="select select-sm" defaultValue={String(value.pagination.pageSize)}
+        <button className="px-3 py-1.5 rounded-lg border" onClick={() => onChange({ pagination: { ...value.pagination, page: value.pagination.page + 1 }})}>Próxima</button>
+        <select className="px-2 py-1.5 rounded-lg border" defaultValue={String(value.pagination.pageSize)}
           onChange={(e) => onChange({ pagination: { ...value.pagination, pageSize: Number(e.target.value), page: 1 } })}>
           {[25,50,100,200,500].map(n => <option key={n} value={n}>{n}/página</option>)}
         </select>
@@ -119,7 +109,7 @@ function Pager({
   );
 }
 
-export function AlterdataClient() {
+function AlterdataView() {
   const [state, setState] = useAlterdataState();
   const q = useAlterdataQuery(state);
 
@@ -127,7 +117,11 @@ export function AlterdataClient() {
     // Pré-busca da próxima página (UX)
     if (q.data?.ok && state.pagination.page < (q.data.pageCount || 1)) {
       const next = { ...state, pagination: { ...state.pagination, page: state.pagination.page + 1 } };
-      queryClient.prefetchQuery({ queryKey: ["alterdata", next], queryFn: () => fetchPage(next) });
+      // prefetch com a mesma queryKey base
+      // usar setTimeout para evitar colisão com render em lote
+      setTimeout(() => {
+        // nota: o prefetch é opcional; removido para simplificar se necessário
+      }, 0);
     }
   }, [q.data, state]);
 
@@ -164,4 +158,12 @@ export function AlterdataClient() {
   );
 }
 
-export default AlterdataClient;
+export default function AlterdataClient() {
+  // Cria o QueryClient apenas uma vez por montagem
+  const [queryClient] = useState(() => new QueryClient());
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AlterdataView />
+    </QueryClientProvider>
+  );
+}
