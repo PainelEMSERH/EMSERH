@@ -7,7 +7,7 @@ function norm(expr: string){
 }
 
 async function tableExists(name: string): Promise<boolean> {
-  const r: any[] = await prisma.$queryRawUnsafe(`SELECT to_regclass('${name}') as r`);
+  const r: any[] = await prisma.$queryRawUnsafe(`SELECT to_regclass('${esc(name)}') as r`);
   return !!r?.[0]?.r;
 }
 
@@ -39,12 +39,15 @@ export async function GET(req: Request) {
 
     const hasV2Raw = await tableExists('stg_alterdata_v2_raw');
     const hasLegacy = await tableExists('stg_alterdata');
+    const hasUnidReg = await tableExists('stg_unid_reg');
 
     if (!hasV2Raw && !hasLegacy) {
       return NextResponse.json({ ok:false, error: 'Nenhuma tabela Alterdata encontrada (stg_alterdata_v2_raw ou stg_alterdata).' }, { status: 500 });
     }
 
     const wh: string[] = [];
+
+    // Busca livre em qualquer campo textual
     if(q){
       const nq = esc(q);
       wh.push(`EXISTS (
@@ -53,24 +56,57 @@ export async function GET(req: Request) {
       )`);
     }
 
-    if(regional){
-      wh.push(`EXISTS (
-        SELECT 1 FROM stg_unid_reg ur
-        WHERE EXISTS (
-          SELECT 1 FROM jsonb_each_text(data) kv
-          WHERE ${norm('kv.value')} = ${norm('ur.nmddepartamento')}
-        )
-        AND ur.regional_responsavel = '${esc(regional)}'
-      )`);
-    }
-
+    // Filtro por unidade (comparando com QUALQUER campo da linha, normalizado)
     if(unidade){
       wh.push(`EXISTS (
-        SELECT 1 FROM jsonb_each_text(data) kv
-        WHERE ${norm('kv.value')} = ${norm(`'${esc(unidade)}'`)}
+        SELECT 1 FROM jsonb_each_text(data) kv_un
+        WHERE ${norm('kv_un.value')} = ${norm(`'${esc(unidade)}'`)}
       )`);
     }
 
+    // Filtro por regional: forma robusta que usa stg_unid_reg sem depender do nome da coluna.
+    if(regional && hasUnidReg){
+      wh.push(`EXISTS (
+        SELECT 1
+        FROM stg_unid_reg ur
+        CROSS JOIN LATERAL (
+          SELECT kv.value AS unidade_map
+          FROM jsonb_each_text(to_jsonb(ur)) kv
+          WHERE upper(kv.key) LIKE '%UNID%'
+             OR upper(kv.key) LIKE '%DEPART%'
+             OR upper(kv.key) LIKE '%HOSP%'
+          ORDER BY
+            CASE
+              WHEN upper(kv.key) LIKE '%UNID%' THEN 3
+              WHEN upper(kv.key) LIKE '%DEPART%' THEN 2
+              WHEN upper(kv.key) LIKE '%HOSP%' THEN 1
+              ELSE 0
+            END DESC
+          LIMIT 1
+        ) u
+        CROSS JOIN LATERAL (
+          SELECT kv.value AS regional_map
+          FROM jsonb_each_text(to_jsonb(ur)) kv
+          WHERE upper(kv.key) LIKE '%REGIONAL%'
+             OR upper(kv.key) LIKE '%RESPONS%'
+          ORDER BY
+            CASE
+              WHEN upper(kv.key) LIKE '%REGIONAL_RESpons%' THEN 3
+              WHEN upper(kv.key) LIKE '%REGIONAL%' THEN 2
+              WHEN upper(kv.key) LIKE '%RESPONS%' THEN 1
+              ELSE 0
+            END DESC
+          LIMIT 1
+        ) rg
+        WHERE upper(rg.regional_map) = upper('${esc(regional)}')
+          AND EXISTS (
+            SELECT 1 FROM jsonb_each_text(data) rv
+            WHERE ${norm('rv.value')} = ${norm('u.unidade_map')}
+          )
+      )`);
+    }
+
+    // Situação (Admitido/Afastado/Demitido) — heurística textual sobre a linha JSON
     if(status === 'Demitido'){
       wh.push(`(
         (data ? 'Demissão' AND (substring(data->>'Demissão' from 1 for 10) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'))
@@ -128,7 +164,6 @@ export async function GET(req: Request) {
         ${andOrWhere}
       `;
     } else {
-      // LEGACY: stg_alterdata (normalizada). Convertendo para JSONB para manter a mesma interface.
       const base = `SELECT row_number() over() as row_no, to_jsonb(t) as data FROM stg_alterdata t`;
       const baseAlias = 'base';
 
