@@ -3,8 +3,18 @@ import prisma from '@/lib/prisma';
 
 function esc(s: string){ return (s||'').replace(/'/g, "''"); }
 
+// Checagem de existência de tabela SEM usar to_regclass/regclass
 async function tableExists(name: string): Promise<boolean> {
-  const q = `SELECT (to_regclass('${esc(name)}') IS NOT NULL) AS ok`;
+  const q = `
+    SELECT EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_class c
+      JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+      WHERE c.relkind IN ('r','m','v')
+        AND n.nspname = 'public'
+        AND c.relname = '${esc(name)}'
+    ) AS ok
+  `;
   const r: any[] = await prisma.$queryRawUnsafe(q);
   return !!r?.[0]?.ok;
 }
@@ -12,11 +22,11 @@ async function tableExists(name: string): Promise<boolean> {
 export async function GET() {
   try{
     const hasV2Raw = await tableExists('stg_alterdata_v2_raw');
-    const hasLegacy = await tableExists('stg_alterdata');
+  const hasLegacy = await tableExists('stg_alterdata');
 
     if (!hasV2Raw && !hasLegacy) {
       const res = NextResponse.json({ ok:false, error: 'Nenhuma tabela Alterdata encontrada (stg_alterdata_v2_raw ou stg_alterdata).' }, { status: 500 });
-      res.headers.set('x-alterdata-route', 'raw-columns2-v2');
+      res.headers.set('x-alterdata-route', 'raw-columns2-v3');
       return res;
     }
 
@@ -31,7 +41,7 @@ export async function GET() {
       const batch_id = b?.[0]?.batch_id || null;
       const res = NextResponse.json({ ok:true, columns, batch_id });
       res.headers.set('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
-      res.headers.set('x-alterdata-route', 'raw-columns2-v2');
+      res.headers.set('x-alterdata-route', 'raw-columns2-v3');
       return res;
     }
 
@@ -47,11 +57,11 @@ export async function GET() {
 
     const res = NextResponse.json({ ok:true, columns, batch_id });
     res.headers.set('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
-    res.headers.set('x-alterdata-route', 'raw-columns2-v2');
+    res.headers.set('x-alterdata-route', 'raw-columns2-v3');
     return res;
   }catch(e:any){
     const res = NextResponse.json({ ok:false, error: String(e?.message||e) }, { status:500 });
-    res.headers.set('x-alterdata-route', 'raw-columns2-v2');
+    res.headers.set('x-alterdata-route', 'raw-columns2-v3');
     return res;
   }
 }

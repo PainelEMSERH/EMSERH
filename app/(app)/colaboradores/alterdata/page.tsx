@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
 
-const LS_KEY_ALTERDATA = 'alterdata_cache_v6'; // nova chave
+const LS_KEY_ALTERDATA = 'alterdata_cache_v7'; // nova chave (evita cache antigo)
 
 const __HIDE_COLS__ = new Set(['Celular', 'Cidade', 'Data Atestado', 'Motivo Afastamento', 'Nome Médico', 'Periodicidade', 'Telefone']);
 function __shouldHide(col: string): boolean {
@@ -29,10 +29,6 @@ type ApiRows = { ok: boolean; rows: RowApi[]; page: number; limit: number; total
 type ApiCols = { ok: boolean; columns: string[]; batch_id?: string | null; error?: string };
 
 type AnyRow = Record<string, any>;
-
-function flatten(r: RowApi): AnyRow {
-  return { row_no: r.row_no, ...r.data };
-}
 
 function uniqueSorted(arr: (string|null|undefined)[]) {
   return Array.from(new Set(arr.filter(Boolean) as string[])).sort((a,b)=>a.localeCompare(b,'pt-BR'));
@@ -104,20 +100,9 @@ export default function Page() {
           if (raw) {
             const cached = JSON.parse(raw);
             if (cached && cached.batch_id === batchId && Array.isArray(cached.rows) && Array.isArray(cached.columns)) {
-              const uk = detectUnidadeKey(cached.rows);
-              const withReg = cached.rows.map((r:any) => {
-                let regional = r.regional;
-                if (!regional) {
-                  const ukv = uk ? String(r[uk] ?? '') : '';
-                  const c = canonUnidade(ukv);
-                  regional = (UNID_TO_REGIONAL as any)[c] || '';
-                }
-                return { ...r, regional };
-              });
-              const cols = cached.columns.includes('regional') ? cached.columns : ['regional', ...cached.columns];
               if(on){
-                setColumns(cols);
-                setRows(withReg);
+                setColumns(cached.columns);
+                setRows(cached.rows);
                 setLoading(false);
                 return;
               }
@@ -140,6 +125,7 @@ export default function Page() {
           if (on) setProgress(`${Math.min(acc.length,total)}/${total}`);
         }
 
+        // Mapeia regional no cliente
         const uk = detectUnidadeKey(acc);
         const withReg = acc.map(r => {
           const un = uk ? String(r[uk] ?? '') : '';

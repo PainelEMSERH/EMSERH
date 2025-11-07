@@ -6,8 +6,18 @@ function norm(expr: string){
   return `regexp_replace(upper(${expr}), '[^A-Z0-9]', '', 'g')`;
 }
 
+// Checagem de existência de tabela SEM usar to_regclass/regclass
 async function tableExists(name: string): Promise<boolean> {
-  const q = `SELECT (to_regclass('${esc(name)}') IS NOT NULL) AS ok`;
+  const q = `
+    SELECT EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_class c
+      JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+      WHERE c.relkind IN ('r','m','v')     -- r: table, m: mat. view, v: view
+        AND n.nspname = 'public'
+        AND c.relname = '${esc(name)}'
+    ) AS ok
+  `;
   const r: any[] = await prisma.$queryRawUnsafe(q);
   return !!r?.[0]?.ok;
 }
@@ -32,7 +42,7 @@ export async function GET(req: Request) {
     const page   = Math.max(1, parseInt(searchParams.get('page')  || '1', 10));
     const limit  = Math.min(200, Math.max(10, parseInt(searchParams.get('limit') || '50', 10)));
     const q      = (searchParams.get('q')        || '').trim();
-    // regional is intentionally ignored in backend; the UI filters by regional on the client.
+    // regional é filtrado no cliente (sem JOIN no backend)
     const unidade  = (searchParams.get('unidade')  || '').trim();
     const status   = (searchParams.get('status')   || '').trim();
 
@@ -43,7 +53,7 @@ export async function GET(req: Request) {
 
     if (!hasV2Raw && !hasLegacy) {
       const res = NextResponse.json({ ok:false, error: 'Nenhuma tabela Alterdata encontrada (stg_alterdata_v2_raw ou stg_alterdata).' }, { status: 500 });
-      res.headers.set('x-alterdata-route', 'raw-rows2-nojoin-v2');
+      res.headers.set('x-alterdata-route', 'raw-rows2-nojoin-v3');
       return res;
     }
 
@@ -149,11 +159,11 @@ export async function GET(req: Request) {
     const total = totalRes?.[0]?.total ?? 0;
     const res = NextResponse.json({ ok:true, rows, page, limit, total });
     res.headers.set('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
-    res.headers.set('x-alterdata-route', 'raw-rows2-nojoin-v2');
+    res.headers.set('x-alterdata-route', 'raw-rows2-nojoin-v3');
     return res;
   }catch(e:any){
     const res = NextResponse.json({ ok:false, error: String(e?.message||e) }, { status:500 });
-    res.headers.set('x-alterdata-route', 'raw-rows2-nojoin-v2');
+    res.headers.set('x-alterdata-route', 'raw-rows2-nojoin-v3');
     return res;
   }
 }
