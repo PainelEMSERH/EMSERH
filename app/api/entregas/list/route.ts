@@ -1,137 +1,158 @@
-
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { UNID_TO_REGIONAL, canonUnidade } from '@/lib/unidReg';
+
+type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string; nome_site?: string | null; };
+
+// Helper: normalize string
+function norm(s: any): string {
+  return (s ?? '')
+    .toString()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().trim().replace(/\s+/g, ' ');
+}
+
+// Load expected kit per função once
+async function loadKitMap(): Promise<Record<string, string>> {
+  try{
+    const rows: any[] = await prisma.$queryRawUnsafe(`
+      SELECT alterdata_funcao AS func, string_agg(DISTINCT nome_site, ',') AS kit
+      FROM stg_epi_map
+      GROUP BY alterdata_funcao
+    `);
+    const map: Record<string,string> = {};
+    for(const r of rows){
+      const k = norm(r.func);
+      if (k) map[k] = r.kit || '';
+    }
+    return map;
+  }catch{
+    return {};
+  }
+}
+
+// Get latest batch_id for v2 raw
+async function latestBatchId(): Promise<string | null> {
+  try{
+    const r: any[] = await prisma.$queryRawUnsafe(`
+      SELECT batch_id FROM stg_alterdata_v2_imports ORDER BY imported_at DESC LIMIT 1
+    `);
+    return r?.[0]?.batch_id ?? null;
+  }catch{
+    return null;
+  }
+}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const regional = searchParams.get('regional');
-  const unidade  = searchParams.get('unidade');
-  const q        = searchParams.get('q');
+  const regional = (searchParams.get('regional') || '').trim();
+  const unidade  = (searchParams.get('unidade')  || '').trim();
+  const q        = (searchParams.get('q')        || '').trim();
   const page     = Math.max(1, Number(searchParams.get('page') || '1'));
-  const pageSize = Math.min(100, Math.max(1, Number(searchParams.get('pageSize') || '25')));
+  const pageSize = Math.min(200, Math.max(10, Number(searchParams.get('pageSize') || '25')));
   const offset   = (page - 1) * pageSize;
 
-  const mv = await prisma.$queryRawUnsafe<Array<{ exists: boolean }>>(
-    `select exists(select 1 from pg_matviews where schemaname = current_schema() and matviewname = 'mv_alterdata_flat') as exists`
-  );
-  const useMV = !!mv?.[0]?.exists;
-  const srcName = useMV ? 'mv_alterdata_flat' : 'stg_alterdata';
+  // Load kit map
+  const kitMap = await loadKitMap();
+  const latest = await latestBatchId();
 
-  const colsSrc = await prisma.$queryRawUnsafe<Array<{ column_name: string }>>(
-    `select column_name from information_schema.columns where table_schema = current_schema() and table_name = '${srcName}'`
-  );
-  const names = new Set((colsSrc||[]).map(c => c.column_name.toLowerCase()));
-  const pick = (cands: string[], deflt: string|null) => {
-    for (const c of cands) if (names.has(c)) return c;
-    return deflt;
-  };
+  // Query raw v2 and project essential fields
+  let srcRows: any[] = [];
+  if (latest) {
+    const sql = `
+      WITH raw AS (
+        SELECT
+          -- prefer CPF, fallback Matricula
+          COALESCE(
+            (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%CPF%' ORDER BY 1 LIMIT 1),
+            (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%MATRIC%' ORDER BY 1 LIMIT 1)
+          ) AS id,
+          (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%NOME%' ORDER BY 1 LIMIT 1) AS nome,
+          (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE (upper(kv.key) LIKE '%FUN%' OR upper(kv.key) LIKE '%CARGO%') ORDER BY 1 LIMIT 1) AS funcao,
+          (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE (upper(kv.key) LIKE '%UNID%' OR upper(kv.key) LIKE '%LOTA%' OR upper(kv.key) LIKE '%HOSP%' OR upper(kv.key) LIKE '%SETOR%') ORDER BY 1 LIMIT 1) AS unidade,
+          (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%DEMI%' ORDER BY 1 LIMIT 1) AS demissao
+        FROM stg_alterdata_v2_raw r
+        WHERE r.batch_id = $1
+      ),
+      norm AS (
+        SELECT
+          id, nome, funcao, unidade,
+          CASE 
+            WHEN demissao ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (substring(demissao from 1 for 10))::date
+            WHEN demissao ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(demissao, 'DD/MM/YYYY')
+            WHEN demissao ~ '^\\d{8}$' THEN to_date(demissao, 'YYYYMMDD')
+            ELSE NULL
+          END AS dem_data
+        FROM raw
+      )
+      SELECT id, nome, funcao, unidade
+      FROM norm
+      WHERE id IS NOT NULL AND id <> ''
+        AND (dem_data IS NULL OR dem_data >= DATE '2025-01-01')
+    `;
+    srcRows = await prisma.$queryRawUnsafe(sql, latest);
+  }
 
-  const colCPF   = pick(['cpf','matricula','id','colaborador_id','cpf_colaborador'], 'cpf')!;
-  const colNome  = pick(['nome','colaborador','nome_completo','nome_colaborador'], 'nome')!;
-  const colFunc  = pick(['funcao','função','cargo','nome_funcao'], 'funcao')!;
-  const colUnid  = pick(['unidade','unidade_hospitalar','lotacao','lotação','setor','departamento','hospital','unidade_lotacao'], 'unidade')!;
-  const colDem   = pick(['demissao','demissão','deslig','rescisao','data_demissao'], null);
-  const colRegMV = pick(['regional','regiao','região'], null);
+  // Manual entries
+  let manualRows: any[] = [];
+  try{
+    manualRows = await prisma.$queryRawUnsafe(`
+      SELECT cpf AS id, nome, funcao, unidade, regional
+      FROM epi_manual_colab
+      WHERE cpf IS NOT NULL AND cpf <> ''
+        AND (demissao IS NULL OR demissao >= DATE '2025-01-01')
+    `);
+  }catch{}
 
-  const srcCTE = `
-    with fonte as (
-      select 
-        sa.${colCPF}::text as id,
-        coalesce(sa.${colNome}::text,'') as nome,
-        coalesce(sa.${colFunc}::text,'') as funcao,
-        coalesce(sa.${colUnid}::text,'') as unidade,
-        ${
-          colRegMV
-            ? `coalesce(sa.${colRegMV}::text,'')`
-            : `(select coalesce(sur.regional::text, '')
-                 from stg_unid_reg sur
-                 where 
-                   lower(trim(sur.unidade)) = lower(trim(sa.${colUnid})) or
-                   lower(trim(sur.unidade)) like '%' || lower(trim(sa.${colUnid})) || '%' or
-                   lower(trim(sa.${colUnid})) like '%' || lower(trim(sur.unidade)) || '%'
-                 order by case when lower(trim(sur.unidade)) = lower(trim(sa.${colUnid})) then 0 else 1 end
-                 limit 1)`
-        } as regional,
-        (
-          select string_agg(distinct sem.nome_site, ',')
-          from stg_epi_map sem
-          where lower(sem.alterdata_funcao) = lower(sa.${colFunc}::text)
-        ) as nome_site,
-        ${
-          colDem 
-            ? "CASE WHEN sa."+colDem+" ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN sa."+colDem+"::date WHEN sa."+colDem+" ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(sa."+colDem+"::text, 'DD/MM/YYYY') ELSE NULL END" 
-            : "NULL"
-        } as dem_data
-      from ${srcName} sa
-    )
-  `;
+  // Merge manual ∪ src (manual priority by id)
+  const byId = new Map<string, Row>();
+  for(const r of manualRows){
+    const id = String(r.id || '').trim();
+    if (!id) continue;
+    const un = String(r.unidade || '');
+    const reg = r.regional ? String(r.regional) : (UNID_TO_REGIONAL[canonUnidade(un)] || '');
+    byId.set(id, {
+      id,
+      nome: String(r.nome||''),
+      funcao: String(r.funcao||''),
+      unidade: un,
+      regional: reg,
+      nome_site: kitMap[norm(r.funcao)] || null,
+    });
+  }
+  for(const r of srcRows){
+    const id = String(r.id || '').trim();
+    if (!id || byId.has(id)) continue;
+    const un = String(r.unidade || '');
+    const reg = UNID_TO_REGIONAL[canonUnidade(un)] || '';
+    byId.set(id, {
+      id,
+      nome: String(r.nome||''),
+      funcao: String(r.funcao||''),
+      unidade: un,
+      regional: reg,
+      nome_site: kitMap[norm(r.funcao)] || null,
+    });
+  }
 
-  const baseSQL = `
-    ${srcCTE}
-    , base as (
-      select emc.cpf::text as id,
-             coalesce(emc.nome::text,'') as nome,
-             coalesce(emc.funcao::text,'') as funcao,
-             coalesce(emc.unidade::text,'') as unidade,
-             coalesce(emc.regional::text,'') as regional,
-             (
-               select string_agg(distinct sem.nome_site, ',')
-               from stg_epi_map sem
-               where lower(sem.alterdata_funcao) = lower(emc.funcao::text)
-             ) as nome_site
-      from epi_manual_colab emc
-      where (emc.demissao is null or emc.demissao >= '2025-01-01'::date)
-      UNION ALL
-      select f.id, f.nome, f.funcao, f.unidade, coalesce(f.regional,'') as regional, f.nome_site
-      from fonte f
-      where (f.dem_data is null or f.dem_data >= '2025-01-01'::date)
-        and not exists (select 1 from epi_manual_colab em where em.cpf::text = f.id)
-    )
-    select * from base
-    where ($1::text is null or $1::text = '' or lower(trim(regional)) = lower(trim($1::text)))
-      and ($2::text is null or $2::text = '' or lower(trim(unidade))  = lower(trim($2::text)))
-      and ($3::text is null or $3::text = '' or (nome ilike $3 or id ilike $3))
-    order by nome asc
-    limit $4::int offset $5::int
-  `;
-  const likeQ = q ? `%${q}%` : '';
-  const rows = await prisma.$queryRawUnsafe<any[]>(baseSQL, regional, unidade, likeQ, pageSize, offset);
+  // Now apply filters (regional/unidade/q)
+  let rows: Row[] = Array.from(byId.values());
+  if (regional) {
+    const regUp = norm(regional);
+    rows = rows.filter(r => norm(r.regional) === regUp);
+  }
+  if (unidade) {
+    const uniUp = norm(unidade);
+    rows = rows.filter(r => norm(r.unidade) === uniUp);
+  }
+  if (q) {
+    const nq = norm(q);
+    rows = rows.filter(r => norm(r.nome).includes(nq) || norm(r.id).includes(nq));
+  }
 
-  const countSQL = `
-    ${srcCTE}
-    , base as (
-      select emc.cpf::text as id,
-             coalesce(emc.nome::text,'') as nome,
-             coalesce(emc.funcao::text,'') as funcao,
-             coalesce(emc.unidade::text,'') as unidade,
-             coalesce(emc.regional::text,'') as regional
-      from epi_manual_colab emc
-      where (emc.demissao is null or emc.demissao >= '2025-01-01'::date)
-      UNION ALL
-      select f.id, f.nome, f.funcao, f.unidade, coalesce(f.regional,'') as regional
-      from fonte f
-      where (f.dem_data is null or f.dem_data >= '2025-01-01'::date)
-        and not exists (select 1 from epi_manual_colab em where em.cpf::text = f.id)
-    )
-    select count(*)::int as c
-    from base
-    where ($1::text is null or $1::text = '' or lower(trim(regional)) = lower(trim($1::text)))
-      and ($2::text is null or $2::text = '' or lower(trim(unidade))  = lower(trim($2::text)))
-      and ($3::text is null or $3::text = '' or (nome ilike $3 or id ilike $3))
-  `;
-  const cnt = await prisma.$queryRawUnsafe<any[]>(countSQL, regional, unidade, likeQ);
-  const total = Number(cnt?.[0]?.c || 0);
+  const total = rows.length;
+  const pageRows = rows.slice(offset, offset + pageSize);
 
-  return NextResponse.json({
-    rows: (rows || []).map((r:any) => ({
-      id: String(r.id ?? ''),
-      nome: String(r.nome ?? ''),
-      funcao: String(r.funcao ?? ''),
-      unidade: String(r.unidade ?? ''),
-      regional: String(r.regional ?? ''),
-      nome_site: r.nome_site ? String(r.nome_site) : null,
-    })),
-    total, page, pageSize, src: srcName, usedMV: useMV,
-  });
+  return NextResponse.json({ rows: pageRows, total, page, pageSize, source: latest ? 'v2_raw' : 'manual_only' });
 }
