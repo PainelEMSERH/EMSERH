@@ -2,26 +2,14 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
 
 type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string };
 
-function stripAccents(s: string): string {
-  return s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+function normUp(s: any): string {
+  return (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
 }
-function canonKey(v: any): string {
-  const s = String(v ?? '').trim();
-  if (!s) return '';
-  const noAcc = stripAccents(s).toUpperCase();
-  // remove non-alphanum without regex
-  let out = '';
-  for (let i = 0; i < noAcc.length; i++) {
-    const c = noAcc.charCodeAt(i);
-    const isDigit = c >= 48 && c <= 57;
-    const isUpper = c >= 65 && c <= 90;
-    if (isDigit || isUpper) out += noAcc[i];
-  }
-  return out;
+function normKey(s: any): string {
+  return (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
 }
 function onlyDigits(v: any): string {
   const s = String(v ?? '');
@@ -32,132 +20,83 @@ function onlyDigits(v: any): string {
   }
   return out;
 }
-function normUp(v: any): string {
-  const s = String(v ?? '');
-  return stripAccents(s).toUpperCase().replace(/\s+/g,' ').trim();
+
+function pickKeyByName(rows: any[], hints: string[]): string | null {
+  if (!rows.length) return null;
+  const keys = Object.keys(rows[0] || {});
+  let bestKey: string | null = null;
+  let bestScore = -1;
+  for (const k of keys) {
+    const nk = normKey(k);
+    let s = 0;
+    for (const h of hints) if (nk.includes(h)) s++;
+    if (s > bestScore) { bestScore = s; bestKey = s > 0 ? k : bestKey; }
+  }
+  return bestKey;
 }
 
-async function loadUnidRegionalMap(): Promise<Record<string,string>> {
-  try {
-    const rows = await prisma.$queryRaw<any[]>`SELECT unidade, regional FROM stg_unid_reg`;
-    const map: Record<string,string> = {};
-    for (const r of rows) {
-      const key = canonKey(r.unidade);
-      if (!key) continue;
-      // força capitalização padrão
-      const reg = String(r.regional || '').trim();
-      const regStd = reg ? reg[0].toUpperCase() + reg.slice(1).toLowerCase() : '';
-      map[key] = regStd;
-    }
-    return map;
-  } catch {
-    return {};
-  }
-}
-
-async function loadBaseCompat(): Promise<any[]> {
-  return await prisma.$queryRaw<any[]>`
-    SELECT
-      TRIM(COALESCE(cpf::text, '')) AS id,
-      TRIM(COALESCE(nome::text, colaborador::text, '')) AS nome,
-      TRIM(COALESCE(funcao::text, cargo::text, '')) AS funcao,
-      TRIM(COALESCE(unidade::text, lotacao::text, setor::text, hospital::text, '')) AS unidade
-    FROM stg_alterdata_v2_compat
-  `;
-}
-async function loadBaseV2(): Promise<any[]> {
-  return await prisma.$queryRaw<any[]>`
-    SELECT
-      TRIM(COALESCE(cpf::text, '')) AS id,
-      TRIM(COALESCE(colaborador::text, nome::text, '')) AS nome,
-      TRIM(COALESCE(funcao::text, cargo::text, '')) AS funcao,
-      TRIM(COALESCE(unidade::text, lotacao::text, setor::text, hospital::text, '')) AS unidade
-    FROM stg_alterdata_v2
-  `;
-}
-async function loadManual(): Promise<any[]> {
-  try {
-    return await prisma.$queryRaw<any[]>`
-      SELECT TRIM(cpf::text) AS id,
-             TRIM(nome::text) AS nome,
-             TRIM(COALESCE(funcao::text, '')) AS funcao,
-             TRIM(COALESCE(unidade::text, '')) AS unidade,
-             TRIM(COALESCE(regional::text, '')) AS regional
-      FROM epi_manual_colab
-    `;
-  } catch {
-    return [];
-  }
+async function fetchRawRows(origin: string, page: number, limit: number) {
+  const u = new URL('/api/alterdata/raw-rows', origin);
+  u.searchParams.set('page', String(page));
+  u.searchParams.set('limit', String(limit));
+  u.searchParams.set('pageSize', String(limit));
+  const r = await fetch(u.toString(), { cache: 'no-store' });
+  if (!r.ok) throw new Error(`alterdata/raw-rows ${r.status}`);
+  const data = await r.json().catch(()=>({}));
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const flat = rows.map((it: any) => ({ row_no: it.row_no, ...(it.data || {}) }));
+  const total = Number(data?.total || flat.length);
+  const lim = Number(data?.limit || limit);
+  return { rows: flat, total, limit: lim };
 }
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const regional = (url.searchParams.get('regional') || '').trim();
-  const unidade  = (url.searchParams.get('unidade')  || '').trim();
-  const q        = (url.searchParams.get('q')        || '').trim();
-  const page     = Math.max(1, Number(url.searchParams.get('page') || '1'));
-  const pageSize = Math.min(200, Math.max(10, Number(url.searchParams.get('pageSize') || '25')));
-  const offset   = (page - 1) * pageSize;
+  const regional = url.searchParams.get('regional') || '';
+  const unidade  = url.searchParams.get('unidade')  || '';
+  const q        = url.searchParams.get('q')        || '';
+  const page     = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
+  const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
 
-  const unidMap = await loadUnidRegionalMap();
-
-  let base: any[] = [];
-  let source = 'compat';
   try {
-    base = await loadBaseCompat();
-  } catch {
-    try {
-      base = await loadBaseV2();
-      source = 'v2';
-    } catch {
-      base = [];
-      source = 'none';
+    const first = await fetchRawRows(url.origin, 1, 500);
+    let acc = first.rows.slice();
+    const pages = Math.max(1, Math.ceil(first.total / first.limit));
+    for (let p = 2; p <= Math.min(pages, 5); p++) {
+      const more = await fetchRawRows(url.origin, p, first.limit);
+      acc = acc.concat(more.rows);
     }
+
+    const cpfKey  = pickKeyByName(acc, ['cpf','matric','cpffunc','cpffuncionario']);
+    const nomeKey = pickKeyByName(acc, ['nome','colab','funcionario']);
+    const funcKey = pickKeyByName(acc, ['func','cargo']);
+    const unidKey = pickKeyByName(acc, ['unid','lotac','setor','hosp','posto','local']);
+
+    let rows: Row[] = acc.map(r => {
+      const idRaw = cpfKey ? r[cpfKey] : '';
+      const id = onlyDigits(idRaw).slice(-11);
+      const nome = String((nomeKey && r[nomeKey]) ?? '');
+      const func = String((funcKey && r[funcKey]) ?? '');
+      const un   = String((unidKey && r[unidKey]) ?? '');
+      const regKey = pickKeyByName([r], ['regi','regional','gerencia']);
+      const reg = String((regKey && r[regKey]) ?? '');
+      return { id, nome, funcao: func, unidade: un, regional: reg };
+    }).filter(x => x.id || x.nome || x.unidade);
+
+    const nreg = normUp(regional);
+    const nuni = normUp(unidade);
+    const nq   = normUp(q);
+    if (nreg) rows = rows.filter(r => !nreg || normUp(r.regional) === nreg || !r.regional);
+    if (nuni) rows = rows.filter(r => normUp(r.unidade) === nuni);
+    if (nq)   rows = rows.filter(r => normUp(r.nome).includes(nq) || normUp(r.id).includes(nq));
+
+    rows.sort((a,b)=> a.nome.localeCompare(b.nome));
+    const total = rows.length;
+    const start = (page - 1) * pageSize;
+    const pageRows = rows.slice(start, start + pageSize);
+
+    return NextResponse.json({ rows: pageRows, total, page, pageSize, source: 'safe_mirror' });
+  } catch (e:any) {
+    return NextResponse.json({ rows: [], total: 0, page, pageSize, source: 'error', error: e?.message || String(e) }, { status: 200 });
   }
-  const manual = await loadManual();
-
-  const byKey = new Map<string, Row>();
-
-  // coloca manuais primeiro (prioridade)
-  for (const r of manual) {
-    const idDigits = onlyDigits(r.id);
-    const id = idDigits || ''; // pode ser vazio, mas montamos uma chave estável
-    const nome = String(r.nome || '');
-    const un = String(r.unidade || '');
-    // calcula regional com tabela se não vier do manual
-    let reg = String(r.regional || '').trim();
-    if (!reg) {
-      const key = canonKey(un);
-      reg = unidMap[key] || '';
-    }
-    const key = id ? `id:${id}` : `nk:${canonKey(nome)}|${canonKey(un)}`;
-    byKey.set(key, { id, nome, funcao: String(r.funcao || ''), unidade: un, regional: reg });
-  }
-
-  // insere base, sem sobrescrever manuais
-  for (const r of base) {
-    const idDigits = onlyDigits(r.id);
-    const id = idDigits || '';
-    const nome = String(r.nome || '');
-    const un = String(r.unidade || '');
-    const key = id ? `id:${id}` : `nk:${canonKey(nome)}|${canonKey(un)}`;
-    if (byKey.has(key)) continue;
-    const reg = unidMap[canonKey(un)] || '';
-    byKey.set(key, { id, nome, funcao: String(r.funcao || ''), unidade: un, regional: reg });
-  }
-
-  const regUp = normUp(regional);
-  const uniUp = normUp(unidade);
-  const qUp   = normUp(q);
-
-  let rows: Row[] = Array.from(byKey.values());
-  if (regUp) rows = rows.filter(r => normUp(r.regional) === regUp);
-  if (uniUp) rows = rows.filter(r => normUp(r.unidade) === uniUp);
-  if (qUp)   rows = rows.filter(r => normUp(r.nome).includes(qUp) || normUp(r.id).includes(qUp));
-
-  rows.sort((a,b)=> a.nome.localeCompare(b.nome));
-  const total = rows.length;
-  const pageRows = rows.slice(offset, offset + pageSize);
-
-  return NextResponse.json({ rows: pageRows, total, page, pageSize, source });
 }
