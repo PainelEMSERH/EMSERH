@@ -1,3 +1,4 @@
+
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
@@ -5,7 +6,6 @@ import { UNID_TO_REGIONAL, canonUnidade } from '@/lib/unidReg';
 
 type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string; nome_site?: string | null; };
 
-// Helper: normalize string
 function norm(s: any): string {
   return (s ?? '')
     .toString()
@@ -13,34 +13,21 @@ function norm(s: any): string {
     .toUpperCase().trim().replace(/\s+/g, ' ');
 }
 
-// Load expected kit per função once
 async function loadKitMap(): Promise<Record<string, string>> {
-  try{
-    const rows: any[] = await prisma.$queryRawUnsafe(`
+  try {
+    const rows: any[] = await prisma.$queryRaw`
       SELECT alterdata_funcao AS func, string_agg(DISTINCT nome_site, ',') AS kit
       FROM stg_epi_map
       GROUP BY alterdata_funcao
-    `);
+    `;
     const map: Record<string,string> = {};
-    for(const r of rows){
+    for (const r of rows) {
       const k = norm(r.func);
       if (k) map[k] = r.kit || '';
     }
     return map;
-  }catch{
+  } catch {
     return {};
-  }
-}
-
-// Get latest batch_id for v2 raw
-async function latestBatchId(): Promise<string | null> {
-  try{
-    const r: any[] = await prisma.$queryRawUnsafe(`
-      SELECT batch_id FROM stg_alterdata_v2_imports ORDER BY imported_at DESC LIMIT 1
-    `);
-    return r?.[0]?.batch_id ?? null;
-  }catch{
-    return null;
   }
 }
 
@@ -53,17 +40,29 @@ export async function GET(req: Request) {
   const pageSize = Math.min(200, Math.max(10, Number(searchParams.get('pageSize') || '25')));
   const offset   = (page - 1) * pageSize;
 
-  // Load kit map
   const kitMap = await loadKitMap();
-  const latest = await latestBatchId();
 
-  // Query raw v2 and project essential fields
+  const v2Exists = await prisma.$queryRaw<{exists:boolean}[]>`
+    select exists(
+      select 1 from information_schema.tables 
+      where table_schema = current_schema() and table_name = 'stg_alterdata_v2_raw'
+    ) as exists
+  `;
+  const hasV2 = !!v2Exists?.[0]?.exists;
+
+  let latest: string | null = null;
+  if (hasV2) {
+    const last = await prisma.$queryRaw<{batch_id:string}[]>`
+      SELECT batch_id FROM stg_alterdata_v2_imports ORDER BY imported_at DESC LIMIT 1
+    `;
+    latest = last?.[0]?.batch_id ?? null;
+  }
+
   let srcRows: any[] = [];
   if (latest) {
-    const sql = `
+    srcRows = await prisma.$queryRaw<any[]>`
       WITH raw AS (
         SELECT
-          -- prefer CPF, fallback Matricula
           COALESCE(
             (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%CPF%' ORDER BY 1 LIMIT 1),
             (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%MATRIC%' ORDER BY 1 LIMIT 1)
@@ -73,7 +72,7 @@ export async function GET(req: Request) {
           (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE (upper(kv.key) LIKE '%UNID%' OR upper(kv.key) LIKE '%LOTA%' OR upper(kv.key) LIKE '%HOSP%' OR upper(kv.key) LIKE '%SETOR%') ORDER BY 1 LIMIT 1) AS unidade,
           (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%DEMI%' ORDER BY 1 LIMIT 1) AS demissao
         FROM stg_alterdata_v2_raw r
-        WHERE r.batch_id = $1
+        WHERE r.batch_id = ${latest}
       ),
       norm AS (
         SELECT
@@ -91,23 +90,22 @@ export async function GET(req: Request) {
       WHERE id IS NOT NULL AND id <> ''
         AND (dem_data IS NULL OR dem_data >= DATE '2025-01-01')
     `;
-    srcRows = await prisma.$queryRawUnsafe(sql, latest);
+  } else {
+    srcRows = [];
   }
 
-  // Manual entries
   let manualRows: any[] = [];
-  try{
-    manualRows = await prisma.$queryRawUnsafe(`
+  try {
+    manualRows = await prisma.$queryRaw<any[]>`
       SELECT cpf AS id, nome, funcao, unidade, regional
       FROM epi_manual_colab
       WHERE cpf IS NOT NULL AND cpf <> ''
         AND (demissao IS NULL OR demissao >= DATE '2025-01-01')
-    `);
-  }catch{}
+    `;
+  } catch {}
 
-  // Merge manual ∪ src (manual priority by id)
   const byId = new Map<string, Row>();
-  for(const r of manualRows){
+  for (const r of manualRows) {
     const id = String(r.id || '').trim();
     if (!id) continue;
     const un = String(r.unidade || '');
@@ -121,7 +119,7 @@ export async function GET(req: Request) {
       nome_site: kitMap[norm(r.funcao)] || null,
     });
   }
-  for(const r of srcRows){
+  for (const r of srcRows) {
     const id = String(r.id || '').trim();
     if (!id || byId.has(id)) continue;
     const un = String(r.unidade || '');
@@ -136,7 +134,6 @@ export async function GET(req: Request) {
     });
   }
 
-  // Now apply filters (regional/unidade/q)
   let rows: Row[] = Array.from(byId.values());
   if (regional) {
     const regUp = norm(regional);
