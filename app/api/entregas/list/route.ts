@@ -1,9 +1,21 @@
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
+import { UNID_TO_REGIONAL, canonUnidade } from '@/lib/unidReg';
+import prisma from '@/lib/prisma';
 
-type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string };
+type Row = {
+  id: string;
+  nome: string;
+  funcao: string;
+  unidade: string;
+  regional: string;
+  kit?: string;
+  kitEsperado?: string;
+  kit_esperado?: string;
+};
 
 function normUp(s: any): string {
   return (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
@@ -58,6 +70,55 @@ async function fetchRawRows(origin: string, page: number, limit: number, req: Re
   return { rows: flat, total, limit: lim };
 }
 
+async function loadUnidMapFromDB(): Promise<Record<string,string>> {
+  try {
+    const rs = await prisma.$queryRaw<any[]>`SELECT unidade, regional FROM stg_unid_reg`;
+    const map: Record<string,string> = {};
+    for (const r of rs) {
+      const uni = String(r.unidade ?? '');
+      const reg = String(r.regional ?? '');
+      const canon = canonUnidade(uni);
+      if (canon && reg) map[canon] = reg;
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+type KitRow = { func: string; site: string; item: string; qtd: number };
+async function loadKitMap(): Promise<Record<string, {item:string,qtd:number}[]>> {
+  try {
+    const rs = await prisma.$queryRaw<any[]>`
+      SELECT
+        COALESCE(alterdata_funcao::text,'') AS func,
+        COALESCE(nome_site::text,'')        AS site,
+        COALESCE(epi_item::text,'')         AS item,
+        COALESCE(quantidade::numeric,0)     AS qtd
+      FROM stg_epi_map
+    `;
+    const map: Record<string, {item:string,qtd:number}[]> = {};
+    for (const r of rs) {
+      const keys = [normKey(r.func), normKey(r.site)].filter(Boolean);
+      for (const k of keys) {
+        if (!map[k]) map[k] = [];
+        map[k].push({ item: String(r.item || ''), qtd: Number(r.qtd || 0) });
+      }
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+function formatKit(items?: {item:string,qtd:number}[] | undefined): string {
+  if (!items || !items.length) return '—';
+  return items
+    .filter(x => x.item)
+    .map(x => `${x.item}${x.qtd ? ` x${x.qtd}` : ''}`)
+    .join(' / ');
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const regional = url.searchParams.get('regional') || '';
@@ -67,6 +128,7 @@ export async function GET(req: Request) {
   const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
 
   try {
+    // 1) Carrega linhas da Alterdata (mesma fonte da tela Alterdata), com cookies para evitar 401
     const first = await fetchRawRows(url.origin, 1, 500, req);
     let acc = first.rows.slice();
     const pages = Math.max(1, Math.ceil(first.total / first.limit));
@@ -75,35 +137,53 @@ export async function GET(req: Request) {
       acc = acc.concat(more.rows);
     }
 
+    // 2) Detecta chaves
     const cpfKey  = pickKeyByName(acc, ['cpf','matric','cpffunc','cpffuncionario']);
     const nomeKey = pickKeyByName(acc, ['nome','colab','funcionario']);
     const funcKey = pickKeyByName(acc, ['func','cargo']);
     const unidKey = pickKeyByName(acc, ['unid','lotac','setor','hosp','posto','local']);
+    const regKey  = pickKeyByName(acc, ['regi','regional','gerencia']); // se existir direto no dataset
 
+    // 3) Carrega mapas auxiliares
+    const [unidDBMap, kitMap] = await Promise.all([loadUnidMapFromDB(), loadKitMap()]);
+
+    // 4) Mapeia linhas + regional + kit
     let rows: Row[] = acc.map(r => {
       const idRaw = cpfKey ? r[cpfKey] : '';
       const id = onlyDigits(idRaw).slice(-11);
       const nome = String((nomeKey && r[nomeKey]) ?? '');
       const func = String((funcKey && r[funcKey]) ?? '');
       const un   = String((unidKey && r[unidKey]) ?? '');
-      const regKey = pickKeyByName([r], ['regi','regional','gerencia']);
-      const reg = String((regKey && r[regKey]) ?? '');
-      return { id, nome, funcao: func, unidade: un, regional: reg };
+      // Regional por prioridade: coluna direta -> lib/unidReg -> tabela stg_unid_reg
+      let reg = String((regKey && r[regKey]) ?? '');
+      if (!reg) {
+        const canon = canonUnidade(un);
+        reg = (UNID_TO_REGIONAL as any)[canon] || unidDBMap[canon] || '';
+      }
+      // Kit esperado via stg_epi_map (tolerante por func ou nome_site)
+      const kitItems = kitMap[normKey(func)];
+      const kitStr = formatKit(kitItems);
+      return {
+        id, nome, funcao: func, unidade: un, regional: reg || '—',
+        kit: kitStr, kitEsperado: kitStr, kit_esperado: kitStr
+      };
     }).filter(x => x.id || x.nome || x.unidade);
 
+    // 5) Filtros (regional leniente: aceita vazio/—)
     const nreg = normUp(regional);
     const nuni = normUp(unidade);
     const nq   = normUp(q);
-    if (nreg) rows = rows.filter(r => !nreg || normUp(r.regional) === nreg || !r.regional);
+    if (nreg) rows = rows.filter(r => !nreg || normUp(r.regional) === nreg || r.regional === '—');
     if (nuni) rows = rows.filter(r => normUp(r.unidade) === nuni);
     if (nq)   rows = rows.filter(r => normUp(r.nome).includes(nq) || normUp(r.id).includes(nq));
 
+    // 6) Pagina
     rows.sort((a,b)=> a.nome.localeCompare(b.nome));
     const total = rows.length;
     const start = (page - 1) * pageSize;
     const pageRows = rows.slice(start, start + pageSize);
 
-    return NextResponse.json({ rows: pageRows, total, page, pageSize, source: 'safe_mirror_auth' });
+    return NextResponse.json({ rows: pageRows, total, page, pageSize, source: 'safe_mirror_auth+regional+kit' });
   } catch (e:any) {
     return NextResponse.json({ rows: [], total: 0, page, pageSize, source: 'error', error: e?.message || String(e) }, { status: 200 });
   }
