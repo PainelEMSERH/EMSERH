@@ -1,13 +1,16 @@
+
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 /**
- * Lista para página de Entregas
- * - Fonte dinâmica: usa `mv_alterdata_flat` se existir; senão `stg_alterdata` (+ join em stg_unid_reg)
- * - União: epi_manual_colab (prioridade) ∪ Alterdata
- * - Filtro: excluir demitidos com data < 2025-01-01 (aceita DD/MM/YYYY ou YYYY-MM-DD)
- * - Paginação + busca + filtros por Regional/Unidade
+ * Lista de colaboradores para página Entregas
+ * Regras:
+ *  - União: epi_manual_colab (prioridade) ∪ fonte principal (mv_alterdata_flat OU stg_alterdata)
+ *  - Filtro: excluir demitidos < 2025-01-01; aceita 'YYYY-MM-DD' e 'DD/MM/YYYY'
+ *  - Regional: se MV tiver coluna 'regional', filtra direto; senão usa subconsulta em stg_unid_reg
+ *  - Unidade: compara por lower(trim())
+ *  - Paginação e busca (nome/CPF)
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -18,14 +21,14 @@ export async function GET(req: Request) {
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get('pageSize') || '25')));
   const offset   = (page - 1) * pageSize;
 
-  // Descobrir fonte preferencial (MV -> STAGING)
-  const mvExists = await prisma.$queryRawUnsafe<Array<{ exists: boolean }>>(
+  // Detectar MV
+  const mvCheck = await prisma.$queryRawUnsafe<Array<{ exists: boolean }>>(
     `select exists(select 1 from pg_matviews where schemaname = current_schema() and matviewname = 'mv_alterdata_flat') as exists`
   );
-  const useMV = !!mvExists?.[0]?.exists;
-
-  // Descobrir colunas da fonte escolhida + unid_reg
+  const useMV = !!mvCheck?.[0]?.exists;
   const srcName = useMV ? 'mv_alterdata_flat' : 'stg_alterdata';
+
+  // Descobrir colunas
   const colsSrc = await prisma.$queryRawUnsafe<Array<{ column_name: string }>>(
     `select column_name from information_schema.columns where table_schema = current_schema() and table_name = '${srcName}'`
   );
@@ -40,57 +43,60 @@ export async function GET(req: Request) {
     return fallback;
   };
 
-  const colCPF   = pick(namesSrc, ['cpf','matricula','id','colaborador_id'], 'cpf')!;
-  const colNome  = pick(namesSrc, ['nome','colaborador','nome_completo'], 'nome')!;
-  const colFunc  = pick(namesSrc, ['funcao','função','cargo'], 'funcao')!;
-  const colUnidA = pick(namesSrc, ['unidade','unidade_hospitalar','lotacao','lotação','setor','departamento','hospital'], 'unidade')!;
-  const colDem   = pick(namesSrc, ['demissao','demissão','deslig','rescisao'], null);
+  const colCPF   = pick(namesSrc, ['cpf','matricula','id','colaborador_id','cpf_colaborador'], 'cpf')!;
+  const colNome  = pick(namesSrc, ['nome','colaborador','nome_completo','nome_colaborador'], 'nome')!;
+  const colFunc  = pick(namesSrc, ['funcao','função','cargo','nome_funcao'], 'funcao')!;
+  const colUnidA = pick(namesSrc, ['unidade','unidade_hospitalar','lotacao','lotação','setor','departamento','hospital','unidade_lotacao'], 'unidade')!;
+  const colDem   = pick(namesSrc, ['demissao','demissão','deslig','rescisao','data_demissao'], null);
 
-  // Quando usando MV, quase sempre já existe 'regional' direto
-  const colRegionalMV = pick(namesSrc, ['regional','regiao','região'], null);
-  const colUnidR   = pick(namesUR, ['unidade','unidade_hospitalar','lotacao','lotação','setor','departamento','hospital'], null);
-  const colRegionalUR= pick(namesUR, ['regional','regiao','região'], null);
+  const colUnidR     = pick(namesUR, ['unidade','unidade_hospitalar','lotacao','lotação','setor','departamento','hospital'], null);
+  const colRegionalR = pick(namesUR, ['regional','regiao','região'], null);
+  const colRegionalMV= pick(namesSrc, ['regional','regiao','região'], null);
 
-  const joinUR = (!useMV && colUnidR && colRegionalUR)
-    ? `left join stg_unid_reg sur on lower(trim(sur.${colUnidR})) = lower(trim(sa.${colUnidA}))`
-    : ``;
+  // Filtros MANUAL
+  const paramsM: any[] = [];
+  let whereM = 'where true';
+  if (regional) { paramsM.push(regional); whereM += ` and lower(trim(emc.regional)) = lower(trim($${paramsM.length}))`; }
+  if (unidade)  { paramsM.push(unidade);  whereM += ` and lower(trim(emc.unidade))  = lower(trim($${paramsM.length}))`; }
+  if (q)        { paramsM.push('%'+q+'%'); paramsM.push('%'+q+'%'); whereM += ` and (emc.nome ilike $${paramsM.length-1} or emc.cpf ilike $${paramsM.length})`; }
+  paramsM.push('2025-01-01'); whereM += ` and (emc.demissao is null or emc.demissao >= $${paramsM.length}::date)`;
 
-  const selectRegional = useMV
-    ? (colRegionalMV ? `coalesce(sa.${colRegionalMV}, '')` : `''`)
-    : (colRegionalUR ? `coalesce(sur.${colRegionalUR}, '')` : `''`);
-
-  // Normalizador de data (DD/MM/YYYY ou YYYY-MM-DD) para comparar com 2025-01-01
-  const demExpr = colDem ? `CASE 
+  // Filtros FONTE
+  const paramsA: any[] = [];
+  let whereA = 'where true';
+  // Regional
+  if (regional) {
+    if (useMV && colRegionalMV) {
+      paramsA.push(regional);
+      whereA += ` and lower(trim(sa.${colRegionalMV})) = lower(trim($${paramsA.length}))`;
+    } else if (!useMV && colUnidR && colRegionalR) {
+      // usa subconsulta EXISTS em stg_unid_reg para casar regional
+      paramsA.push(regional);
+      whereA += ` and exists (
+        select 1 from stg_unid_reg sur
+        where lower(trim(sur.${colUnidR})) = lower(trim(sa.${colUnidA}))
+          and lower(trim(sur.${colRegionalR})) = lower(trim($${paramsA.length}))
+      )`;
+    }
+  }
+  // Unidade
+  if (unidade)  { paramsA.push(unidade); whereA += ` and lower(trim(sa.${colUnidA})) = lower(trim($${paramsA.length}))`; }
+  // Busca
+  if (q)        { paramsA.push('%'+q+'%'); paramsA.push('%'+q+'%'); whereA += ` and (sa.${colNome} ilike $${paramsA.length-1} or sa.${colCPF} ilike $${paramsA.length})`; }
+  // Demissão
+  if (colDem)   { 
+    paramsA.push('2025-01-01');
+    const demExpr = `CASE 
       WHEN sa.${colDem} ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN sa.${colDem}::date
       WHEN sa.${colDem} ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(sa.${colDem}, 'DD/MM/YYYY')
       ELSE NULL
-    END` : null;
-
-  // ---------- Filtros MANUAL ----------
-  const paramsManual: any[] = [];
-  let whereManual = 'where true';
-  if (regional) { paramsManual.push(regional); whereManual += ` and lower(emc.regional) = lower($${paramsManual.length})`; }
-  if (unidade)  { paramsManual.push(unidade);  whereManual += ` and lower(emc.unidade)  = lower($${paramsManual.length})`; }
-  if (q)        { paramsManual.push('%'+q+'%'); paramsManual.push('%'+q+'%'); whereManual += ` and (emc.nome ilike $${paramsManual.length-1} or emc.cpf ilike $${paramsManual.length})`; }
-  paramsManual.push('2025-01-01'); whereManual += ` and (emc.demissao is null or emc.demissao >= $${paramsManual.length}::date)`;
-
-  // ---------- Filtros ALTERDATA/MV ----------
-  const paramsAD: any[] = [];
-  let whereAD = 'where true';
-  if (regional) {
-    if (useMV && colRegionalMV) {
-      paramsAD.push(regional); whereAD += ` and lower(sa.${colRegionalMV}) = lower($${paramsAD.length})`;
-    } else if (!useMV && colRegionalUR && colUnidR) {
-      paramsAD.push(regional); whereAD += ` and lower(sur.${colRegionalUR}) = lower($${paramsAD.length})`;
-    }
+    END`;
+    whereA += ` and ( ${demExpr} is null or ${demExpr} >= $${paramsA.length}::date )`;
   }
-  if (unidade)  { paramsAD.push(unidade);  whereAD += ` and lower(sa.${colUnidA})  = lower($${paramsAD.length})`; }
-  if (q)        { paramsAD.push('%'+q+'%'); paramsAD.push('%'+q+'%'); whereAD += ` and (sa.${colNome} ilike $${paramsAD.length-1} or sa.${colCPF} ilike $${paramsAD.length})`; }
-  if (demExpr)  { paramsAD.push('2025-01-01'); whereAD += ` and ( ${demExpr} is null or ${demExpr} >= $${paramsAD.length}::date )`; }
 
-  const srcFrom = useMV ? 'mv_alterdata_flat sa' : 'stg_alterdata sa';
+  const srcFrom = `${srcName} sa`;
 
-  // ---------- Rows ----------
+  // Consulta de linhas
   const rowsSQL = `
     with base as (
       -- Manual
@@ -106,23 +112,28 @@ export async function GET(req: Request) {
           where lower(sem.alterdata_funcao) = lower(emc.funcao)
         ) as nome_site
       from epi_manual_colab emc
-      ${whereManual}
+      ${whereM}
       UNION ALL
-      -- Fonte principal (MV ou STAGING), removendo CPFs já manuais
+      -- Fonte principal, removendo CPFs já manuais
       select 
         sa.${colCPF} as id,
         sa.${colNome} as nome,
         sa.${colFunc} as funcao,
         sa.${colUnidA} as unidade,
-        ${selectRegional} as regional,
+        ${
+          useMV && colRegionalMV
+            ? `coalesce(sa.${colRegionalMV}, '')`
+            : (colUnidR && colRegionalR
+                ? `(select coalesce(sur.${colRegionalR}, '') from stg_unid_reg sur where lower(trim(sur.${colUnidR})) = lower(trim(sa.${colUnidA})) limit 1)`
+                : `''`)
+        } as regional,
         (
           select string_agg(distinct sem.nome_site, ',')
           from stg_epi_map sem
           where lower(sem.alterdata_funcao) = lower(sa.${colFunc})
         ) as nome_site
       from ${srcFrom}
-      ${joinUR}
-      ${whereAD}
+      ${whereA}
       and not exists (select 1 from epi_manual_colab em where em.cpf = sa.${colCPF})
     )
     select *
@@ -130,24 +141,23 @@ export async function GET(req: Request) {
     order by nome asc
     limit ${pageSize} offset ${offset}
   `;
-  const rows = await prisma.$queryRawUnsafe<any[]>(rowsSQL, ...paramsManual, ...paramsAD);
+  const rows = await prisma.$queryRawUnsafe<any[]>(rowsSQL, ...paramsM, ...paramsA);
 
-  // ---------- Count ----------
+  // Contagem
   const countSQL = `
     with base as (
       select emc.cpf as id
       from epi_manual_colab emc
-      ${whereManual}
+      ${whereM}
       UNION ALL
       select sa.${colCPF} as id
       from ${srcFrom}
-      ${joinUR}
-      ${whereAD}
+      ${whereA}
       and not exists (select 1 from epi_manual_colab em where em.cpf = sa.${colCPF})
     )
     select count(*)::int as c from base
   `;
-  const cRow = await prisma.$queryRawUnsafe<any[]>(countSQL, ...paramsManual, ...paramsAD);
+  const cRow = await prisma.$queryRawUnsafe<any[]>(countSQL, ...paramsM, ...paramsA);
   const total = Number(cRow?.[0]?.c || 0);
 
   return NextResponse.json({
