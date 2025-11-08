@@ -30,6 +30,9 @@ export async function GET(req: Request) {
   };
   const colCPF   = pickAD(['cpf','matricula','id','colaborador_id'], 'cpf');
   const colNome  = pickAD(['nome','colaborador','nome_completo'], 'nome');
+  const colFunc  = pickAD(['funcao','função','cargo'], 'funcao');
+  const colUnidA = pickAD(['unidade','unidade_hospitalar','lotacao','lotação','setor','departamento','hospital'], 'unidade');
+  const colDem   = pickAD(['demissao','demissão','deslig','rescisao'], null);
   const colFunc  = pickAD(['funcao','cargo','funcao_alterdata'], 'funcao');
   const colUnidA = pickAD(['unidade','unidade_hospitalar','setor'], 'unidade');
 
@@ -64,7 +67,7 @@ export async function GET(req: Request) {
     params.push(`%${q}%`);
     filters.push(`(sa.${colNome} ilike $${params.length-1} or sa.${colCPF} ilike $${params.length})`);
   }
-  const where = filters.length ? `where ${filters.join(' and ')}` : '';
+  if (colDem) { filters.push(`(sa.${colDem} is null or sa.${colDem} >= $${(lambda n: n)(0)}`);
 
   // Build LEFT JOIN only if we have a unit column in stg_unid_reg
   const joinUR = colUnidR
@@ -91,7 +94,57 @@ export async function GET(req: Request) {
     from base b
   `;
 
-  const rows = await prisma.$queryRawUnsafe<any[]>(sql, ...params);
+  
+  // Build union source: manual first (overrides), then alterdata excluding CPFs present in manual
+  const demFilterDate = '2025-01-01';
+  const whereManual = [];
+  const paramsManual: any[] = [];
+  if (regional) { paramsManual.push(regional); whereManual.push(`(lower(emc.regional) = lower($${paramsManual.length}))`); }
+  if (unidade)  { paramsManual.push(unidade);  whereManual.push(`(lower(emc.unidade)  = lower($${paramsManual.length}))`); }
+  if (q)        { paramsManual.push('%'+q+'%'); paramsManual.push('%'+q+'%'); whereManual.push(`(emc.nome ilike $${paramsManual.length-1} or emc.cpf ilike $${paramsManual.length})`); }
+  paramsManual.push(demFilterDate); whereManual.push(`(emc.demissao is null or emc.demissao >= $${paramsManual.length})`);
+  const whereManualSQL = whereManual.length ? `where ${whereManual.join(' and ')}` : '';
+
+  // Construct Alterdata where using existing filters/params
+  // We already have 'filters', 'params', 'where', 'joinUR', 'selectRegional' built above.
+  // Ensure demissão filter is present for Alterdata (was added earlier).
+
+  const baseSQL = `
+    with base as (
+      -- Manual
+      select 
+        emc.cpf as id,
+        coalesce(emc.nome,'') as nome,
+        coalesce(emc.funcao,'') as funcao,
+        coalesce(emc.unidade,'') as unidade,
+        coalesce(emc.regional,'') as regional,
+        (
+          select string_agg(distinct sem.nome_site, ',')
+          from stg_epi_map sem
+          where lower(sem.alterdata_funcao) = lower(emc.funcao)
+        ) as nome_site
+      from epi_manual_colab emc
+      ${whereManualSQL}
+      UNION ALL
+      -- Alterdata minus duplicates present in manual
+      select sa.${colCPF} as id, sa.${colNome} as nome, sa.${colFunc} as funcao, sa.${colUnidA} as unidade,
+        ${selectRegional} as regional,
+        (
+          select string_agg(distinct sem.nome_site, ',')
+          from stg_epi_map sem
+          where lower(sem.alterdata_funcao) = lower(sa.${colFunc})
+        ) as nome_site
+      from stg_alterdata sa
+      ${joinUR}
+      ${where}
+      and not exists (select 1 from epi_manual_colab em where em.cpf = sa.${colCPF})
+    )
+    select *
+    from base
+    order by nome asc
+    limit ${pageSize} offset ${offset}
+  `;
+  const rows = await prisma.$queryRawUnsafe<any[]>(baseSQL, ...paramsManual, ...params);
 
   const countSql = `
     select count(*)::int as c
