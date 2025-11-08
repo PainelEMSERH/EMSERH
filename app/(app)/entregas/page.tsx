@@ -49,31 +49,22 @@ export default function EntregasPage() {
   const [unidadesAll, setUnidadesAll] = useState<Array<{ unidade: string; regional: string }>>([]);
 
   const [modal, setModal] = useState<{ open: boolean; row?: Row | null }>({ open: false });
-  const [newColab, setNewColab] = useState<{ cpf: string; nome: string; funcao: string; unidade: string; regional: string; matricula?: string; admissao?: string; demissao?: string }>({ cpf: '', nome: '', funcao: '', unidade: '', regional: '' });
-  const [modalNew, setModalNew] = useState(false);
   const [kit, setKit] = useState<KitItem[]>([]);
   const [deliv, setDeliv] = useState<Deliver[]>([]);
   const [deliverForm, setDeliverForm] = useState<{ item: string; qtd: number; data: string }>({ item: '', qtd: 1, data: new Date().toISOString().substring(0, 10) });
 
-  const unidades = useMemo(() => unidadesAll.filter(u => !state.regional || u.regional === state.regional), [unidadesAll, state.regional]);
+  // ---- CADASTRO MANUAL (DECLARADO ANTES DO JSX) ----
+  const [newColab, setNewColab] = useState<{ cpf: string; nome: string; funcao: string; unidade: string; regional: string; matricula?: string; admissao?: string; demissao?: string }>({ cpf: '', nome: '', funcao: '', unidade: '', regional: '' });
+  const [modalNew, setModalNew] = useState(false);
 
-  useEffect(() => {
-    let on = true;
-    (async () => {
-      const { json } = await fetchJSON('/api/entregas/options', { cache: 'force-cache' });
-      if (!on) return;
-      setRegionais(json.regionais || []);
-      setUnidadesAll(json.unidades || []);
-    })();
-    
   function openNewManual() {
     setNewColab({ cpf: '', nome: '', funcao: '', unidade: state.unidade || '', regional: state.regional || '' });
     setModalNew(true);
   }
+
   async function saveNewManual() {
-    const body = { ...newColab };
-    // basic normalize
-    body.cpf = (body.cpf||'').replace(/\D/g,'').slice(-11);
+    const body: any = { ...newColab };
+    body.cpf = String(body.cpf || '').replace(/\D/g, '').slice(-11);
     const { json } = await fetchJSON('/api/entregas/manual', {
       method: 'POST',
       body: JSON.stringify(body),
@@ -93,7 +84,19 @@ export default function EntregasPage() {
       setTotal(Number(j2.total || 0));
     }
   }
-return () => { on = false };
+  // ---------------------------------------------------
+
+  const unidades = useMemo(() => unidadesAll.filter(u => !state.regional || u.regional === state.regional), [unidadesAll, state.regional]);
+
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      const { json } = await fetchJSON('/api/entregas/options', { cache: 'force-cache' });
+      if (!on) return;
+      setRegionais(json.regionais || []);
+      setUnidadesAll(json.unidades || []);
+    })();
+    return () => { on = false };
   }, []);
 
   useEffect(() => {
@@ -123,7 +126,7 @@ return () => { on = false };
   async function openDeliver(row: Row) {
     setModal({ open: true, row });
     setDeliverForm({ item: '', qtd: 1, data: new Date().toISOString().substring(0,10) });
-    // fetch kit
+    // kit
     const { json: kitJ } = await fetchJSON('/api/entregas/kit?funcao=' + encodeURIComponent(row.funcao), { cache: 'no-store' });
     const items: KitItem[] = (kitJ?.items || kitJ?.itens || []).map((r: any) => ({
       item: r.item ?? r.epi ?? r.epi_item ?? '',
@@ -131,7 +134,7 @@ return () => { on = false };
       nome_site: r.nome_site ?? null,
     })).filter((x: any) => x.item);
     setKit(items);
-    // fetch deliveries
+    // deliveries
     const { json: dJ } = await fetchJSON('/api/entregas/deliver?cpf=' + encodeURIComponent(row.id), { cache: 'no-store' });
     setDeliv((dJ?.rows || []).map((r: any) => ({
       item: String(r.item || ''),
@@ -156,7 +159,6 @@ return () => { on = false };
       headers: { 'Content-Type': 'application/json' },
     });
     if (json?.ok) {
-      // refresh deliveries
       const { json: dJ } = await fetchJSON('/api/entregas/deliver?cpf=' + encodeURIComponent(modal.row.id), { cache: 'no-store' });
       setDeliv((dJ?.rows || []).map((r: any) => ({
         item: String(r.item || ''),
@@ -338,7 +340,7 @@ return () => { on = false };
           </div>
         </div>
       )}
-    
+
       {modalNew && (
         <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50" onClick={()=>setModalNew(false)}>
           <div className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-2xl shadow-xl" onClick={e=>e.stopPropagation()}>
