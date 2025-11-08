@@ -2,14 +2,6 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-/**
- * Lista base para página de Entregas
- * - União: colaboradores manuais (epi_manual_colab) + Alterdata (stg_alterdata, com join opcional em stg_unid_reg)
- * - Exclusão de demitidos antes de 2025-01-01 (ou demissão nula aceita)
- * - Sem duplicidade por CPF: manual tem prioridade; Alterdata entra apenas se CPF não existir no manual
- * - Paginação real (page/pageSize)
- * - Campos: id(cpf), nome, funcao, unidade, regional, nome_site (agg de stg_epi_map)
- */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const regional = searchParams.get('regional');
@@ -19,7 +11,7 @@ export async function GET(req: Request) {
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get('pageSize') || '25')));
   const offset   = (page - 1) * pageSize;
 
-  // Descobre colunas em stg_alterdata e stg_unid_reg para tolerar variações
+  // Column discovery (tolerant)
   const colsAD = await prisma.$queryRawUnsafe<Array<{ column_name: string }>>(`
     select column_name from information_schema.columns
     where table_schema = current_schema() and table_name = 'stg_alterdata'
@@ -47,33 +39,39 @@ export async function GET(req: Request) {
 
   const joinUR = (colUnidR && colRegional)
     ? `left join stg_unid_reg sur on lower(sur.${colUnidR}) = lower(sa.${colUnidA})`
-    : `/* no stg_unid_reg join */`;
+    : ``;
   const selectRegional = (colRegional)
     ? `coalesce(sur.${colRegional}, '')`
     : `''`;
 
-  // --- Filtros para MANUAL (epi_manual_colab) ---
+  // ---------- Manual filters (epi_manual_colab) ----------
   const paramsManual: any[] = [];
-  const filtersManual: string[] = [];
-  if (regional) { paramsManual.push(regional); filtersManual.push(`lower(emc.regional) = lower($${paramsManual.length})`); }
-  if (unidade)  { paramsManual.push(unidade);  filtersManual.push(`lower(emc.unidade)  = lower($${paramsManual.length})`); }
-  if (q)        { paramsManual.push('%'+q+'%'); paramsManual.push('%'+q+'%'); filtersManual.push(`(emc.nome ilike $${paramsManual.length-1} or emc.cpf ilike $${paramsManual.length})`); }
-  paramsManual.push('2025-01-01'); filtersManual.push(`(emc.demissao is null or emc.demissao >= $${paramsManual.length})`);
-  const whereManual = filtersManual.length ? `where ${filtersManual.join(' and ')}` : '';
+  let whereManual = 'where true';
+  if (regional) { paramsManual.push(regional); whereManual += ` and lower(emc.regional) = lower($${paramsManual.length})`; }
+  if (unidade)  { paramsManual.push(unidade);  whereManual += ` and lower(emc.unidade)  = lower($${paramsManual.length})`; }
+  if (q)        { paramsManual.push('%'+q+'%'); paramsManual.push('%'+q+'%'); whereManual += ` and (emc.nome ilike $${paramsManual.length-1} or emc.cpf ilike $${paramsManual.length})`; }
+  paramsManual.push('2025-01-01'); whereManual += ` and (emc.demissao is null or emc.demissao >= $${paramsManual.length}::date)`;
 
-  // --- Filtros para ALTERDATA (stg_alterdata) ---
+  // ---------- Alterdata filters (stg_alterdata) ----------
   const paramsAD: any[] = [];
-  const filtersAD: string[] = [];
-  if (regional && colRegional && colUnidR) { paramsAD.push(regional); filtersAD.push(`lower(sur.${colRegional}) = lower($${paramsAD.length})`); }
-  if (unidade)  { paramsAD.push(unidade);  filtersAD.push(`lower(sa.${colUnidA})  = lower($${paramsAD.length})`); }
-  if (q)        { paramsAD.push('%'+q+'%'); paramsAD.push('%'+q+'%'); filtersAD.push(`(sa.${colNome} ilike $${paramsAD.length-1} or sa.${colCPF} ilike $${paramsAD.length})`); }
-  if (colDem)   { paramsAD.push('2025-01-01'); filtersAD.push(`(sa.${colDem} is null or sa.${colDem} >= $${paramsAD.length})`); }
-  const whereAD = filtersAD.length ? `where ${filtersAD.join(' and ')}` : '';
+  let whereAD = 'where true';
+  if (regional && colRegional && colUnidR) { paramsAD.push(regional); whereAD += ` and lower(sur.${colRegional}) = lower($${paramsAD.length})`; }
+  if (unidade)  { paramsAD.push(unidade);  whereAD += ` and lower(sa.${colUnidA})  = lower($${paramsAD.length})`; }
+  if (q)        { paramsAD.push('%'+q+'%'); paramsAD.push('%'+q+'%'); whereAD += ` and (sa.${colNome} ilike $${paramsAD.length-1} or sa.${colCPF} ilike $${paramsAD.length})`; }
+  if (colDem)   { 
+    paramsAD.push('2025-01-01'); 
+    const demExpr = `CASE 
+      WHEN sa.${colDem} ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN sa.${colDem}::date
+      WHEN sa.${colDem} ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(sa.${colDem}, 'DD/MM/YYYY')
+      ELSE NULL
+    END`;
+    whereAD += ` and ( ${demExpr} is null or ${demExpr} >= $${paramsAD.length}::date )`;
+  }
 
-  // --- Consulta paginada (UNION ALL) ---
+  // ---------- Rows ----------
   const rowsSQL = `
     with base as (
-      -- Manual
+      -- Manual first
       select 
         emc.cpf as id,
         coalesce(emc.nome,'') as nome,
@@ -88,7 +86,7 @@ export async function GET(req: Request) {
       from epi_manual_colab emc
       ${whereManual}
       UNION ALL
-      -- Alterdata sem CPFs já cadastrados manualmente
+      -- Alterdata minus manual duplicates
       select 
         sa.${colCPF} as id,
         sa.${colNome} as nome,
@@ -112,7 +110,7 @@ export async function GET(req: Request) {
   `;
   const rows = await prisma.$queryRawUnsafe<any[]>(rowsSQL, ...paramsManual, ...paramsAD);
 
-  // --- Contagem total ---
+  // ---------- Count ----------
   const countSQL = `
     with base as (
       select emc.cpf as id
