@@ -35,12 +35,20 @@ function pickKeyByName(rows: any[], hints: string[]): string | null {
   return bestKey;
 }
 
-async function fetchRawRows(origin: string, page: number, limit: number) {
+async function fetchRawRows(origin: string, page: number, limit: number, req: Request) {
   const u = new URL('/api/alterdata/raw-rows', origin);
   u.searchParams.set('page', String(page));
   u.searchParams.set('limit', String(limit));
   u.searchParams.set('pageSize', String(limit));
-  const r = await fetch(u.toString(), { cache: 'no-store' });
+  const cookie = req.headers.get('cookie') || '';
+  const auth = req.headers.get('authorization') || '';
+  const r = await fetch(u.toString(), {
+    cache: 'no-store',
+    headers: {
+      ...(cookie ? { cookie } : {}),
+      ...(auth ? { authorization: auth } : {}),
+    },
+  });
   if (!r.ok) throw new Error(`alterdata/raw-rows ${r.status}`);
   const data = await r.json().catch(()=>({}));
   const rows = Array.isArray(data?.rows) ? data.rows : [];
@@ -59,11 +67,11 @@ export async function GET(req: Request) {
   const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
 
   try {
-    const first = await fetchRawRows(url.origin, 1, 500);
+    const first = await fetchRawRows(url.origin, 1, 500, req);
     let acc = first.rows.slice();
     const pages = Math.max(1, Math.ceil(first.total / first.limit));
     for (let p = 2; p <= Math.min(pages, 5); p++) {
-      const more = await fetchRawRows(url.origin, p, first.limit);
+      const more = await fetchRawRows(url.origin, p, first.limit, req);
       acc = acc.concat(more.rows);
     }
 
@@ -95,7 +103,7 @@ export async function GET(req: Request) {
     const start = (page - 1) * pageSize;
     const pageRows = rows.slice(start, start + pageSize);
 
-    return NextResponse.json({ rows: pageRows, total, page, pageSize, source: 'safe_mirror' });
+    return NextResponse.json({ rows: pageRows, total, page, pageSize, source: 'safe_mirror_auth' });
   } catch (e:any) {
     return NextResponse.json({ rows: [], total: 0, page, pageSize, source: 'error', error: e?.message || String(e) }, { status: 200 });
   }
