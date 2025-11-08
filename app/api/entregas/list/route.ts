@@ -5,13 +5,43 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { UNID_TO_REGIONAL, canonUnidade } from '@/lib/unidReg';
 
-type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string; nome_site?: string | null };
+type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string };
 
 function normUp(s: any): string {
   return (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
 }
 
-async function latestBatchId(): Promise<string | null> {
+function allDigits(t: string): boolean {
+  for (let i = 0; i < t.length; i++) {
+    const c = t.charCodeAt(i);
+    if (c < 48 || c > 57) return false;
+  }
+  return true;
+}
+
+function parseDemissao(val: any): Date | null {
+  const s = (val ?? '').toString().trim();
+  if (!s) return null;
+  const first10 = s.slice(0, 10);
+  if (first10.length === 10 && first10[4] === '-' && first10[7] === '-') {
+    return new Date(first10);
+  }
+  const parts = s.split(/[^0-9]/).filter(Boolean);
+  if (parts.length === 3) {
+    const [a,b,c] = parts;
+    if (c.length === 4) {
+      const dd = a.padStart(2,'0');
+      const mm = b.padStart(2,'0');
+      return new Date(`${c}-${mm}-${dd}`);
+    }
+  }
+  if (s.length === 8 && allDigits(s)) {
+    return new Date(`${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`);
+  }
+  return null;
+}
+
+async function getLatestBatchId(): Promise<string | null> {
   try {
     const r = await prisma.$queryRaw<{batch_id: string}[]>`
       SELECT batch_id FROM stg_alterdata_v2_imports ORDER BY imported_at DESC LIMIT 1
@@ -31,12 +61,11 @@ export async function GET(req: Request) {
   const pageSize = Math.min(200, Math.max(10, Number(url.searchParams.get('pageSize') || '25')));
   const offset   = (page - 1) * pageSize;
 
-  const latest = await latestBatchId();
+  const latest = await getLatestBatchId();
 
-  // 1) Carrega colaboradores do Alterdata v2_raw (ultimo batch)
-  let srcRows: any[] = [];
+  let baseRows: any[] = [];
   if (latest) {
-    srcRows = await prisma.$queryRaw<any[]>`
+    baseRows = await prisma.$queryRaw<any[]>`
       WITH raw AS (
         SELECT
           COALESCE(
@@ -49,64 +78,46 @@ export async function GET(req: Request) {
           (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%DEMI%' ORDER BY 1 LIMIT 1) AS demissao
         FROM stg_alterdata_v2_raw r
         WHERE r.batch_id = ${latest}
-      ),
-      norm AS (
-        SELECT
-          id, nome, funcao, unidade,
-          CASE 
-            WHEN demissao ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (substring(demissao from 1 for 10))::date
-            WHEN demissao ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(demissao, 'DD/MM/YYYY')
-            WHEN demissao ~ '^\\d{8}$' THEN to_date(demissao, 'YYYYMMDD')
-            ELSE NULL
-          END AS dem_data
-        FROM raw
       )
-      SELECT id, nome, funcao, unidade
-      FROM norm
+      SELECT id, nome, funcao, unidade, demissao
+      FROM raw
       WHERE id IS NOT NULL AND id <> ''
-        AND (dem_data IS NULL OR dem_data >= DATE '2025-01-01')
     `;
   }
 
-  // 2) Manuais (prioridade)
+  const keptBase = baseRows.filter(r => {
+    const d = parseDemissao(r.demissao);
+    return !d || d >= new Date('2025-01-01');
+  });
+
   let manualRows: any[] = [];
   try {
     manualRows = await prisma.$queryRaw<any[]>`
       SELECT cpf AS id, nome, funcao, unidade, regional, demissao
       FROM epi_manual_colab
     `;
-  } catch { manualRows = []; }
+  } catch {}
 
-  // 3) Monta map por id (manual prioriza) e calcula regional pela unidade quando não vier
   const byId = new Map<string, Row>();
 
   for (const r of manualRows) {
     const id = String(r.id || '').trim();
     if (!id) continue;
-    let keep = true;
-    if (r.demissao) {
-      const s = String(r.demissao);
-      // tenta parsear datas comuns
-      let ymd: string | null = null;
-      if (/^\\d{4}-\\d{2}-\\d{2}/.test(s)) ymd = s.substring(0,10);
-      else if (/^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(s)) { const [dd,mm,yy] = s.split('/'); ymd = `${yy}-${mm}-${dd}`; }
-      if (ymd && new Date(ymd) < new Date('2025-01-01')) keep = false;
-    }
-    if (!keep) continue;
+    const d = parseDemissao(r.demissao);
+    if (d && d < new Date('2025-01-01')) continue;
     const un = String(r.unidade || '');
     const reg = String(r.regional || (UNID_TO_REGIONAL as any)[canonUnidade(un)] || '');
-    byId.set(id, { id, nome: String(r.nome || ''), funcao: String(r.funcao || ''), unidade: un, regional: reg });
+    byId.set(id, { id, nome: String(r.nome||''), funcao: String(r.funcao||''), unidade: un, regional: reg });
   }
 
-  for (const r of srcRows) {
+  for (const r of keptBase) {
     const id = String(r.id || '').trim();
     if (!id || byId.has(id)) continue;
     const un = String(r.unidade || '');
     const reg = String((UNID_TO_REGIONAL as any)[canonUnidade(un)] || '');
-    byId.set(id, { id, nome: String(r.nome || ''), funcao: String(r.funcao || ''), unidade: un, regional: reg });
+    byId.set(id, { id, nome: String(r.nome||''), funcao: String(r.funcao||''), unidade: un, regional: reg });
   }
 
-  // 4) Aplica filtros regionais/unidade/q no servidor
   const regUp = normUp(regional);
   const uniUp = normUp(unidade);
   const qUp   = normUp(q);
@@ -116,8 +127,7 @@ export async function GET(req: Request) {
   if (uniUp) rows = rows.filter(r => normUp(r.unidade) === uniUp);
   if (qUp)   rows = rows.filter(r => normUp(r.nome).includes(qUp) || normUp(r.id).includes(qUp));
 
-  // 5) Ordena, pagina e responde
-  rows.sort((a,b) => a.nome.localeCompare(b.nome));
+  rows.sort((a,b)=>a.nome.localeCompare(b.nome));
   const total = rows.length;
   const pageRows = rows.slice(offset, offset + pageSize);
 
