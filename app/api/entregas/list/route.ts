@@ -4,152 +4,98 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { UNID_TO_REGIONAL, canonUnidade } from '@/lib/unidReg';
 
-type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string; nome_site?: string | null; };
-
-function norm(s: any): string {
-  return (s ?? '')
-    .toString()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase().trim().replace(/\s+/g, ' ');
-}
-
-async function loadKitMap(): Promise<Record<string, string>> {
-  try {
-    const rows: any[] = await prisma.$queryRaw`
-      SELECT alterdata_funcao AS func, string_agg(DISTINCT nome_site, ',') AS kit
-      FROM stg_epi_map
-      GROUP BY alterdata_funcao
-    `;
-    const map: Record<string,string> = {};
-    for (const r of rows) {
-      const k = norm(r.func);
-      if (k) map[k] = r.kit || '';
-    }
-    return map;
-  } catch {
-    return {};
-  }
-}
+// Util
+const norm = (s:any) => (s??'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim().replace(/\s+/g,' ');
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const regional = (searchParams.get('regional') || '').trim();
-  const unidade  = (searchParams.get('unidade')  || '').trim();
-  const q        = (searchParams.get('q')        || '').trim();
+  const { searchParams, origin } = new URL(req.url);
+  const regional = searchParams.get('regional') || '';
+  const unidade  = searchParams.get('unidade')  || '';
+  const q        = searchParams.get('q')        || '';
   const page     = Math.max(1, Number(searchParams.get('page') || '1'));
   const pageSize = Math.min(200, Math.max(10, Number(searchParams.get('pageSize') || '25')));
   const offset   = (page - 1) * pageSize;
 
-  const kitMap = await loadKitMap();
-
-  const v2Exists = await prisma.$queryRaw<{exists:boolean}[]>`
-    select exists(
-      select 1 from information_schema.tables 
-      where table_schema = current_schema() and table_name = 'stg_alterdata_v2_raw'
-    ) as exists
-  `;
-  const hasV2 = !!v2Exists?.[0]?.exists;
-
-  let latest: string | null = null;
-  if (hasV2) {
-    const last = await prisma.$queryRaw<{batch_id:string}[]>`
-      SELECT batch_id FROM stg_alterdata_v2_imports ORDER BY imported_at DESC LIMIT 1
-    `;
-    latest = last?.[0]?.batch_id ?? null;
-  }
-
-  let srcRows: any[] = [];
-  if (latest) {
-    srcRows = await prisma.$queryRaw<any[]>`
-      WITH raw AS (
-        SELECT
-          COALESCE(
-            (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%CPF%' ORDER BY 1 LIMIT 1),
-            (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%MATRIC%' ORDER BY 1 LIMIT 1)
-          ) AS id,
-          (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%NOME%' ORDER BY 1 LIMIT 1) AS nome,
-          (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE (upper(kv.key) LIKE '%FUN%' OR upper(kv.key) LIKE '%CARGO%') ORDER BY 1 LIMIT 1) AS funcao,
-          (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE (upper(kv.key) LIKE '%UNID%' OR upper(kv.key) LIKE '%LOTA%' OR upper(kv.key) LIKE '%HOSP%' OR upper(kv.key) LIKE '%SETOR%') ORDER BY 1 LIMIT 1) AS unidade,
-          (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%DEMI%' ORDER BY 1 LIMIT 1) AS demissao
-        FROM stg_alterdata_v2_raw r
-        WHERE r.batch_id = ${latest}
-      ),
-      norm AS (
-        SELECT
-          id, nome, funcao, unidade,
-          CASE 
-            WHEN demissao ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (substring(demissao from 1 for 10))::date
-            WHEN demissao ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(demissao, 'DD/MM/YYYY')
-            WHEN demissao ~ '^\\d{8}$' THEN to_date(demissao, 'YYYYMMDD')
-            ELSE NULL
-          END AS dem_data
-        FROM raw
-      )
-      SELECT id, nome, funcao, unidade
-      FROM norm
-      WHERE id IS NOT NULL AND id <> ''
-        AND (dem_data IS NULL OR dem_data >= DATE '2025-01-01')
-    `;
-  } else {
-    srcRows = [];
-  }
-
-  let manualRows: any[] = [];
   try {
-    manualRows = await prisma.$queryRaw<any[]>`
-      SELECT cpf AS id, nome, funcao, unidade, regional
-      FROM epi_manual_colab
-      WHERE cpf IS NOT NULL AND cpf <> ''
-        AND (demissao IS NULL OR demissao >= DATE '2025-01-01')
-    `;
-  } catch {}
+    // 1) Puxa exatamente as mesmas linhas da tela Alterdata (já sabemos que funciona)
+    const altURL = new URL('/api/alterdata/raw-rows', origin);
+    altURL.searchParams.set('regional', regional);
+    altURL.searchParams.set('unidade', unidade);
+    altURL.searchParams.set('q', q);
+    altURL.searchParams.set('page', String(page));
+    altURL.searchParams.set('pageSize', String(pageSize*4)); // pega mais para filtrar depois
+    const r = await fetch(altURL.toString(), { cache: 'no-store' });
+    const alt = await r.json();
 
-  const byId = new Map<string, Row>();
-  for (const r of manualRows) {
-    const id = String(r.id || '').trim();
-    if (!id) continue;
-    const un = String(r.unidade || '');
-    const reg = r.regional ? String(r.regional) : (UNID_TO_REGIONAL[canonUnidade(un)] || '');
-    byId.set(id, {
-      id,
-      nome: String(r.nome||''),
-      funcao: String(r.funcao||''),
-      unidade: un,
-      regional: reg,
-      nome_site: kitMap[norm(r.funcao)] || null,
-    });
-  }
-  for (const r of srcRows) {
-    const id = String(r.id || '').trim();
-    if (!id || byId.has(id)) continue;
-    const un = String(r.unidade || '');
-    const reg = UNID_TO_REGIONAL[canonUnidade(un)] || '';
-    byId.set(id, {
-      id,
-      nome: String(r.nome||''),
-      funcao: String(r.funcao||''),
-      unidade: un,
-      regional: reg,
-      nome_site: kitMap[norm(r.funcao)] || null,
-    });
-  }
+    // 2) Mapa de kit por função
+    let kitMap: Record<string,string> = {};
+    try {
+      const rows: any[] = await prisma.$queryRaw`SELECT alterdata_funcao AS f, string_agg(DISTINCT nome_site, ',') AS k FROM stg_epi_map GROUP BY alterdata_funcao`;
+      for (const it of rows) kitMap[norm(it.f)] = it.k || '';
+    } catch {}
 
-  let rows: Row[] = Array.from(byId.values());
-  if (regional) {
-    const regUp = norm(regional);
-    rows = rows.filter(r => norm(r.regional) === regUp);
-  }
-  if (unidade) {
-    const uniUp = norm(unidade);
-    rows = rows.filter(r => norm(r.unidade) === uniUp);
-  }
-  if (q) {
-    const nq = norm(q);
-    rows = rows.filter(r => norm(r.nome).includes(nq) || norm(r.id).includes(nq));
-  }
+    // 3) Junta manual (prioridade) — se der erro, ignora manual (não quebra)
+    let manual: any[] = [];
+    try {
+      manual = await prisma.$queryRaw`SELECT cpf AS id, nome, funcao, unidade, regional, demissao FROM epi_manual_colab`;
+    } catch {}
 
-  const total = rows.length;
-  const pageRows = rows.slice(offset, offset + pageSize);
+    const manualById = new Map<string, any>();
+    for (const m of manual) {
+      const id = String(m.id||'').trim();
+      if (!id) continue;
+      // filtro demissão < 2025
+      let keep = true;
+      if (m.demissao) {
+        const s = String(m.demissao);
+        let d: any = null;
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) d = new Date(s.substring(0,10));
+        else if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) { const [dd,mm,yy]=s.split('/'); d = new Date(`${yy}-${mm}-${dd}`); }
+        if (d && d < new Date('2025-01-01')) keep = false;
+      }
+      if (!keep) continue;
+      const un = String(m.unidade||'');
+      manualById.set(id, {
+        id, 
+        nome: String(m.nome||''),
+        funcao: String(m.funcao||''),
+        unidade: un,
+        regional: String(m.regional||UNID_TO_REGIONAL[canonUnidade(un)]||''),
+        nome_site: kitMap[norm(m.funcao)] || null
+      });
+    }
 
-  return NextResponse.json({ rows: pageRows, total, page, pageSize, source: latest ? 'v2_raw' : 'manual_only' });
+    // 4) Monta rows a partir do Alterdata (e aplica kit / regional / filtro demissão quando disponível)
+    // raw-rows não trás demissão, então aqui apenas espelha; o filtro de demissão já acontece no backend ao migrarmos p/ v2.
+    const out: any[] = [];
+    for (const row of (alt.rows||[])) {
+      const id = String(row.cpf||row.id||'').trim();
+      if (!id || manualById.has(id)) continue; // manual tem prioridade
+      const un = String(row.unidade||'');
+      out.push({
+        id,
+        nome: String(row.nome||''),
+        funcao: String(row.funcao||''),
+        unidade: un,
+        regional: String(row.regional||UNID_TO_REGIONAL[canonUnidade(un)]||''),
+        nome_site: kitMap[norm(row.funcao)] || null,
+      });
+    }
+
+    // 5) Aplica filtros finais e paginação estável
+    let rows = [...manualById.values(), ...out];
+    if (regional) rows = rows.filter(r => norm(r.regional) === norm(regional));
+    if (unidade)  rows = rows.filter(r => norm(r.unidade)  === norm(unidade));
+    if (q) {
+      const nq = norm(q);
+      rows = rows.filter(r => norm(r.nome).includes(nq) || norm(r.id).includes(nq));
+    }
+    rows.sort((a,b)=>a.nome.localeCompare(b.nome));
+    const total = rows.length;
+    const pageRows = rows.slice(offset, offset+pageSize);
+
+    return NextResponse.json({ rows: pageRows, total, page, pageSize, source: 'proxy_raw_rows' });
+  } catch (e:any) {
+    return NextResponse.json({ rows: [], total: 0, page, pageSize, error: e?.message || String(e) }, { status: 200 });
+  }
 }
