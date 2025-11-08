@@ -10,16 +10,10 @@ export async function GET(req: Request) {
   const pageSize = url.searchParams.get('pageSize') || '25';
 
   try {
-    const base = new URL(req.url);
-    const alt = new URL('/api/alterdata/raw-rows', base.origin);
-    alt.searchParams.set('regional', regional);
-    alt.searchParams.set('unidade', unidade);
-    alt.searchParams.set('q', q);
-    alt.searchParams.set('page', page);
-    alt.searchParams.set('pageSize', pageSize);
-
-    const r = await fetch(alt.toString(), { cache: 'no-store' });
-    const data = await r.json();
+    const origin = url.origin;
+    const qs = new URLSearchParams({ regional, unidade, q, page, pageSize });
+    const resp = await fetch(`${origin}/api/alterdata/raw-rows?` + qs.toString(), { cache: 'no-store' });
+    const data = await resp.json();
 
     const rows = (data?.rows || []).map((it: any) => ({
       id: String(it.cpf ?? it.id ?? ''),
@@ -27,7 +21,7 @@ export async function GET(req: Request) {
       funcao: String(it.funcao ?? ''),
       unidade: String(it.unidade ?? ''),
       regional: String(it.regional ?? ''),
-      nome_site: null,
+      nome_site: null
     }));
 
     return NextResponse.json({
@@ -45,6 +39,6 @@ export async function GET(req: Request) {
       pageSize: Number(pageSize),
       error: e?.message || String(e),
       source: 'mirror_error'
-    });
+    }, { status: 200 });
   }
 }
