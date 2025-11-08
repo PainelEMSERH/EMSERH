@@ -86,7 +86,6 @@ async function loadUnidMapFromDB(): Promise<Record<string,string>> {
   }
 }
 
-type KitRow = { func: string; site: string; item: string; qtd: number };
 async function loadKitMap(): Promise<Record<string, {item:string,qtd:number}[]>> {
   try {
     const rs = await prisma.$queryRaw<any[]>`
@@ -99,10 +98,15 @@ async function loadKitMap(): Promise<Record<string, {item:string,qtd:number}[]>>
     `;
     const map: Record<string, {item:string,qtd:number}[]> = {};
     for (const r of rs) {
-      const keys = [normKey(r.func), normKey(r.site)].filter(Boolean);
-      for (const k of keys) {
-        if (!map[k]) map[k] = [];
-        map[k].push({ item: String(r.item || ''), qtd: Number(r.qtd || 0) });
+      const keyFunc = normKey(r.func);
+      const keySite = normKey(r.site);
+      if (keyFunc) {
+        if (!map[keyFunc]) map[keyFunc] = [];
+        map[keyFunc].push({ item: String(r.item || ''), qtd: Number(r.qtd || 0) });
+      }
+      if (keySite) {
+        if (!map[keySite]) map[keySite] = [];
+        map[keySite].push({ item: String(r.item || ''), qtd: Number(r.qtd || 0) });
       }
     }
     return map;
@@ -128,13 +132,16 @@ export async function GET(req: Request) {
   const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
 
   try {
-    // 1) Carrega linhas da Alterdata (mesma fonte da tela Alterdata), com cookies para evitar 401
-    const first = await fetchRawRows(url.origin, 1, 500, req);
+    // 1) Carrega **todas** as páginas do raw-rows (sem limite)
+    const limit = 1000; // tenta maior para reduzir quantidade de páginas
+    const first = await fetchRawRows(url.origin, 1, limit, req);
     let acc = first.rows.slice();
     const pages = Math.max(1, Math.ceil(first.total / first.limit));
-    for (let p = 2; p <= Math.min(pages, 5); p++) {
+    for (let p = 2; p <= pages; p++) {
       const more = await fetchRawRows(url.origin, p, first.limit, req);
       acc = acc.concat(more.rows);
+      // proteção simples: se por algum motivo acc já cobre total, para
+      if (acc.length >= first.total) break;
     }
 
     // 2) Detecta chaves
@@ -160,8 +167,9 @@ export async function GET(req: Request) {
         const canon = canonUnidade(un);
         reg = (UNID_TO_REGIONAL as any)[canon] || unidDBMap[canon] || '';
       }
-      // Kit esperado via stg_epi_map (tolerante por func ou nome_site)
-      const kitItems = kitMap[normKey(func)];
+      const k1 = normKey(func);
+      const k2 = normKey(un);
+      const kitItems = (k1 && kitMap[k1]) || (k2 && kitMap[k2]) || undefined;
       const kitStr = formatKit(kitItems);
       return {
         id, nome, funcao: func, unidade: un, regional: reg || '—',
@@ -183,7 +191,7 @@ export async function GET(req: Request) {
     const start = (page - 1) * pageSize;
     const pageRows = rows.slice(start, start + pageSize);
 
-    return NextResponse.json({ rows: pageRows, total, page, pageSize, source: 'safe_mirror_auth+regional+kit' });
+    return NextResponse.json({ rows: pageRows, total, page, pageSize, source: 'safe_mirror_auth+regional+kit+ALL' });
   } catch (e:any) {
     return NextResponse.json({ rows: [], total: 0, page, pageSize, source: 'error', error: e?.message || String(e) }, { status: 200 });
   }
