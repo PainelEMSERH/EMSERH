@@ -2,134 +2,113 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
 import { UNID_TO_REGIONAL, canonUnidade } from '@/lib/unidReg';
 
-type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string };
+type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string; nome_site?: string | null };
 
 function normUp(s: any): string {
   return (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
 }
-
-function allDigits(t: string): boolean {
-  for (let i = 0; i < t.length; i++) {
-    const c = t.charCodeAt(i);
-    if (c < 48 || c > 57) return false;
-  }
-  return true;
+function norm(s: any): string {
+  return (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 }
 
-function parseDemissao(val: any): Date | null {
-  const s = (val ?? '').toString().trim();
-  if (!s) return null;
-  const first10 = s.slice(0, 10);
-  if (first10.length === 10 && first10[4] === '-' && first10[7] === '-') {
-    return new Date(first10);
-  }
-  const parts = s.split(/[^0-9]/).filter(Boolean);
-  if (parts.length === 3) {
-    const [a,b,c] = parts;
-    if (c.length === 4) {
-      const dd = a.padStart(2,'0');
-      const mm = b.padStart(2,'0');
-      return new Date(`${c}-${mm}-${dd}`);
+function detectUnidKey(rows: any[], sample = 400): string | null {
+  if (!rows.length) return null;
+  const keys = Object.keys(rows[0] || {});
+  const top = rows.slice(0, Math.min(sample, rows.length));
+  let bestKey: string | null = null;
+  let bestScore = -1;
+  for (const k of keys) {
+    let v = 0;
+    for (const r of top) {
+      const raw = r?.[k];
+      if (raw == null) continue;
+      const s = String(raw);
+      if (!s) continue;
+      const canon = canonUnidade(s);
+      if (canon && (UNID_TO_REGIONAL as any)[canon]) v++;
     }
+    if (v > bestScore) { bestScore = v; bestKey = v > 0 ? k : bestKey; }
   }
-  if (s.length === 8 && allDigits(s)) {
-    return new Date(`${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`);
-  }
-  return null;
+  return bestKey;
 }
 
-async function getLatestBatchId(): Promise<string | null> {
-  try {
-    const r = await prisma.$queryRaw<{batch_id: string}[]>`
-      SELECT batch_id FROM stg_alterdata_v2_imports ORDER BY imported_at DESC LIMIT 1
-    `;
-    return r?.[0]?.batch_id ?? null;
-  } catch {
-    return null;
+function pickKeyByName(rows: any[], hints: string[]): string | null {
+  if (!rows.length) return null;
+  const keys = Object.keys(rows[0] || {});
+  let bestKey: string | null = null;
+  let bestScore = -1;
+  for (const k of keys) {
+    const nk = norm(k);
+    let s = 0;
+    for (const h of hints) if (nk.includes(h)) s++;
+    if (s > bestScore) { bestScore = s; bestKey = s > 0 ? k : bestKey; }
   }
+  return bestKey;
+}
+
+async function fetchRawRows(origin: string, page: number, limit: number) {
+  const u = new URL('/api/alterdata/raw-rows', origin);
+  u.searchParams.set('page', String(page));
+  u.searchParams.set('limit', String(limit));
+  u.searchParams.set('pageSize', String(limit));
+  const r = await fetch(u.toString(), { cache: 'no-store' });
+  const data = await r.json().catch(()=>({}));
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const flat = rows.map((it: any) => ({ row_no: it.row_no, ...(it.data || {}) }));
+  const total = Number(data?.total || flat.length);
+  const lim = Number(data?.limit || limit);
+  return { rows: flat, total, limit: lim };
 }
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const regional = (url.searchParams.get('regional') || '').trim();
-  const unidade  = (url.searchParams.get('unidade')  || '').trim();
-  const q        = (url.searchParams.get('q')        || '').trim();
-  const page     = Math.max(1, Number(url.searchParams.get('page') || '1'));
-  const pageSize = Math.min(200, Math.max(10, Number(url.searchParams.get('pageSize') || '25')));
-  const offset   = (page - 1) * pageSize;
+  const regional = url.searchParams.get('regional') || '';
+  const unidade  = url.searchParams.get('unidade')  || '';
+  const q        = url.searchParams.get('q')        || '';
+  const page     = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
+  const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
 
-  const latest = await getLatestBatchId();
-
-  let baseRows: any[] = [];
-  if (latest) {
-    baseRows = await prisma.$queryRaw<any[]>`
-      WITH raw AS (
-        SELECT
-          COALESCE(
-            (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%CPF%' ORDER BY 1 LIMIT 1),
-            (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%MATRIC%' ORDER BY 1 LIMIT 1)
-          ) AS id,
-          (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%NOME%' ORDER BY 1 LIMIT 1) AS nome,
-          (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE (upper(kv.key) LIKE '%FUN%' OR upper(kv.key) LIKE '%CARGO%') ORDER BY 1 LIMIT 1) AS funcao,
-          (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE (upper(kv.key) LIKE '%UNID%' OR upper(kv.key) LIKE '%LOTA%' OR upper(kv.key) LIKE '%HOSP%' OR upper(kv.key) LIKE '%SETOR%') ORDER BY 1 LIMIT 1) AS unidade,
-          (SELECT kv.value FROM jsonb_each_text(r.data) kv WHERE upper(kv.key) LIKE '%DEMI%' ORDER BY 1 LIMIT 1) AS demissao
-        FROM stg_alterdata_v2_raw r
-        WHERE r.batch_id = ${latest}
-      )
-      SELECT id, nome, funcao, unidade, demissao
-      FROM raw
-      WHERE id IS NOT NULL AND id <> ''
-    `;
-  }
-
-  const keptBase = baseRows.filter(r => {
-    const d = parseDemissao(r.demissao);
-    return !d || d >= new Date('2025-01-01');
-  });
-
-  let manualRows: any[] = [];
   try {
-    manualRows = await prisma.$queryRaw<any[]>`
-      SELECT cpf AS id, nome, funcao, unidade, regional, demissao
-      FROM epi_manual_colab
-    `;
-  } catch {}
+    const first = await fetchRawRows(url.origin, 1, 500);
+    let acc = first.rows.slice();
+    const pages = Math.max(1, Math.ceil(first.total / first.limit));
+    for (let p = 2; p <= Math.min(pages, 3); p++) {
+      const more = await fetchRawRows(url.origin, p, first.limit);
+      acc = acc.concat(more.rows);
+    }
 
-  const byId = new Map<string, Row>();
+    const cpfKey  = pickKeyByName(acc, ['cpf','matric']);
+    const nomeKey = pickKeyByName(acc, ['nome']);
+    const funcKey = pickKeyByName(acc, ['func','cargo']);
+    const unidKey = detectUnidKey(acc);
 
-  for (const r of manualRows) {
-    const id = String(r.id || '').trim();
-    if (!id) continue;
-    const d = parseDemissao(r.demissao);
-    if (d && d < new Date('2025-01-01')) continue;
-    const un = String(r.unidade || '');
-    const reg = String(r.regional || (UNID_TO_REGIONAL as any)[canonUnidade(un)] || '');
-    byId.set(id, { id, nome: String(r.nome||''), funcao: String(r.funcao||''), unidade: un, regional: reg });
+    let rows: Row[] = acc.map(r => {
+      const idRaw = cpfKey ? r[cpfKey] : '';
+      const id = String(idRaw ?? '').replace(/\D/g,'').slice(-11);
+      const nome = String((nomeKey && r[nomeKey]) ?? '');
+      const func = String((funcKey && r[funcKey]) ?? '');
+      const un   = String((unidKey && r[unidKey]) ?? '');
+      const canon = canonUnidade(un);
+      const reg = ((UNID_TO_REGIONAL as any)[canon]) || '';
+      return { id, nome, funcao: func, unidade: un, regional: reg, nome_site: null };
+    }).filter(x => x.id || x.nome || x.unidade);
+
+    const nreg = normUp(regional);
+    const nuni = normUp(unidade);
+    const nq   = normUp(q);
+    if (nreg) rows = rows.filter(r => normUp(r.regional) === nreg);
+    if (nuni) rows = rows.filter(r => normUp(r.unidade) === nuni);
+    if (nq)   rows = rows.filter(r => normUp(r.nome).includes(nq) || normUp(r.id).includes(nq));
+
+    rows.sort((a,b)=> a.nome.localeCompare(b.nome));
+    const total = rows.length;
+    const start = (page - 1) * pageSize;
+    const pageRows = rows.slice(start, start + pageSize);
+
+    return NextResponse.json({ rows: pageRows, total, page, pageSize, source: 'mirror_alterdata_no_demis' });
+  } catch (e: any) {
+    return NextResponse.json({ rows: [], total: 0, page: page, pageSize, error: e?.message || String(e), source: 'mirror_error' }, { status: 200 });
   }
-
-  for (const r of keptBase) {
-    const id = String(r.id || '').trim();
-    if (!id || byId.has(id)) continue;
-    const un = String(r.unidade || '');
-    const reg = String((UNID_TO_REGIONAL as any)[canonUnidade(un)] || '');
-    byId.set(id, { id, nome: String(r.nome||''), funcao: String(r.funcao||''), unidade: un, regional: reg });
-  }
-
-  const regUp = normUp(regional);
-  const uniUp = normUp(unidade);
-  const qUp   = normUp(q);
-
-  let rows: Row[] = Array.from(byId.values());
-  if (regUp) rows = rows.filter(r => normUp(r.regional) === regUp);
-  if (uniUp) rows = rows.filter(r => normUp(r.unidade) === uniUp);
-  if (qUp)   rows = rows.filter(r => normUp(r.nome).includes(qUp) || normUp(r.id).includes(qUp));
-
-  rows.sort((a,b)=>a.nome.localeCompare(b.nome));
-  const total = rows.length;
-  const pageRows = rows.slice(offset, offset + pageSize);
-
-  return NextResponse.json({ rows: pageRows, total, page, pageSize, source: latest ? 'v2_raw+manual' : 'manual_only' });
 }
