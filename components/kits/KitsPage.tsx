@@ -1,7 +1,7 @@
 'use client';
 
 import useSWR from 'swr';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { summarizeItems } from '@/lib/format';
 
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
@@ -24,14 +24,14 @@ export default function KitsPage() {
   const [replicateFrom, setReplicateFrom] = useState<Kit | null>(null);
 
   return (
-    <div className=\"grid\" style={{ gap: '1rem' }}>
-      <div className=\"row\" style={{ justifyContent: 'space-between' }}>
+    <div className="grid" style={{ gap: '1rem' }}>
+      <div className="row" style={{ justifyContent: 'space-between' }}>
         <h1 style={{ fontSize: '1.1rem', fontWeight: 500 }}>Kits</h1>
-        <button className=\"btn ok\" onClick={() => setEditing({ nome: '', funcao: '', itens: [] })}>Novo Kit</button>
+        <button className="btn ok" onClick={() => setEditing({ nome: '', funcao: '', itens: [] })}>Novo Kit</button>
       </div>
 
-      <div className=\"card\">
-        <table className=\"table\">
+      <div className="card">
+        <table className="table">
           <thead>
             <tr>
               <th>Nome do Kit</th>
@@ -49,10 +49,10 @@ export default function KitsPage() {
                 <td>{summarizeItems(k.itens || k.composicao || [])}</td>
                 <td>{k.updatedAt ? new Date(k.updatedAt).toLocaleString('pt-BR') : '-'}</td>
                 <td>
-                  <div className=\"row\">
-                    <button className=\"btn\" onClick={() => setEditing(k)}>Editar</button>
-                    <button className=\"btn danger\" onClick={() => removeKit(k, mutate)}>Excluir</button>
-                    <button className=\"btn\" onClick={() => setReplicateFrom(k)}>Replicar</button>
+                  <div className="row">
+                    <button className="btn" onClick={() => setEditing(k)}>Editar</button>
+                    <button className="btn danger" onClick={() => removeKit(k, mutate)}>Excluir</button>
+                    <button className="btn" onClick={() => setReplicateFrom(k)}>Replicar</button>
                   </div>
                 </td>
               </tr>
@@ -69,7 +69,7 @@ export default function KitsPage() {
 }
 
 async function removeKit(kit: Kit, mutate: any) {
-  if (!confirm(`Excluir o kit \"${kit.nome}\"?`)) return;
+  if (!confirm(`Excluir o kit "${kit.nome}"?`)) return;
   const res = await fetch('/api/kits/delete', { method: 'POST', body: JSON.stringify({ id: kit.id }) });
   if (!res.ok) { alert('Falha ao excluir'); return; }
   mutate();
@@ -111,37 +111,37 @@ function EditKitModal({ kit, onClose, onSaved }: { kit: Kit; onClose: () => void
   }
 
   return (
-    <div className=\"modal-backdrop\" onClick={onClose}>
-      <div className=\"modal card\" onClick={(e) => e.stopPropagation()}>
-        <div className=\"row\" style={{ justifyContent: 'space-between' }}>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal card" onClick={(e) => e.stopPropagation()}>
+        <div className="row" style={{ justifyContent: 'space-between' }}>
           <h3 style={{ fontWeight: 500 }}>{state.id ? 'Editar Kit' : 'Novo Kit'}</h3>
-          <button className=\"btn ghost\" onClick={onClose}>Fechar</button>
+          <button className="btn ghost" onClick={onClose}>Fechar</button>
         </div>
-        <div className=\"grid cols-2\" style={{ marginTop: '.75rem' }}>
+        <div className="grid cols-2" style={{ marginTop: '.75rem' }}>
           <div>
             <label>Nome do Kit</label>
-            <input className=\"input\" value={state.nome || ''} onChange={(e) => setState({ ...state, nome: e.target.value })} />
+            <input className="input" value={state.nome || ''} onChange={(e) => setState({ ...state, nome: e.target.value })} />
           </div>
           <div>
             <label>Função</label>
-            <input className=\"input\" value={state.funcao || ''} onChange={(e) => setState({ ...state, funcao: e.target.value })} />
+            <input className="input" value={state.funcao || ''} onChange={(e) => setState({ ...state, funcao: e.target.value })} />
           </div>
         </div>
 
         <div style={{ marginTop: '.75rem' }}>
-          <div className=\"row\" style={{ justifyContent: 'space-between' }}>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
             <h4 style={{ fontWeight: 500 }}>Itens do Kit</h4>
-            <button className=\"btn\" onClick={addItem}>Adicionar Item</button>
+            <button className="btn" onClick={addItem}>Adicionar Item</button>
           </div>
-          <div className=\"card\" style={{ marginTop: '.5rem' }}>
-            <table className=\"table\">
+          <div className="card" style={{ marginTop: '.5rem' }}>
+            <table className="table">
               <thead><tr><th>Item</th><th style={{ width: 180 }}>Quantidade</th><th style={{ width: 60 }}></th></tr></thead>
               <tbody>
                 {(state.itens || []).map((it, idx) => (
                   <tr key={idx}>
-                    <td><input className=\"input\" value={it.nome || it.item || ''} onChange={(e) => updateItem(idx, 'nome', e.target.value)} /></td>
-                    <td><input className=\"input\" type=\"number\" min={1} value={it.quantidade ?? 1} onChange={(e) => updateItem(idx, 'quantidade', Number(e.target.value))} /></td>
-                    <td><button className=\"btn danger\" onClick={() => removeItem(idx)}>Remover</button></td>
+                    <td><input className="input" value={it.nome || it.item || ''} onChange={(e) => updateItem(idx, 'nome', e.target.value)} /></td>
+                    <td><input className="input" type="number" min={1} value={it.quantidade ?? 1} onChange={(e) => updateItem(idx, 'quantidade', Number(e.target.value))} /></td>
+                    <td><button className="btn danger" onClick={() => removeItem(idx)}>Remover</button></td>
                   </tr>
                 ))}
                 {(state.itens || []).length === 0 && <tr><td colSpan={3} style={{ color: '#999', textAlign: 'center', padding: '1rem' }}>Sem itens</td></tr>}
@@ -150,9 +150,9 @@ function EditKitModal({ kit, onClose, onSaved }: { kit: Kit; onClose: () => void
           </div>
         </div>
 
-        <div className=\"row\" style={{ justifyContent: 'flex-end', marginTop: '1rem' }}>
-          <button className=\"btn\" onClick={onClose} disabled={busy}>Cancelar</button>
-          <button className=\"btn ok\" onClick={save} disabled={busy}>{busy ? 'Salvando…' : 'Salvar'}</button>
+        <div className="row" style={{ justifyContent: 'flex-end', marginTop: '1rem' }}>
+          <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
+          <button className="btn ok" onClick={save} disabled={busy}>{busy ? 'Salvando…' : 'Salvar'}</button>
         </div>
       </div>
     </div>
@@ -177,19 +177,19 @@ function ReplicateModal({ from, onClose, onSaved }: { from: Kit; onClose: () => 
   }
 
   return (
-    <div className=\"modal-backdrop\" onClick={onClose}>
-      <div className=\"modal card\" onClick={(e) => e.stopPropagation()}>
-        <div className=\"row\" style={{ justifyContent: 'space-between' }}>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal card" onClick={(e) => e.stopPropagation()}>
+        <div className="row" style={{ justifyContent: 'space-between' }}>
           <h3 style={{ fontWeight: 500 }}>Replicar Kit</h3>
-          <button className=\"btn ghost\" onClick={onClose}>Fechar</button>
+          <button className="btn ghost" onClick={onClose}>Fechar</button>
         </div>
         <div style={{ marginTop: '.75rem' }}>
           <label>Regional destino</label>
-          <input className=\"input\" value={regionais} onChange={(e) => setRegionais(e.target.value)} placeholder=\"Ex.: Sul, Norte...\" />
+          <input className="input" value={regionais} onChange={(e) => setRegionais(e.target.value)} placeholder="Ex.: Sul, Norte..." />
         </div>
-        <div className=\"row\" style={{ justifyContent: 'flex-end', marginTop: '1rem' }}>
-          <button className=\"btn\" onClick={onClose} disabled={busy}>Cancelar</button>
-          <button className=\"btn ok\" onClick={replicate} disabled={busy}>{busy ? 'Replicando…' : 'Replicar'}</button>
+        <div className="row" style={{ justifyContent: 'flex-end', marginTop: '1rem' }}>
+          <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
+          <button className="btn ok" onClick={replicate} disabled={busy}>{busy ? 'Replicando…' : 'Replicar'}</button>
         </div>
       </div>
     </div>
