@@ -12,23 +12,34 @@ type Item = {
   item?: string;
   codigo?: string;
   saldo?: number;
-  ponto_reposicao?: number;
+  quantidade?: number;
+  minimo?: number;
+  maximo?: number;
   [key: string]: any;
 };
 
+function arr(v:any){ if(Array.isArray(v)) return v; if (Array.isArray(v?.rows)) return v.rows; if (Array.isArray(v?.data)) return v.data; return []; }
+
 export default function EstoquePage() {
-  const [regional, setRegional] = useState<string>('');
+  const [regionalId, setRegionalId] = useState<string>('');
 
-  const { data: lista } = useSWR(`/api/estoque/list?regional=${encodeURIComponent(regional || '')}`, fetcher);
-  const { data: entradas } = useSWR(`/api/estoque/mov?regional=${encodeURIComponent(regional || '')}&tipo=entrada&days=30`, fetcher);
-  const { data: saidas } = useSWR(`/api/estoque/mov?regional=${encodeURIComponent(regional || '')}&tipo=saida&days=30`, fetcher);
+  const { data: lista } = useSWR(`/api/estoque/list?regionalId=${encodeURIComponent(regionalId || '')}`, fetcher);
 
-  const items: Item[] = useMemo(() => Array.isArray(lista) ? lista : (lista?.data ?? []), [lista]);
+  // Últimos 30 dias (rota espera de/ate em ISO)
+  const now = new Date();
+  const de = new Date(now.getTime() - 30*24*60*60*1000).toISOString();
+  const ate = now.toISOString();
+
+  const { data: entradas } = useSWR(`/api/estoque/mov?regionalId=${encodeURIComponent(regionalId || '')}&tipo=entrada&de=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}`, fetcher);
+  const { data: saidas } = useSWR(`/api/estoque/mov?regionalId=${encodeURIComponent(regionalId || '')}&tipo=saida&de=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}`, fetcher);
+
+  const items: Item[] = useMemo(() => arr(lista), [lista]);
 
   function getMovCount(it: Item, bag: any): number {
-    if (!bag) return 0;
-    const arr = Array.isArray(bag) ? bag : (bag?.data ?? []);
-    return arr.filter((m: any) => m.item_id === it.id || m.codigo === it.codigo || m.item === it.nome).reduce((acc: number, cur: any) => acc + Number(cur.quantidade || 0), 0);
+    const arrb = arr(bag);
+    const id = it.itemId || it.id;
+    return arrb.filter((m: any) => (m.itemId === id) || (m.codigo && m.codigo === it.codigo) || (m.item && (m.item === it.nome || m.item === it.item)))
+               .reduce((acc: number, cur: any) => acc + Number(cur.quantidade || 0), 0);
   }
 
   function exportCSV() {
@@ -36,13 +47,13 @@ export default function EstoquePage() {
     const lines = items.map((it) => [
       it.nome || it.item || '',
       it.codigo || '',
-      it.saldo ?? 0,
+      Number(it.quantidade ?? it.saldo ?? 0),
       getMovCount(it, entradas),
       getMovCount(it, saidas),
-      it.ponto_reposicao ?? 0,
+      Number(it.minimo ?? it.ponto_reposicao ?? 0),
     ].join(';'));
     const csv = [header.join(';'), ...lines].join('\n');
-    downloadBlob(`estoque_${regional || 'todas'}.csv`, csv);
+    downloadBlob(`estoque_${regionalId || 'todas'}.csv`, csv);
   }
 
   return (
@@ -52,12 +63,7 @@ export default function EstoquePage() {
           <h1 style={{ fontSize: '1.1rem', fontWeight: 500 }}>Estoque</h1>
         </div>
         <div className="row">
-          <select className="select" value={regional} onChange={(e) => setRegional(e.target.value)}>
-            <option value="">Regional (todas)</option>
-            {/* Preencher dinamicamente, se houver endpoint; por ora livre */}
-            <option value="A">A</option>
-            <option value="B">B</option>
-          </select>
+          <input className="input" placeholder="RegionalId (opcional)" value={regionalId} onChange={(e) => setRegionalId(e.target.value)} />
           <button className="btn" onClick={exportCSV}>Exportar CSV</button>
         </div>
       </div>
@@ -76,28 +82,30 @@ export default function EstoquePage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((it) => {
+            {items.map((it, idx) => {
               const entradas30 = getMovCount(it, entradas);
               const saidas30 = getMovCount(it, saidas);
-              const abaixo = (it.saldo ?? 0) <= (it.ponto_reposicao ?? -1);
+              const saldo = Number(it.quantidade ?? it.saldo ?? 0);
+              const ponto = Number(it.minimo ?? it.ponto_reposicao ?? 0);
+              const abaixo = saldo <= ponto;
               return (
-                <tr key={String(it.id || it.codigo)}>
+                <tr key={String(it.id || it.codigo || idx)}>
                   <td>{it.nome || it.item}</td>
                   <td>{it.codigo || '-'}</td>
-                  <td>{it.saldo ?? 0}</td>
+                  <td>{saldo}</td>
                   <td>{entradas30}</td>
                   <td>{saidas30}</td>
                   <td>
                     <div className="row">
                       {abaixo ? <span className="badge-dot danger" title="Abaixo do ponto"></span> : <span className="badge-dot ok" title="Ok"></span>}
-                      <span>{it.ponto_reposicao ?? 0}</span>
+                      <span>{ponto}</span>
                     </div>
                   </td>
                   <td>
                     <div className="row">
-                      <MovModalTrigger tipo="entrada" item={it} regional={regional} />
-                      <MovModalTrigger tipo="saida" item={it} regional={regional} />
-                      <HistoryLink item={it} regional={regional} />
+                      <a className="btn" href={`/estoque/mov?tipo=entrada&item=${encodeURIComponent(it.id || '')}`}>Entrada</a>
+                      <a className="btn" href={`/estoque/mov?tipo=saida&item=${encodeURIComponent(it.id || '')}`}>Saída</a>
+                      <a className="btn ghost" href={`/estoque/historico?item=${encodeURIComponent(it.id || it.codigo || '')}&regionalId=${encodeURIComponent(regionalId || '')}`}>Histórico</a>
                     </div>
                   </td>
                 </tr>
@@ -109,70 +117,4 @@ export default function EstoquePage() {
       </div>
     </div>
   );
-}
-
-function MovModalTrigger({ tipo, item, regional }: { tipo: 'entrada' | 'saida'; item: any; regional: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button className="btn" onClick={() => setOpen(true)}>{tipo === 'entrada' ? 'Entrada' : 'Saída'}</button>
-      {open && <MovModal tipo={tipo} item={item} regional={regional} onClose={() => setOpen(false)} />}
-    </>
-  );
-}
-
-function MovModal({ tipo, item, regional, onClose }: { tipo: 'entrada' | 'saida'; item: any; regional: string; onClose: () => void }) {
-  const [qtd, setQtd] = useState<number>(1);
-  const [motivo, setMotivo] = useState<string>('');
-  const [resp, setResp] = useState<string>('');
-  const [busy, setBusy] = useState(false);
-
-  async function submit() {
-    try {
-      setBusy(true);
-      const payload = {
-        tipo, quantidade: qtd, motivo, responsavel: resp,
-        item_id: item.id, codigo: item.codigo, regional,
-      };
-      const res = await fetch('/api/estoque/mov', { method: 'POST', body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error('Falha ao registrar movimentação');
-      onClose();
-    } catch (e) {
-      alert((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal card" onClick={(e) => e.stopPropagation()}>
-        <div className="row" style={{ justifyContent: 'space-between' }}>
-          <h3 style={{ fontWeight: 500 }}>{tipo === 'entrada' ? 'Lançar Entrada' : 'Lançar Saída'}</h3>
-          <button className="btn ghost" onClick={onClose}>Fechar</button>
-        </div>
-        <div className="grid cols-2" style={{ marginTop: '.75rem' }}>
-          <div>
-            <label>Quantidade</label>
-            <input className="input" type="number" min={1} value={qtd} onChange={(e) => setQtd(Number(e.target.value))} />
-          </div>
-          <div>
-            <label>Responsável</label>
-            <input className="input" value={resp} onChange={(e) => setResp(e.target.value)} />
-          </div>
-          <div className="col-span-2">
-            <label>Motivo</label>
-            <input className="input" value={motivo} onChange={(e) => setMotivo(e.target.value)} />
-          </div>
-        </div>
-        <div className="row" style={{ justifyContent: 'flex-end', marginTop: '1rem' }}>
-          <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
-          <button className="btn ok" onClick={submit} disabled={busy}>{busy ? 'Salvando…' : 'Salvar'}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function HistoryLink({ item, regional }: { item: any; regional: string }) {
-  return <a className="btn ghost" href={`/estoque/historico?item=${encodeURIComponent(item.id || item.codigo || '')}&regional=${encodeURIComponent(regional || '')}`}>Histórico</a>;
 }

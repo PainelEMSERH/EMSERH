@@ -19,11 +19,27 @@ type Colab = {
 
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
 
-type Props = {
-  initialPageSize?: number;
-};
+type Props = { initialPageSize?: number; showDiagnostics?: boolean };
 
-export default function EntregasTable({ initialPageSize = 50 }: Props) {
+function getRows(obj: any): Colab[] {
+  if (!obj) return [];
+  if (Array.isArray(obj)) return obj as Colab[];
+  if (Array.isArray(obj.rows)) return obj.rows as Colab[];
+  if (Array.isArray(obj.items)) return obj.items as Colab[];
+  if (Array.isArray(obj.data)) return obj.data as Colab[];
+  return [];
+}
+function getTotal(obj: any, fallbackLen: number): number {
+  if (!obj) return fallbackLen;
+  const keys = ['total', 'count', 'length'];
+  for (const k of keys) {
+    const v = (obj as any)[k];
+    if (typeof v === 'number' && !Number.isNaN(v)) return v;
+  }
+  return fallbackLen;
+}
+
+export default function EntregasTable({ initialPageSize = 50, showDiagnostics = false }: Props) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [regional, setRegional] = useState<string>('');
@@ -31,67 +47,59 @@ export default function EntregasTable({ initialPageSize = 50 }: Props) {
   const [somentePendentes, setSomentePendentes] = useState(false);
   const [search, setSearch] = useState('');
 
-  // First try server-side pagination/filter if API supports; fallback to full list
   const query = new URLSearchParams({
     page: String(page),
-    limit: String(pageSize),
+    pageSize: String(pageSize),
     regional: regional || '',
     unidade: unidade || '',
-    pending: String(somentePendentes),
     q: search || '',
+    pending: String(somentePendentes),
   }).toString();
 
-  const { data: server, error } = useSWR(`/api/entregas/list?${query}`, fetcher);
-  const serverSupported = !!(server && (Array.isArray(server.items) || Array.isArray(server.data)));
+  // **Alvo principal**: /api/entregas/list retorna {rows,total,...}
+  const { data: server } = useSWR(`/api/entregas/list?${query}`, fetcher);
 
-  const { data: full } = useSWR(serverSupported ? null : `/api/colaboradores/list`, fetcher);
+  // Fallback: colaboradores/list => {rows,total} (não 'data')
+  const { data: full } = useSWR(!server ? `/api/colaboradores/list?page=${page}&size=${pageSize}` : null, fetcher);
 
+  const serverRows = getRows(server);
   const rows: Colab[] = useMemo(() => {
-    if (serverSupported) {
-      const items = Array.isArray(server.items) ? server.items : server.data;
-      return items as Colab[];
-    }
-    const all: Colab[] = Array.isArray(full) ? full : (full?.data ?? []);
+    if (serverRows.length) return serverRows;
+    const all = getRows(full);
     let filtered = all;
     if (regional) filtered = filtered.filter((r) => (r.regional || '').toLowerCase().includes(regional.toLowerCase()));
     if (unidade) filtered = filtered.filter((r) => (r.unidade || '').toLowerCase().includes(unidade.toLowerCase()));
     if (search) filtered = filtered.filter((r) => (r.nome || '').toLowerCase().includes(search.toLowerCase()) || String(r.matricula || '').includes(search));
     if (somentePendentes) filtered = filtered.filter((r) => r.pendente === true || r.status === 'pendente');
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [server, full, serverSupported, page, pageSize, regional, unidade, somentePendentes, search]);
+    return filtered;
+  }, [server, full, regional, unidade, somentePendentes, search]);
 
   const total: number = useMemo(() => {
-    if (serverSupported) return Number(server.total ?? rows.length);
-    const all: Colab[] = Array.isArray(full) ? full : (full?.data ?? []);
-    return all.length || rows.length;
-  }, [server, full, rows, serverSupported]);
+    const sTotal = getTotal(server, rows.length);
+    if (sTotal) return sTotal;
+    return getTotal(full, rows.length);
+  }, [server, full, rows]);
 
   const [selected, setSelected] = useState<Colab | null>(null);
 
-  // Simple distincts for filters
+  // Distintos (melhor esforço; se o backend paginar, os filtros refletem a página atual)
   const regionais = useMemo(() => {
-    const all: Colab[] = serverSupported ? (Array.isArray(server.items) ? server.items : server.data) : (Array.isArray(full) ? full : (full?.data ?? []));
+    const all = serverRows.length ? serverRows : getRows(full);
     return Array.from(new Set(all.map((r: any) => r.regional).filter(Boolean))).sort();
-  }, [server, full, serverSupported]);
-
+  }, [server, full]);
   const unidades = useMemo(() => {
-    const all: Colab[] = serverSupported ? (Array.isArray(server.items) ? server.items : server.data) : (Array.isArray(full) ? full : (full?.data ?? []));
+    const all = serverRows.length ? serverRows : getRows(full);
     const set = new Set<string>();
-    all.forEach((r: any) => {
-      if (!regional || r.regional === regional) set.add(r.unidade);
-    });
+    all.forEach((r: any) => { if (!regional || r.regional === regional) set.add(r.unidade); });
     return Array.from(set).filter(Boolean).sort();
-  }, [server, full, serverSupported, regional]);
+  }, [server, full, regional]);
 
   return (
     <div className="grid" style={{ gap: '1rem' }}>
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <div className="row">
           <h1 style={{ fontSize: '1.1rem', fontWeight: 500 }}>Entregas</h1>
-          <span className="pill" title="Total de colaboradores carregados">
-            Total: {Intl.NumberFormat('pt-BR').format(total)}
-          </span>
+          <span className="pill" title="Total de colaboradores carregados">Total: {Intl.NumberFormat('pt-BR').format(total)}</span>
           {somentePendentes && <span className="pill warn">Somente Pendentes</span>}
         </div>
         <div className="row">
@@ -111,6 +119,15 @@ export default function EntregasTable({ initialPageSize = 50 }: Props) {
         </div>
       </div>
 
+      {showDiagnostics && (
+        <div className="card" style={{ padding: '.75rem' }}>
+          <div style={{ fontSize: '.85rem', color: '#a3a3a3' }}>
+            <div><b>/api/entregas/list</b> keys: {server ? Object.keys(server).join(', ') : '—'}</div>
+            <div><b>rows</b> detectadas: {serverRows.length}</div>
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <table className="table">
           <thead>
@@ -126,8 +143,8 @@ export default function EntregasTable({ initialPageSize = 50 }: Props) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={String(r.id || r.matricula || Math.random())}>
+            {rows.map((r, idx) => (
+              <tr key={String(r.id || r.matricula || idx)}>
                 <td>{padMatricula(r.matricula ?? '')}</td>
                 <td>
                   <div className="row">
@@ -166,6 +183,7 @@ export default function EntregasTable({ initialPageSize = 50 }: Props) {
   );
 }
 
+// (igual ao v1) — modal simplificado
 function KitModal({ colaborador, onClose, onDelivered }: { colaborador: Colab; onClose: () => void; onDelivered: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [kit, setKit] = useState<any>(null);
