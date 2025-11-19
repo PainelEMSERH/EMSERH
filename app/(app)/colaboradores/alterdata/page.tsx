@@ -184,33 +184,12 @@ export default function Page() {
 
   const fetchedRef = useRef(false);
 
-  const topScrollRef = useRef<HTMLDivElement | null>(null);
-  const bodyScrollRef = useRef<HTMLDivElement | null>(null);
-  const [scrollWidth, setScrollWidth] = useState(0);
-  const syncingRef = useRef(false);
-
   // Resetar página quando filtros mudarem
   useEffect(()=>{ setPage(1); }, [q, regional, unidade, pageSize]);
 
   useEffect(()=>{
     if (fetchedRef.current) return;
     fetchedRef.current = true;
-
-    // Preenche imediatamente a partir do cache local, se existir
-    try {
-      const rawLS = typeof window !== 'undefined'
-        ? window.localStorage.getItem(LS_KEY_ALTERDATA)
-        : null;
-      if (rawLS) {
-        const cached = JSON.parse(rawLS);
-        if (cached && Array.isArray(cached.rows) && Array.isArray(cached.columns)) {
-          setColumns(cached.columns);
-          setRows(cached.rows);
-          setUnidKey(cached.unidKey || null);
-          setVotePeek(cached.votePeek || '');
-        }
-      }
-    } catch {}
 
     let on = true;
     (async ()=>{
@@ -285,47 +264,6 @@ export default function Page() {
     return ()=>{ on=false };
   }, []);
 
-useEffect(() => {
-  const body = bodyScrollRef.current;
-  if (!body) return;
-  const measure = () => {
-    setScrollWidth(body.scrollWidth);
-  };
-  measure();
-  window.addEventListener('resize', measure);
-  return () => {
-    window.removeEventListener('resize', measure);
-  };
-}, [columns, rows, pageSize]);
-
-useEffect(() => {
-  const top = topScrollRef.current;
-  const body = bodyScrollRef.current;
-  if (!top || !body) return;
-
-  const onTop = () => {
-    if (syncingRef.current) return;
-    syncingRef.current = true;
-    body.scrollLeft = top.scrollLeft;
-    syncingRef.current = false;
-  };
-
-  const onBody = () => {
-    if (syncingRef.current) return;
-    syncingRef.current = true;
-    top.scrollLeft = body.scrollLeft;
-    syncingRef.current = false;
-  };
-
-  top.addEventListener('scroll', onTop);
-  body.addEventListener('scroll', onBody);
-  return () => {
-    top.removeEventListener('scroll', onTop);
-    body.removeEventListener('scroll', onBody);
-  };
-}, [columns, rows, pageSize]);
-
-
   const unidadeOptions = useMemo(()=>{
     const uk = unidKey;
     if (!uk) return [];
@@ -362,151 +300,86 @@ useEffect(() => {
   const paged = pageData;
 
   return (
-    <div className="space-y-6">
-      
-<div className="flex items-center justify-between gap-3">
-  <div>
-    <p className="text-[11px] font-medium tracking-wide text-muted uppercase">Alterdata • Colaboradores</p>
-    <h1 className="mt-1 text-2xl font-semibold tracking-tight">Colaboradores · Alterdata (Completa)</h1>
-    <p className="mt-1 text-sm text-muted">
-      Visual completo da base Alterdata com regionalização automática, filtros rápidos e paginação em memória.
-    </p>
-  </div>
-  <div className="hidden md:flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs text-muted">
-    <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-    <span>Base carregada do Neon</span>
-  </div>
-</div>
+    <div className="p-4 md:p-6 space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="text-lg font-semibold">Alterdata — Base Completa</div>
+        {/* Selo de diagnóstico */}
+        {votePeek && <span className="text-[10px] px-2 py-1 rounded bg-neutral-100">{votePeek}</span>}
+      </div>
+      <p className="text-sm opacity-70">Visual com Regional (join no cliente), busca livre, filtros e paginação no cliente. Nada altera a base ou o upload.</p>
 
-      
-<div className="rounded-2xl border border-border bg-card shadow-sm px-4 py-4 space-y-3">
-  <div className="flex flex-col gap-2 md:flex-row md:items-center">
-    <div className="flex-1">
-      <input
-        value={q}
-        onChange={e=>setQ(e.target.value)}
-        placeholder="Buscar por nome, CPF, matrícula, unidade..."
-        className="w-full px-3 py-2 rounded-xl border border-border bg-bg text-sm outline-none text-text placeholder:text-muted"
-      />
-    </div>
-    <div className="flex gap-2 md:ml-4">
-      <select
-        value={regional}
-        onChange={e=>{ setRegional(e.target.value as any); setUnidade('TODAS'); }}
-        className="px-3 py-2 rounded-xl border border-border bg-bg text-sm text-text"
-      >
-        <option value="TODAS">Regional (todas)</option>
-        {REGIONALS.map(r => <option key={r} value={r}>{r}</option>)}
-      </select>
-      <select
-        value={unidade}
-        onChange={e=>setUnidade(e.target.value as any)}
-        disabled={!unidKey}
-        className="px-3 py-2 rounded-xl border border-border bg-bg text-sm text-text disabled:opacity-50"
-      >
-        <option value="TODAS">Unidade (todas)</option>
-        {unidadeOptions.map(u => <option key={u} value={u}>{u}</option>)}
-      </select>
-    </div>
-  </div>
+      <div className="flex flex-wrap gap-2 items-center">
+        <input
+          value={q}
+          onChange={e=>setQ(e.target.value)}
+          placeholder="Buscar por nome, CPF, matrícula, unidade..."
+          className="px-3 py-2 rounded-xl bg-neutral-100 text-sm w-full md:w-96 outline-none text-neutral-900"
+        />
+        <select value={regional} onChange={e=>{ setRegional(e.target.value as any); setUnidade('TODAS'); }}
+                className="px-3 py-2 rounded-xl bg-neutral-100 text-sm text-neutral-900">
+          <option value="TODAS">Regional (todas)</option>
+          {REGIONALS.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <select value={unidade} onChange={e=>setUnidade(e.target.value as any)}
+                disabled={!unidKey}
+                className="px-3 py-2 rounded-xl bg-neutral-100 text-sm text-neutral-900">
+          <option value="TODAS">Unidade (todas)</option>
+          {unidadeOptions.map(u => <option key={u} value={u}>{u}</option>)}
+        </select>
 
-  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between text-xs md:text-sm">
-    <div className="flex flex-wrap items-center gap-3">
-      <span className="inline-flex items-center rounded-full bg-panel px-2.5 py-1 text-[11px] font-medium text-muted">
-        {filtered.length.toLocaleString()} registros
-      </span>
-      {loading && (
-        <span className="text-muted">
-          Carregando {progress && `(${progress})`}…
-        </span>
-      )}
-      {error && <span className="text-red-500">Erro: {error}</span>}
-    </div>
-
-    <div className="flex flex-wrap items-center gap-3 md:justify-end">
-      <div className="flex items-center gap-1 rounded-full border border-border bg-panel px-1 py-0.5">
-        <button
-          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-text hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed"
-          disabled={pageSafe<=1}
-          onClick={()=>setPage(p=>Math.max(1, p-1))}
-        >
-          ‹
-        </button>
-        <span className="px-2 text-[11px] font-medium">
-          Página {pageSafe} / {pageCount}
-        </span>
-        <button
-          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-text hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed"
-          disabled={pageSafe>=pageCount}
-          onClick={()=>setPage(p=>Math.min(pageCount, p+1))}
-        >
-          ›
-        </button>
+        <div className="ml-auto flex items-center gap-3 text-sm">
+          {/* Controles de paginação */}
+          <div className="flex items-center gap-2">
+            <button className="px-3 py-1 rounded border disabled:opacity-40"
+                    disabled={pageSafe<=1}
+                    onClick={()=>setPage(p=>Math.max(1, p-1))}>
+              ◀
+            </button>
+            <div>Página {pageSafe} / {pageCount}</div>
+            <button className="px-3 py-1 rounded border disabled:opacity-40"
+                    disabled={pageSafe>=pageCount}
+                    onClick={()=>setPage(p=>Math.min(pageCount, p+1))}>
+              ▶
+            </button>
+          </div>
+          <select value={pageSize} onChange={e=>setPageSize(parseInt(e.target.value,10))}
+                  className="px-2 py-1 rounded border text-sm">
+            {[25,50,100,200,500].map(n=> <option key={n} value={n}>{n}/página</option>)}
+          </select>
+          <div className="opacity-60">{filtered.length.toLocaleString()} registros</div>
+          {loading && <span className="opacity-60">Carregando {progress && `(${progress})`}…</span>}
+          {error && <span className="text-red-600">Erro: {error}</span>}
+        </div>
       </div>
 
-      <select
-        value={pageSize}
-        onChange={e=>setPageSize(parseInt(e.target.value,10))}
-        className="px-2.5 py-1.5 rounded-full border border-border bg-bg text-xs md:text-sm text-text hover:bg-panel"
-      >
-        {[25,50,100,200,500].map(n=> <option key={n} value={n}>{n}/página</option>)}
-      </select>
-    </div>
-  </div>
-</div>
-
       {columns.length > 0 && (
-        <div className="rounded-2xl border border-border bg-card shadow-sm">
-          {/* Barra de rolagem horizontal no topo, sincronizada com a tabela */}
-          <div
-            ref={topScrollRef}
-            className="overflow-x-auto max-w-full border-b border-border bg-panel/40"
-          >
-            <div
-              style={{ width: scrollWidth || '100%' }}
-              className="h-1 rounded-full bg-border"
-            />
-          </div>
-
-          {/* Tabela com rolagem vertical e horizontal dentro do card */}
-          <div
-            ref={bodyScrollRef}
-            className="max-h-[calc(100vh-280px)] overflow-y-auto overflow-x-auto"
-          >
-            <table className="min-w-full text-sm align-middle">
-              <thead className="sticky top-0 bg-panel">
-                <tr>
+        <div className="overflow-auto rounded-2xl border">
+          <table className="min-w-full text-sm">
+            <thead className="sticky top-0 bg-white">
+              <tr>
+                {columns
+                  .filter(c => !__shouldHide(c))
+                  .map((c,i) => (
+                  <th key={i} className="px-3 py-2 text-left border-b whitespace-nowrap">{headerLabel(c)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {paged.map((r, idx) => (
+                <tr key={idx} className="odd:bg-neutral-50">
                   {columns
                     .filter(c => !__shouldHide(c))
                     .map((c,i) => (
-                    <th
-                      key={i}
-                      className="px-3 py-2 text-center border-b border-border whitespace-nowrap text-xs font-medium uppercase tracking-wide"
-                    >
-                      {headerLabel(c)}
-                    </th>
+                    <td key={i} className="px-3 py-2 whitespace-nowrap">{renderValue(c, r[c])}</td>
                   ))}
                 </tr>
-              </thead>
-              <tbody>
-                {paged.map((r, idx) => (
-                  <tr key={idx} className="odd:bg-panel/40 hover:bg-panel/80 transition-colors">
-                    {columns
-                      .filter(c => !__shouldHide(c))
-                      .map((c,i) => (
-                      <td key={i} className="px-3 py-2 border-b border-border whitespace-nowrap">
-                        {renderValue(c, r[c])}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
-      <div className="text-xs text-muted">
+      <div className="text-xs opacity-60">
         Exibindo {start+1}–{Math.min(end, filtered.length)} de {filtered.length} registros (lista completa em cache, paginação no cliente)
       </div>
     </div>

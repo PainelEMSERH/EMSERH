@@ -100,30 +100,6 @@ body{ background: var(--bg); color: var(--text); }
 .section-header{ padding: .9rem 1rem; border-bottom:1px solid var(--border); }
 .section-body{ padding: .75rem; }
 
-/* Scrollbars mais elegantes (globais) */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148,163,184,0.75) transparent;
-}
-
-*::-webkit-scrollbar {
-  height: 6px;
-  width: 6px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  background-color: rgba(148,163,184,0.75); /* slate-400 */
-  border-radius: 9999px;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(148,163,184,1);
-}
-
 
 @plugin "@tailwindcss/forms" {
   strategy: base;
