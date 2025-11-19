@@ -317,36 +317,36 @@ try {
   const paged = pageData;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8 space-y-6">
+    <div className="space-y-6">
       
 <div className="flex items-center justify-between gap-3">
   <div>
     <h1 className="text-2xl font-semibold tracking-tight">Colaboradores · Alterdata (Completa)</h1>
-    <p className="mt-1 text-sm text-neutral-500">
+    <p className="mt-1 text-sm text-muted">
       Visual completo da base Alterdata com regionalização automática, filtros rápidos e paginação em memória.
     </p>
   </div>
-  <div className="hidden md:flex items-center gap-2 rounded-full border border-neutral-200 bg-white/70 px-3 py-1.5 text-xs text-neutral-600">
+  <div className="hidden md:flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs text-muted">
     <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
     <span>Base carregada do Neon</span>
   </div>
 </div>
 
-      <div className="rounded-2xl border border-neutral-200 bg-white/60 shadow-sm px-3 py-3 md:px-4 md:py-3 flex flex-wrap gap-3 items-center">
+      <div className="rounded-2xl border border-border bg-card shadow-sm px-3 py-3 md:px-4 md:py-3 flex flex-wrap gap-3 items-center">
         <input
           value={q}
           onChange={e=>setQ(e.target.value)}
           placeholder="Buscar por nome, CPF, matrícula, unidade..."
-          className="px-3 py-2 rounded-xl border border-neutral-200 bg-neutral-50 text-sm w-full md:w-96 outline-none text-neutral-900"
+          className="px-3 py-2 rounded-xl border border-border bg-card text-sm w-full md:w-96 outline-none text-text"
         />
         <select value={regional} onChange={e=>{ setRegional(e.target.value as any); setUnidade('TODAS'); }}
-                className="px-3 py-2 rounded-xl border border-neutral-200 bg-neutral-50 text-sm text-neutral-900">
+                className="px-3 py-2 rounded-xl border border-border bg-card text-sm text-text">
           <option value="TODAS">Regional (todas)</option>
           {REGIONALS.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
         <select value={unidade} onChange={e=>setUnidade(e.target.value as any)}
                 disabled={!unidKey}
-                className="px-3 py-2 rounded-xl border border-neutral-200 bg-neutral-50 text-sm text-neutral-900">
+                className="px-3 py-2 rounded-xl border border-border bg-card text-sm text-text">
           <option value="TODAS">Unidade (todas)</option>
           {unidadeOptions.map(u => <option key={u} value={u}>{u}</option>)}
         </select>
@@ -354,20 +354,20 @@ try {
         <div className="ml-auto flex items-center gap-3 text-sm">
           {/* Controles de paginação */}
           <div className="flex items-center gap-2">
-            <button className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            <button className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-xs font-medium text-text hover:bg-panel disabled:opacity-40 disabled:cursor-not-allowed"
                     disabled={pageSafe<=1}
                     onClick={()=>setPage(p=>Math.max(1, p-1))}>
-              ◀
+              ‹
             </button>
             <div>Página {pageSafe} / {pageCount}</div>
-            <button className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            <button className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-xs font-medium text-text hover:bg-panel disabled:opacity-40 disabled:cursor-not-allowed"
                     disabled={pageSafe>=pageCount}
                     onClick={()=>setPage(p=>Math.min(pageCount, p+1))}>
-              ▶
+              ›
             </button>
           </div>
           <select value={pageSize} onChange={e=>setPageSize(parseInt(e.target.value,10))}
-                  className="px-2.5 py-1.5 rounded-full border border-neutral-200 bg-white text-xs md:text-sm text-neutral-700 hover:bg-neutral-50">
+                  className="px-2.5 py-1.5 rounded-full border border-border bg-card text-xs md:text-sm text-text hover:bg-panel">
             {[25,50,100,200,500].map(n=> <option key={n} value={n}>{n}/página</option>)}
           </select>
           <div className="opacity-60">{filtered.length.toLocaleString()} registros</div>
@@ -377,29 +377,31 @@ try {
       </div>
 
       {columns.length > 0 && (
-        <div className="overflow-auto rounded-2xl border border-neutral-200 bg-white/80 shadow-sm">
-          <table className="min-w-full text-sm">
-            <thead className="sticky top-0 bg-white">
+        <div className="rounded-2xl border border-border bg-card shadow-sm">
+          <div className="max-h-[calc(100vh-280px)] overflow-auto">
+            <table className="min-w-full text-sm">
+              <thead className="sticky top-0 bg-panel">
               <tr>
                 {columns
                   .filter(c => !__shouldHide(c))
                   .map((c,i) => (
-                  <th key={i} className="px-3 py-2 text-left border-b whitespace-nowrap">{headerLabel(c)}</th>
+                  <th key={i} className="px-3 py-2 text-left border-b border-border whitespace-nowrap">{headerLabel(c)}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {paged.map((r, idx) => (
-                <tr key={idx} className="odd:bg-neutral-50">
+                <tr key={idx} className="odd:bg-panel">
                   {columns
                     .filter(c => !__shouldHide(c))
                     .map((c,i) => (
-                    <td key={i} className="px-3 py-2 whitespace-nowrap">{renderValue(c, r[c])}</td>
+                    <td key={i} className="px-3 py-2 whitespace-nowrap border-b border-border">{renderValue(c, r[c])}</td>
                   ))}
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
