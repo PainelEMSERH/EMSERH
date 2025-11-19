@@ -366,7 +366,8 @@ useEffect(() => {
       
 <div className="flex items-center justify-between gap-3">
   <div>
-    <h1 className="text-2xl font-semibold tracking-tight">Colaboradores · Alterdata (Completa)</h1>
+    <p className="text-[11px] font-medium tracking-wide text-muted uppercase">Alterdata • Colaboradores</p>
+    <h1 className="mt-1 text-2xl font-semibold tracking-tight">Colaboradores · Alterdata (Completa)</h1>
     <p className="mt-1 text-sm text-muted">
       Visual completo da base Alterdata com regionalização automática, filtros rápidos e paginação em memória.
     </p>
@@ -377,49 +378,82 @@ useEffect(() => {
   </div>
 </div>
 
-      <div className="rounded-2xl border border-border bg-card shadow-sm px-3 py-3 md:px-4 md:py-3 flex flex-wrap gap-3 items-center">
-        <input
-          value={q}
-          onChange={e=>setQ(e.target.value)}
-          placeholder="Buscar por nome, CPF, matrícula, unidade..."
-          className="px-3 py-2 rounded-xl border border-border bg-card text-sm w-full md:w-96 outline-none text-text"
-        />
-        <select value={regional} onChange={e=>{ setRegional(e.target.value as any); setUnidade('TODAS'); }}
-                className="px-3 py-2 rounded-xl border border-border bg-card text-sm text-text">
-          <option value="TODAS">Regional (todas)</option>
-          {REGIONALS.map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
-        <select value={unidade} onChange={e=>setUnidade(e.target.value as any)}
-                disabled={!unidKey}
-                className="px-3 py-2 rounded-xl border border-border bg-card text-sm text-text">
-          <option value="TODAS">Unidade (todas)</option>
-          {unidadeOptions.map(u => <option key={u} value={u}>{u}</option>)}
-        </select>
+      
+<div className="rounded-2xl border border-border bg-card shadow-sm px-4 py-4 space-y-3">
+  <div className="flex flex-col gap-2 md:flex-row md:items-center">
+    <div className="flex-1">
+      <input
+        value={q}
+        onChange={e=>setQ(e.target.value)}
+        placeholder="Buscar por nome, CPF, matrícula, unidade..."
+        className="w-full px-3 py-2 rounded-xl border border-border bg-bg text-sm outline-none text-text placeholder:text-muted"
+      />
+    </div>
+    <div className="flex gap-2 md:ml-4">
+      <select
+        value={regional}
+        onChange={e=>{ setRegional(e.target.value as any); setUnidade('TODAS'); }}
+        className="px-3 py-2 rounded-xl border border-border bg-bg text-sm text-text"
+      >
+        <option value="TODAS">Regional (todas)</option>
+        {REGIONALS.map(r => <option key={r} value={r}>{r}</option>)}
+      </select>
+      <select
+        value={unidade}
+        onChange={e=>setUnidade(e.target.value as any)}
+        disabled={!unidKey}
+        className="px-3 py-2 rounded-xl border border-border bg-bg text-sm text-text disabled:opacity-50"
+      >
+        <option value="TODAS">Unidade (todas)</option>
+        {unidadeOptions.map(u => <option key={u} value={u}>{u}</option>)}
+      </select>
+    </div>
+  </div>
 
-        <div className="ml-auto flex items-center gap-3 text-sm">
-          {/* Controles de paginação */}
-          <div className="flex items-center gap-2">
-            <button className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-xs font-medium text-text hover:bg-panel disabled:opacity-40 disabled:cursor-not-allowed"
-                    disabled={pageSafe<=1}
-                    onClick={()=>setPage(p=>Math.max(1, p-1))}>
-              ◀
-            </button>
-            <div>Página {pageSafe} / {pageCount}</div>
-            <button className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-xs font-medium text-text hover:bg-panel disabled:opacity-40 disabled:cursor-not-allowed"
-                    disabled={pageSafe>=pageCount}
-                    onClick={()=>setPage(p=>Math.min(pageCount, p+1))}>
-              ▶
-            </button>
-          </div>
-          <select value={pageSize} onChange={e=>setPageSize(parseInt(e.target.value,10))}
-                  className="px-2.5 py-1.5 rounded-full border border-border bg-card text-xs md:text-sm text-text hover:bg-panel">
-            {[25,50,100,200,500].map(n=> <option key={n} value={n}>{n}/página</option>)}
-          </select>
-          <div className="opacity-60">{filtered.length.toLocaleString()} registros</div>
-          {loading && <span className="opacity-60">Carregando {progress && `(${progress})`}…</span>}
-          {error && <span className="text-red-600">Erro: {error}</span>}
-        </div>
+  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between text-xs md:text-sm">
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="inline-flex items-center rounded-full bg-panel px-2.5 py-1 text-[11px] font-medium text-muted">
+        {filtered.length.toLocaleString()} registros
+      </span>
+      {loading && (
+        <span className="text-muted">
+          Carregando {progress && `(${progress})`}…
+        </span>
+      )}
+      {error && <span className="text-red-500">Erro: {error}</span>}
+    </div>
+
+    <div className="flex flex-wrap items-center gap-3 md:justify-end">
+      <div className="flex items-center gap-1 rounded-full border border-border bg-panel px-1 py-0.5">
+        <button
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-text hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed"
+          disabled={pageSafe<=1}
+          onClick={()=>setPage(p=>Math.max(1, p-1))}
+        >
+          ‹
+        </button>
+        <span className="px-2 text-[11px] font-medium">
+          Página {pageSafe} / {pageCount}
+        </span>
+        <button
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-text hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed"
+          disabled={pageSafe>=pageCount}
+          onClick={()=>setPage(p=>Math.min(pageCount, p+1))}
+        >
+          ›
+        </button>
       </div>
+
+      <select
+        value={pageSize}
+        onChange={e=>setPageSize(parseInt(e.target.value,10))}
+        className="px-2.5 py-1.5 rounded-full border border-border bg-bg text-xs md:text-sm text-text hover:bg-panel"
+      >
+        {[25,50,100,200,500].map(n=> <option key={n} value={n}>{n}/página</option>)}
+      </select>
+    </div>
+  </div>
+</div>
 
       {columns.length > 0 && (
         <div className="rounded-2xl border border-border bg-card shadow-sm">
@@ -430,7 +464,7 @@ useEffect(() => {
           >
             <div
               style={{ width: scrollWidth || '100%' }}
-              className="h-1.5 rounded-full bg-border"
+              className="h-1 rounded-full bg-border"
             />
           </div>
 
@@ -445,7 +479,12 @@ useEffect(() => {
                   {columns
                     .filter(c => !__shouldHide(c))
                     .map((c,i) => (
-                    <th key={i} className="px-3 py-2 text-center border-b border-border whitespace-nowrap text-xs font-medium uppercase tracking-wide">{headerLabel(c)}</th>
+                    <th
+                      key={i}
+                      className="px-3 py-2 text-center border-b border-border whitespace-nowrap text-xs font-medium uppercase tracking-wide"
+                    >
+                      {headerLabel(c)}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -455,7 +494,9 @@ useEffect(() => {
                     {columns
                       .filter(c => !__shouldHide(c))
                       .map((c,i) => (
-                      <td key={i} className="px-3 py-2 border-b border-border whitespace-nowrap">{renderValue(c, r[c])}</td>
+                      <td key={i} className="px-3 py-2 border-b border-border whitespace-nowrap">
+                        {renderValue(c, r[c])}
+                      </td>
                     ))}
                   </tr>
                 ))}
@@ -465,7 +506,7 @@ useEffect(() => {
         </div>
       )}
 
-      <div className="text-xs opacity-60">
+      <div className="text-xs text-muted">
         Exibindo {start+1}–{Math.min(end, filtered.length)} de {filtered.length} registros (lista completa em cache, paginação no cliente)
       </div>
     </div>
