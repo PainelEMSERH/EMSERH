@@ -192,14 +192,14 @@ export default function Page() {
     fetchedRef.current = true;
 
 
-// Tenta preencher imediatamente a partir do cache local (sem esperar a API)
+// Preenche imediatamente a partir do cache local, se existir
 try {
   const rawLS = typeof window !== 'undefined'
     ? window.localStorage.getItem(LS_KEY_ALTERDATA)
     : null;
   if (rawLS) {
     const cached = JSON.parse(rawLS);
-    if (Array.isArray(cached.rows) && Array.isArray(cached.columns)) {
+    if (cached && Array.isArray(cached.rows) && Array.isArray(cached.columns)) {
       setColumns(cached.columns);
       setRows(cached.rows);
       setUnidKey(cached.unidKey || null);
@@ -357,13 +357,13 @@ try {
             <button className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-xs font-medium text-text hover:bg-panel disabled:opacity-40 disabled:cursor-not-allowed"
                     disabled={pageSafe<=1}
                     onClick={()=>setPage(p=>Math.max(1, p-1))}>
-              ‹
+              ◀
             </button>
             <div>Página {pageSafe} / {pageCount}</div>
             <button className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-xs font-medium text-text hover:bg-panel disabled:opacity-40 disabled:cursor-not-allowed"
                     disabled={pageSafe>=pageCount}
                     onClick={()=>setPage(p=>Math.min(pageCount, p+1))}>
-              ›
+              ▶
             </button>
           </div>
           <select value={pageSize} onChange={e=>setPageSize(parseInt(e.target.value,10))}
@@ -378,29 +378,29 @@ try {
 
       {columns.length > 0 && (
         <div className="rounded-2xl border border-border bg-card shadow-sm">
-          <div className="max-h-[calc(100vh-280px)] overflow-x-auto overflow-y-auto">
-            <table className="min-w-full text-sm">
+          <div className="w-full max-w-full max-h-[calc(100vh-280px)] overflow-x-auto overflow-y-auto">
+            <table className="min-w-[1400px] text-sm">
               <thead className="sticky top-0 bg-panel">
-              <tr>
-                {columns
-                  .filter(c => !__shouldHide(c))
-                  .map((c,i) => (
-                  <th key={i} className="px-3 py-2 text-left border-b border-border whitespace-nowrap">{headerLabel(c)}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {paged.map((r, idx) => (
-                <tr key={idx} className="odd:bg-panel">
+                <tr>
                   {columns
                     .filter(c => !__shouldHide(c))
                     .map((c,i) => (
-                    <td key={i} className="px-3 py-2 whitespace-nowrap border-b border-border">{renderValue(c, r[c])}</td>
+                    <th key={i} className="px-3 py-2 text-left border-b border-border whitespace-nowrap">{headerLabel(c)}</th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {paged.map((r, idx) => (
+                  <tr key={idx} className="odd:bg-panel">
+                    {columns
+                      .filter(c => !__shouldHide(c))
+                      .map((c,i) => (
+                      <td key={i} className="px-3 py-2 border-b border-border whitespace-nowrap">{renderValue(c, r[c])}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
