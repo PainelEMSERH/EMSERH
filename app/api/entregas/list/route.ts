@@ -1,3 +1,4 @@
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -37,11 +38,17 @@ async function ensureManualColabTable() {
   `);
 }
 
+// Regra de demissão para meta 2025:
+// - Remove demitidos antes de 2025-01-01
+// - Mantém quem não foi demitido (demissao IS NULL)
+// - Mantém demitidos em 2025 (e posteriores)
+const DEMISSAO_LIMITE = '2025-01-01';
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const regional = (url.searchParams.get('regional') || '').trim();
-  const unidade  = (url.searchParams.get('unidade')  || '').trim();
-  const q        = (url.searchParams.get('q')        || '').trim();
+  const regionalFilter = (url.searchParams.get('regional') || '').trim();
+  const unidadeFilter  = (url.searchParams.get('unidade')  || '').trim();
+  const q              = (url.searchParams.get('q')        || '').trim();
 
   const page     = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
   const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
@@ -59,56 +66,43 @@ export async function GET(req: Request) {
     const sql = `
       WITH base_oficial AS (
         SELECT
-          a.cpf::text      AS cpf,
-          a.nome::text     AS nome,
-          a.funcao::text   AS funcao,
-          a.unidade::text  AS unidade,
-          COALESCE(a.regional::text, '') AS regional_raw
-        FROM mv_alterdata_flat a
+          a.cpf::text                AS cpf,
+          a.colaborador::text        AS nome,
+          a.funcao::text             AS funcao,
+          a.unidade_hospitalar::text AS unidade
+        FROM stg_alterdata a
         WHERE a.cpf IS NOT NULL
+          AND (a.demissao IS NULL OR a.demissao >= $1::date)
+      ),
+      manual_base AS (
+        SELECT
+          m.cpf::text     AS cpf,
+          m.nome::text    AS nome,
+          m.funcao::text  AS funcao,
+          m.unidade::text AS unidade
+        FROM epi_manual_colab m
+        WHERE (m.demissao IS NULL OR m.demissao >= $1::date)
       ),
       manual_only AS (
-        SELECT
-          m.cpf::text      AS cpf,
-          m.nome::text     AS nome,
-          m.funcao::text   AS funcao,
-          m.unidade::text  AS unidade,
-          ''::text         AS regional_raw
-        FROM epi_manual_colab m
-        LEFT JOIN base_oficial a ON a.cpf = m.cpf::text
+        SELECT m.*
+        FROM manual_base m
+        LEFT JOIN base_oficial a ON a.cpf = m.cpf
         WHERE a.cpf IS NULL
       ),
       merged AS (
         SELECT * FROM base_oficial
         UNION ALL
         SELECT * FROM manual_only
-      ),
-      merged_reg AS (
-        SELECT
-          m.cpf,
-          m.nome,
-          m.funcao,
-          m.unidade,
-          COALESCE(
-            NULLIF(m.regional_raw, ''),
-            ur.regional::text,
-            ''
-          ) AS regional
-        FROM merged m
-        LEFT JOIN stg_unid_reg ur
-          ON COALESCE(UPPER(ur.unidade::text), '') = COALESCE(UPPER(m.unidade::text), '')
       )
       SELECT
         cpf,
         nome,
         funcao,
         unidade,
-        regional,
         COUNT(*) OVER() AS total_count
-      FROM merged_reg
+      FROM merged
       WHERE
-        ($1 = '' OR LOWER(regional) = LOWER($1))
-        AND ($2 = '' OR LOWER(unidade) = LOWER($2))
+        ($2 = '' OR LOWER(unidade) = LOWER($2))
         AND (
           $3 = ''
           OR LOWER(nome) LIKE $3
@@ -119,43 +113,43 @@ export async function GET(req: Request) {
     `;
 
     // @ts-ignore
-    const rows: any[] = await prisma.$queryRawUnsafe(sql, regional, unidade, qName, qCpfLike, limit, offset);
-    const total = rows.length ? Number(rows[0].total_count ?? rows.length) : 0;
+    const rows: any[] = await prisma.$queryRawUnsafe(sql, DEMISSAO_LIMITE, unidadeFilter, qName, qCpfLike, limit, offset);
+    const total = mapped.length;
 
-    const mapped: Row[] = rows.map((r) => {
+    // Aplica filtro de Regional e mapeamento no lado da aplicação
+    const mapped: Row[] = [];
+    for (const r of rows) {
       const unidade = String(r.unidade ?? '');
-      let regional = String(r.regional ?? '').trim();
+      let regional = '';
 
-      if (!regional) {
+      if (unidade) {
         const canon = canonUnidade(unidade);
-        const mappedRegional = (UNID_TO_REGIONAL as any)[canon] || '';
+        const mappedRegional = (UNID_TO_REGIONAL as any)[canon];
         if (mappedRegional) {
-          // Converte "SUL" -> "Sul"
-          regional = mappedRegional.charAt(0) + mappedRegional.slice(1).toLowerCase();
-        }
-      } else {
-        const up = regional.toUpperCase();
-        if (up === 'NORTE' || up === 'LESTE' || up === 'CENTRO' || up === 'SUL') {
-          regional = up.charAt(0) + up.slice(1).toLowerCase();
+          regional = mappedRegional.charAt(0) + mappedRegional.slice(1).toLowerCase(); // "SUL" -> "Sul"
         }
       }
 
-      return {
+      if (regionalFilter && regional && regional.toLowerCase() !== regionalFilter.toLowerCase()) {
+        continue;
+      }
+
+      mapped.push({
         id: onlyDigits(r.cpf || '').slice(-11),
         nome: String(r.nome ?? ''),
         funcao: String(r.funcao ?? ''),
         unidade,
         regional: regional || '—',
         nome_site: null,
-      };
-    });
+      });
+    }
 
     return NextResponse.json({
       rows: mapped,
       total,
       page,
       pageSize,
-      source: 'mv_alterdata_flat+epi_manual_colab',
+      source: 'stg_alterdata+epi_manual_colab',
     });
   } catch (e: any) {
     return NextResponse.json(
