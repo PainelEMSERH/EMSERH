@@ -7,7 +7,6 @@ type KitItem = { item: string; quantidade: number; nome_site?: string | null; };
 type Deliver = { item: string; qty_delivered: number; qty_required: number; deliveries: Array<{date:string, qty:number}>; };
 
 const LS_KEY = 'entregas:v2025-11-07';
-const LS_LIST_KEY = 'entregas:list-cache:v2025-11-19';
 
 function maskCPF(cpf?: string) {
   const d = String(cpf || '').replace(/\D/g, '').padStart(11, '0').slice(-11);
@@ -104,32 +103,7 @@ export default function EntregasPage() {
     let on = true;
     (async () => {
       if (!state.regional) { setRows([]); setTotal(0); return; }
-
-      const key = JSON.stringify({
-        regional: state.regional,
-        unidade: state.unidade || '',
-        q: state.q || '',
-        page: state.page,
-        pageSize: state.pageSize,
-      });
-
-      let hadCached = false;
-      if (typeof window !== 'undefined') {
-        try {
-          const raw = window.localStorage.getItem(LS_LIST_KEY);
-          if (raw) {
-            const cached = JSON.parse(raw);
-            if (cached && cached.key === key && Array.isArray(cached.rows)) {
-              setRows(cached.rows as Row[]);
-              setTotal(Number(cached.total || 0));
-              hadCached = true;
-            }
-          }
-        } catch {}
-      }
-
-      if (!hadCached) setLoading(true);
-
+      setLoading(true);
       const params = new URLSearchParams();
       params.set('regional', state.regional);
       if (state.unidade) params.set('unidade', state.unidade);
@@ -138,18 +112,9 @@ export default function EntregasPage() {
       params.set('pageSize', String(state.pageSize));
       const { json } = await fetchJSON('/api/entregas/list?' + params.toString(), { cache: 'no-store' });
       if (!on) return;
-
-      const rows = (json.rows || []) as Row[];
-      const total = Number(json.total || 0);
-      setRows(rows);
-      setTotal(total);
+      setRows((json.rows || []) as Row[]);
+      setTotal(Number(json.total || 0));
       setLoading(false);
-
-      if (typeof window !== 'undefined') {
-        try {
-          window.localStorage.setItem(LS_LIST_KEY, JSON.stringify({ key, rows, total }));
-        } catch {}
-      }
     })();
     return () => { on = false };
   }, [state.regional, state.unidade, state.q, state.page, state.pageSize]);
@@ -271,12 +236,13 @@ export default function EntregasPage() {
                 <th className="px-3 py-2 text-left">Função</th>
                 <th className="px-3 py-2 text-left">Unidade</th>
                 <th className="px-3 py-2 text-left">Regional</th>
+                <th className="px-3 py-2 text-left">Kit esperado</th>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Carregando…</td></tr>
+                <tr><td colSpan={7} className="px-3 py-6 text-center opacity-70">Carregando…</td></tr>
               )}
               {!loading && rows.map((r) => (
                 <tr key={r.id} className="border-t border-neutral-200 dark:border-neutral-800">
@@ -285,13 +251,14 @@ export default function EntregasPage() {
                   <td className="px-3 py-2">{r.funcao}</td>
                   <td className="px-3 py-2">{r.unidade}</td>
                   <td className="px-3 py-2">{r.regional}</td>
+                  <td className="px-3 py-2">{r.nome_site || '—'}</td>
                   <td className="px-3 py-2 text-right">
                     <button onClick={() => openDeliver(r)} className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600">Entregar</button>
                   </td>
                 </tr>
               ))}
               {!loading && rows.length === 0 && (
-                <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Sem resultados.</td></tr>
+                <tr><td colSpan={7} className="px-3 py-6 text-center opacity-70">Sem resultados.</td></tr>
               )}
             </tbody>
           </table>
@@ -315,133 +282,64 @@ export default function EntregasPage() {
         </div>
       )}
 
-            {modal.open && modal.row && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50"
-          onClick={() => setModal({ open: false })}
-        >
-          <div
-            className="bg-card border border-border rounded-2xl w-full max-w-3xl shadow-xl"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="px-5 py-4 border-b border-border flex flex-col gap-1">
-              <div className="text-xs font-medium tracking-wide text-muted uppercase">
-                Entregas de EPI
-              </div>
-              <div className="text-lg font-semibold">
-                {modal.row.nome} <span className="text-xs text-muted">({maskCPF(modal.row.id)})</span>
-              </div>
-              <div className="text-xs text-muted">
-                {modal.row.funcao} • {modal.row.unidade} • {modal.row.regional}
-              </div>
+      {modal.open && modal.row && (
+        <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50" onClick={() => setModal({ open: false })}>
+          <div className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-3xl shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
+              <div className="text-lg font-semibold">Entregas de EPI — {modal.row.nome} ({maskCPF(modal.row.id)})</div>
+              <div className="text-xs opacity-70">{modal.row.funcao} • {modal.row.unidade} • {modal.row.regional}</div>
             </div>
-
-            <div className="px-5 py-4 grid md:grid-cols-2 gap-5">
+            <div className="p-4 grid md:grid-cols-2 gap-4">
               <div>
-                <div className="text-xs font-semibold tracking-wide text-muted uppercase mb-2">
-                  Kit esperado — função
-                </div>
-                <div className="space-y-2">
+                <div className="font-medium text-sm">Kit esperado (função: {modal.row.funcao || '—'})</div>
+                <div className="space-y-2 mt-2">
                   {kit.map((k, i) => {
-                    const delivered = deliv.find(d => d.item.toLowerCase() === (k.item || '').toLowerCase());
+                    const delivered = deliv.find(d => d.item.toLowerCase() === (k.item||'').toLowerCase());
                     return (
-                      <div key={i} className="border border-border rounded-xl px-3 py-2 bg-panel">
-                        <div className="text-sm font-medium">{k.item}</div>
-                        <div className="text-xs text-muted mt-0.5">
+                      <div key={i} className="border rounded-xl p-2">
+                        <div className="text-sm">{k.nome_site || k.item}</div>
+                        <div className="text-xs opacity-70">
                           Requerido: {k.quantidade} • Entregue: {delivered?.qty_delivered || 0}
                         </div>
                       </div>
                     );
                   })}
-                  {kit.length === 0 && (
-                    <div className="text-sm text-muted">
-                      Nenhum mapeamento de kit para esta função.
-                    </div>
-                  )}
+                  {kit.length === 0 && <div className="text-sm opacity-70">Nenhum mapeamento de kit para esta função.</div>}
                 </div>
               </div>
 
-              <div className="flex flex-col gap-4">
-                <div>
-                  <div className="text-xs font-semibold tracking-wide text-muted uppercase">
-                    Registrar entrega
-                  </div>
-                  <div className="flex flex-col gap-2 mt-2">
-                    <select
-                      value={deliverForm.item}
-                      onChange={e => setDeliverForm({ ...deliverForm, item: e.target.value })}
-                      className="select"
-                    >
-                      <option value="">Selecione o EPI…</option>
-                      {kit.map((k, i) => (
-                        <option key={i} value={k.item}>
-                          {k.item}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="date"
-                      value={deliverForm.data}
-                      onChange={e => setDeliverForm({ ...deliverForm, data: e.target.value })}
-                      className="input"
-                    />
-                    <input
-                      type="number"
-                      min={1}
-                      value={deliverForm.qtd}
-                      onChange={e => setDeliverForm({ ...deliverForm, qtd: Math.max(1, Number(e.target.value) || 1) })}
-                      className="input"
-                    />
-                    <button
-                      onClick={doDeliver}
-                      disabled={!deliverForm.item || !deliverForm.data || !deliverForm.qtd}
-                      className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Dar baixa
-                    </button>
-                  </div>
+              <div>
+                <div className="font-medium text-sm">Registrar entrega</div>
+                <div className="flex flex-col gap-2 mt-2">
+                  <select value={deliverForm.item} onChange={e => setDeliverForm({ ...deliverForm, item: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900">
+                    <option value="">Selecione o EPI…</option>
+                    {kit.map((k, i) => <option key={i} value={k.item}>{k.nome_site || k.item}</option>)}
+                  </select>
+                  <input type="date" value={deliverForm.data} onChange={e => setDeliverForm({ ...deliverForm, data: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" />
+                  <input type="number" min={1} value={deliverForm.qtd} onChange={e => setDeliverForm({ ...deliverForm, qtd: Math.max(1, Number(e.target.value)||1) })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" />
+                  <button onClick={doDeliver} disabled={!deliverForm.item || deliverForm.qtd <= 0} className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600">Dar baixa</button>
                 </div>
 
-                <div>
-                  <div className="text-xs font-semibold tracking-wide text-muted uppercase">
-                    Entregas registradas
-                  </div>
+                <div className="mt-4">
+                  <div className="font-medium text-sm">Entregas registradas</div>
                   <div className="grid grid-cols-1 gap-2 mt-2">
                     {deliv.map((d, i) => (
-                      <div key={i} className="border border-border rounded-xl px-3 py-2 bg-panel">
-                        <div className="text-sm font-medium">
-                          {d.item} — {d.qty_delivered} entregue(s)
-                        </div>
-                        <div className="text-xs text-muted">
-                          {Array.isArray(d.deliveries)
-                            ? d.deliveries.map((x: any) => `${x.qty} em ${x.date}`).join(', ')
-                            : ''}
-                        </div>
+                      <div key={i} className="border rounded-xl p-2">
+                        <div className="text-sm">{d.item} — {d.qty_delivered} entregue(s)</div>
+                        <div className="text-xs opacity-70">Lançamentos: {Array.isArray(d.deliveries) ? d.deliveries.map((x: any) => `${x.qty} em ${x.date}`).join(', ') : ''}</div>
                       </div>
                     ))}
-                    {deliv.length === 0 && (
-                      <div className="text-sm text-muted">
-                        Nenhuma entrega registrada ainda.
-                      </div>
-                    )}
+                    {deliv.length === 0 && <div className="text-sm opacity-70">Nenhuma entrega registrada ainda.</div>}
                   </div>
                 </div>
               </div>
             </div>
-
-            <div className="px-5 py-3 border-t border-border flex justify-end">
-              <button
-                className="btn btn-ghost text-sm"
-                onClick={() => setModal({ open: false })}
-              >
-                Fechar
-              </button>
+            <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end">
+              <button className="px-3 py-2 rounded-xl border" onClick={() => setModal({ open: false })}>Fechar</button>
             </div>
           </div>
         </div>
       )}
-
-      
 
       {modalNew && (
         <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50" onClick={()=>setModalNew(false)}>
