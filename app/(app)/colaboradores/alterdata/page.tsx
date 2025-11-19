@@ -426,11 +426,11 @@ useEffect(() => {
           {/* Barra de rolagem horizontal no topo, sincronizada com a tabela */}
           <div
             ref={topScrollRef}
-            className="overflow-x-auto max-w-full border-b border-border"
+            className="overflow-x-auto max-w-full border-b border-border bg-panel/40"
           >
             <div
               style={{ width: scrollWidth || '100%' }}
-              className="h-2"
+              className="h-1.5 rounded-full bg-border"
             />
           </div>
 
@@ -439,19 +439,19 @@ useEffect(() => {
             ref={bodyScrollRef}
             className="max-h-[calc(100vh-280px)] overflow-y-auto overflow-x-auto"
           >
-            <table className="min-w-full text-sm">
+            <table className="min-w-full text-sm align-middle">
               <thead className="sticky top-0 bg-panel">
                 <tr>
                   {columns
                     .filter(c => !__shouldHide(c))
                     .map((c,i) => (
-                    <th key={i} className="px-3 py-2 text-left border-b border-border whitespace-nowrap">{headerLabel(c)}</th>
+                    <th key={i} className="px-3 py-2 text-center border-b border-border whitespace-nowrap text-xs font-medium uppercase tracking-wide">{headerLabel(c)}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {paged.map((r, idx) => (
-                  <tr key={idx} className="odd:bg-panel">
+                  <tr key={idx} className="odd:bg-panel/40 hover:bg-panel/80 transition-colors">
                     {columns
                       .filter(c => !__shouldHide(c))
                       .map((c,i) => (
