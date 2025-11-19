@@ -112,9 +112,16 @@ export async function GET(req: Request) {
       LIMIT $5 OFFSET $6
     `;
 
-    // @ts-ignore
-    const rows: any[] = await prisma.$queryRawUnsafe(sql, DEMISSAO_LIMITE, unidadeFilter, qName, qCpfLike, limit, offset);
-    const total = mapped.length;
+        // @ts-ignore
+    const rows: any[] = await prisma.$queryRawUnsafe(
+      sql,
+      DEMISSAO_LIMITE,
+      unidadeFilter,
+      qName,
+      qCpfLike,
+      limit,
+      offset,
+    );
 
     // Aplica filtro de Regional e mapeamento no lado da aplicação
     const mapped: Row[] = [];
@@ -143,6 +150,8 @@ export async function GET(req: Request) {
         nome_site: null,
       });
     }
+
+    const total = mapped.length;
 
     return NextResponse.json({
       rows: mapped,
