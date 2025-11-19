@@ -236,13 +236,12 @@ export default function EntregasPage() {
                 <th className="px-3 py-2 text-left">Função</th>
                 <th className="px-3 py-2 text-left">Unidade</th>
                 <th className="px-3 py-2 text-left">Regional</th>
-                <th className="px-3 py-2 text-left">Kit esperado</th>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={7} className="px-3 py-6 text-center opacity-70">Carregando…</td></tr>
+                <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Carregando…</td></tr>
               )}
               {!loading && rows.map((r) => (
                 <tr key={r.id} className="border-t border-neutral-200 dark:border-neutral-800">
@@ -251,7 +250,6 @@ export default function EntregasPage() {
                   <td className="px-3 py-2">{r.funcao}</td>
                   <td className="px-3 py-2">{r.unidade}</td>
                   <td className="px-3 py-2">{r.regional}</td>
-                  <td className="px-3 py-2">{r.nome_site || '—'}</td>
                   <td className="px-3 py-2 text-right">
                     <button onClick={() => openDeliver(r)} className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600">Entregar</button>
                   </td>
@@ -291,36 +289,72 @@ export default function EntregasPage() {
             </div>
             <div className="p-4 grid md:grid-cols-2 gap-4">
               <div>
-                <div className="font-medium text-sm">Kit esperado (função: {modal.row.funcao || '—'})</div>
-                <div className="space-y-2 mt-2">
+                <div className="font-medium text-sm">
+                  Kit esperado
+                  <span className="block text-xs opacity-70 mt-0.5">
+                    Função: {kit[0]?.nome_site || modal.row.funcao || '—'}
+                  </span>
+                </div>
+                <div className="space-y-2 mt-3">
                   {kit.map((k, i) => {
-                    const delivered = deliv.find(d => d.item.toLowerCase() === (k.item||'').toLowerCase());
+                    const delivered = deliv.find(d => d.item.toLowerCase() === (k.item || '').toLowerCase());
                     return (
-                      <div key={i} className="border rounded-xl p-2">
-                        <div className="text-sm">{k.nome_site || k.item}</div>
-                        <div className="text-xs opacity-70">
-                          Requerido: {k.quantidade} • Entregue: {delivered?.qty_delivered || 0}
+                      <div
+                        key={i}
+                        className="border rounded-2xl p-3 flex items-center justify-between gap-3 bg-neutral-50 dark:bg-neutral-900/40"
+                      >
+                        <div>
+                          <div className="text-sm font-medium">{k.item}</div>
+                          <div className="text-xs opacity-70">
+                            Requerido: {k.quantidade} • Entregue: {delivered?.qty_delivered || 0}
+                          </div>
                         </div>
                       </div>
                     );
                   })}
-                  {kit.length === 0 && <div className="text-sm opacity-70">Nenhum mapeamento de kit para esta função.</div>}
+                  {kit.length === 0 && (
+                    <div className="text-sm opacity-70">
+                      Nenhum mapeamento de kit para esta função.
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              <div>
-                <div className="font-medium text-sm">Registrar entrega</div>
+                <div className="font-medium text-sm mt-6 md:mt-0">Registrar entrega</div>
                 <div className="flex flex-col gap-2 mt-2">
-                  <select value={deliverForm.item} onChange={e => setDeliverForm({ ...deliverForm, item: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900">
+                  <select
+                    value={deliverForm.item}
+                    onChange={e => setDeliverForm({ ...deliverForm, item: e.target.value })}
+                    className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                  >
                     <option value="">Selecione o EPI…</option>
-                    {kit.map((k, i) => <option key={i} value={k.item}>{k.nome_site || k.item}</option>)}
+                    {kit.map((k, i) => (
+                      <option key={i} value={k.item}>
+                        {k.item}
+                      </option>
+                    ))}
                   </select>
-                  <input type="date" value={deliverForm.data} onChange={e => setDeliverForm({ ...deliverForm, data: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" />
-                  <input type="number" min={1} value={deliverForm.qtd} onChange={e => setDeliverForm({ ...deliverForm, qtd: Math.max(1, Number(e.target.value)||1) })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" />
-                  <button onClick={doDeliver} disabled={!deliverForm.item || deliverForm.qtd <= 0} className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600">Dar baixa</button>
+                  <input
+                    type="date"
+                    value={deliverForm.data}
+                    onChange={e => setDeliverForm({ ...deliverForm, data: e.target.value })}
+                    className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    value={deliverForm.qtd}
+                    onChange={e => setDeliverForm({ ...deliverForm, qtd: Number(e.target.value || 0) })}
+                    className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                  />
+                  <button
+                    onClick={doDeliver}
+                    disabled={!deliverForm.item || deliverForm.qtd <= 0}
+                    className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600"
+                  >
+                    Dar baixa
+                  </button>
                 </div>
-
-                <div className="mt-4">
+<div className="mt-4">
                   <div className="font-medium text-sm">Entregas registradas</div>
                   <div className="grid grid-cols-1 gap-2 mt-2">
                     {deliv.map((d, i) => (
