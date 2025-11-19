@@ -317,7 +317,7 @@ try {
   const paged = pageData;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
       
 <div className="flex items-center justify-between gap-3">
   <div>
@@ -378,7 +378,7 @@ try {
 
       {columns.length > 0 && (
         <div className="rounded-2xl border border-border bg-card shadow-sm">
-          <div className="max-h-[calc(100vh-280px)] overflow-auto">
+          <div className="max-h-[calc(100vh-280px)] overflow-x-auto overflow-y-auto">
             <table className="min-w-full text-sm">
               <thead className="sticky top-0 bg-panel">
               <tr>
