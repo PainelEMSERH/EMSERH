@@ -317,7 +317,7 @@ try {
   const paged = pageData;
 
   return (
-    <div className="space-y-6 overflow-x-hidden">
+    <div className="space-y-6">
       
 <div className="flex items-center justify-between gap-3">
   <div>
@@ -378,29 +378,31 @@ try {
 
       {columns.length > 0 && (
         <div className="rounded-2xl border border-border bg-card shadow-sm">
-          <div className="w-full max-w-full max-h-[calc(100vh-280px)] overflow-x-auto overflow-y-auto">
-            <table className="min-w-[1400px] text-sm">
-              <thead className="sticky top-0 bg-panel">
-                <tr>
-                  {columns
-                    .filter(c => !__shouldHide(c))
-                    .map((c,i) => (
-                    <th key={i} className="px-3 py-2 text-left border-b border-border whitespace-nowrap">{headerLabel(c)}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {paged.map((r, idx) => (
-                  <tr key={idx} className="odd:bg-panel">
+          <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 bg-panel">
+                  <tr>
                     {columns
                       .filter(c => !__shouldHide(c))
                       .map((c,i) => (
-                      <td key={i} className="px-3 py-2 border-b border-border whitespace-nowrap">{renderValue(c, r[c])}</td>
+                      <th key={i} className="px-3 py-2 text-left border-b border-border whitespace-nowrap">{headerLabel(c)}</th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {paged.map((r, idx) => (
+                    <tr key={idx} className="odd:bg-panel">
+                      {columns
+                        .filter(c => !__shouldHide(c))
+                        .map((c,i) => (
+                        <td key={i} className="px-3 py-2 border-b border-border whitespace-nowrap">{renderValue(c, r[c])}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
