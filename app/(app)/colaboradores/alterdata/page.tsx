@@ -191,6 +191,23 @@ export default function Page() {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
 
+
+// Tenta preencher imediatamente a partir do cache local (sem esperar a API)
+try {
+  const rawLS = typeof window !== 'undefined'
+    ? window.localStorage.getItem(LS_KEY_ALTERDATA)
+    : null;
+  if (rawLS) {
+    const cached = JSON.parse(rawLS);
+    if (Array.isArray(cached.rows) && Array.isArray(cached.columns)) {
+      setColumns(cached.columns);
+      setRows(cached.rows);
+      setUnidKey(cached.unidKey || null);
+      setVotePeek(cached.votePeek || '');
+    }
+  }
+} catch {}
+
     let on = true;
     (async ()=>{
       setLoading(true); setError(null); setProgress('');
@@ -300,29 +317,36 @@ export default function Page() {
   const paged = pageData;
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="text-lg font-semibold">Alterdata — Base Completa</div>
-        {/* Selo de diagnóstico */}
-        {votePeek && <span className="text-[10px] px-2 py-1 rounded bg-neutral-100">{votePeek}</span>}
-      </div>
-      <p className="text-sm opacity-70">Visual com Regional (join no cliente), busca livre, filtros e paginação no cliente. Nada altera a base ou o upload.</p>
+    <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8 space-y-6">
+      
+<div className="flex items-center justify-between gap-3">
+  <div>
+    <h1 className="text-2xl font-semibold tracking-tight">Colaboradores · Alterdata (Completa)</h1>
+    <p className="mt-1 text-sm text-neutral-500">
+      Visual completo da base Alterdata com regionalização automática, filtros rápidos e paginação em memória.
+    </p>
+  </div>
+  <div className="hidden md:flex items-center gap-2 rounded-full border border-neutral-200 bg-white/70 px-3 py-1.5 text-xs text-neutral-600">
+    <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+    <span>Base carregada do Neon</span>
+  </div>
+</div>
 
-      <div className="flex flex-wrap gap-2 items-center">
+      <div className="rounded-2xl border border-neutral-200 bg-white/60 shadow-sm px-3 py-3 md:px-4 md:py-3 flex flex-wrap gap-3 items-center">
         <input
           value={q}
           onChange={e=>setQ(e.target.value)}
           placeholder="Buscar por nome, CPF, matrícula, unidade..."
-          className="px-3 py-2 rounded-xl bg-neutral-100 text-sm w-full md:w-96 outline-none text-neutral-900"
+          className="px-3 py-2 rounded-xl border border-neutral-200 bg-neutral-50 text-sm w-full md:w-96 outline-none text-neutral-900"
         />
         <select value={regional} onChange={e=>{ setRegional(e.target.value as any); setUnidade('TODAS'); }}
-                className="px-3 py-2 rounded-xl bg-neutral-100 text-sm text-neutral-900">
+                className="px-3 py-2 rounded-xl border border-neutral-200 bg-neutral-50 text-sm text-neutral-900">
           <option value="TODAS">Regional (todas)</option>
           {REGIONALS.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
         <select value={unidade} onChange={e=>setUnidade(e.target.value as any)}
                 disabled={!unidKey}
-                className="px-3 py-2 rounded-xl bg-neutral-100 text-sm text-neutral-900">
+                className="px-3 py-2 rounded-xl border border-neutral-200 bg-neutral-50 text-sm text-neutral-900">
           <option value="TODAS">Unidade (todas)</option>
           {unidadeOptions.map(u => <option key={u} value={u}>{u}</option>)}
         </select>
@@ -330,20 +354,20 @@ export default function Page() {
         <div className="ml-auto flex items-center gap-3 text-sm">
           {/* Controles de paginação */}
           <div className="flex items-center gap-2">
-            <button className="px-3 py-1 rounded border disabled:opacity-40"
+            <button className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed"
                     disabled={pageSafe<=1}
                     onClick={()=>setPage(p=>Math.max(1, p-1))}>
               ◀
             </button>
             <div>Página {pageSafe} / {pageCount}</div>
-            <button className="px-3 py-1 rounded border disabled:opacity-40"
+            <button className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed"
                     disabled={pageSafe>=pageCount}
                     onClick={()=>setPage(p=>Math.min(pageCount, p+1))}>
               ▶
             </button>
           </div>
           <select value={pageSize} onChange={e=>setPageSize(parseInt(e.target.value,10))}
-                  className="px-2 py-1 rounded border text-sm">
+                  className="px-2.5 py-1.5 rounded-full border border-neutral-200 bg-white text-xs md:text-sm text-neutral-700 hover:bg-neutral-50">
             {[25,50,100,200,500].map(n=> <option key={n} value={n}>{n}/página</option>)}
           </select>
           <div className="opacity-60">{filtered.length.toLocaleString()} registros</div>
@@ -353,7 +377,7 @@ export default function Page() {
       </div>
 
       {columns.length > 0 && (
-        <div className="overflow-auto rounded-2xl border">
+        <div className="overflow-auto rounded-2xl border border-neutral-200 bg-white/80 shadow-sm">
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 bg-white">
               <tr>
