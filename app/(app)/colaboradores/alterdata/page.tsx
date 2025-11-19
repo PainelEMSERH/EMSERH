@@ -184,6 +184,11 @@ export default function Page() {
 
   const fetchedRef = useRef(false);
 
+  const topScrollRef = useRef<HTMLDivElement | null>(null);
+  const bodyScrollRef = useRef<HTMLDivElement | null>(null);
+  const [scrollWidth, setScrollWidth] = useState(0);
+  const syncingRef = useRef(false);
+
   // Resetar página quando filtros mudarem
   useEffect(()=>{ setPage(1); }, [q, regional, unidade, pageSize]);
 
@@ -191,22 +196,21 @@ export default function Page() {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
 
-
-// Preenche imediatamente a partir do cache local, se existir
-try {
-  const rawLS = typeof window !== 'undefined'
-    ? window.localStorage.getItem(LS_KEY_ALTERDATA)
-    : null;
-  if (rawLS) {
-    const cached = JSON.parse(rawLS);
-    if (cached && Array.isArray(cached.rows) && Array.isArray(cached.columns)) {
-      setColumns(cached.columns);
-      setRows(cached.rows);
-      setUnidKey(cached.unidKey || null);
-      setVotePeek(cached.votePeek || '');
-    }
-  }
-} catch {}
+    // Preenche imediatamente a partir do cache local, se existir
+    try {
+      const rawLS = typeof window !== 'undefined'
+        ? window.localStorage.getItem(LS_KEY_ALTERDATA)
+        : null;
+      if (rawLS) {
+        const cached = JSON.parse(rawLS);
+        if (cached && Array.isArray(cached.rows) && Array.isArray(cached.columns)) {
+          setColumns(cached.columns);
+          setRows(cached.rows);
+          setUnidKey(cached.unidKey || null);
+          setVotePeek(cached.votePeek || '');
+        }
+      }
+    } catch {}
 
     let on = true;
     (async ()=>{
@@ -280,6 +284,47 @@ try {
 
     return ()=>{ on=false };
   }, []);
+
+useEffect(() => {
+  const body = bodyScrollRef.current;
+  if (!body) return;
+  const measure = () => {
+    setScrollWidth(body.scrollWidth);
+  };
+  measure();
+  window.addEventListener('resize', measure);
+  return () => {
+    window.removeEventListener('resize', measure);
+  };
+}, [columns, rows, pageSize]);
+
+useEffect(() => {
+  const top = topScrollRef.current;
+  const body = bodyScrollRef.current;
+  if (!top || !body) return;
+
+  const onTop = () => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
+    body.scrollLeft = top.scrollLeft;
+    syncingRef.current = false;
+  };
+
+  const onBody = () => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
+    top.scrollLeft = body.scrollLeft;
+    syncingRef.current = false;
+  };
+
+  top.addEventListener('scroll', onTop);
+  body.addEventListener('scroll', onBody);
+  return () => {
+    top.removeEventListener('scroll', onTop);
+    body.removeEventListener('scroll', onBody);
+  };
+}, [columns, rows, pageSize]);
+
 
   const unidadeOptions = useMemo(()=>{
     const uk = unidKey;
@@ -378,31 +423,44 @@ try {
 
       {columns.length > 0 && (
         <div className="rounded-2xl border border-border bg-card shadow-sm">
-          <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="sticky top-0 bg-panel">
-                  <tr>
+          {/* Barra de rolagem horizontal no topo, sincronizada com a tabela */}
+          <div
+            ref={topScrollRef}
+            className="overflow-x-auto max-w-full border-b border-border"
+          >
+            <div
+              style={{ width: scrollWidth || '100%' }}
+              className="h-2"
+            />
+          </div>
+
+          {/* Tabela com rolagem vertical e horizontal dentro do card */}
+          <div
+            ref={bodyScrollRef}
+            className="max-h-[calc(100vh-280px)] overflow-y-auto overflow-x-auto"
+          >
+            <table className="min-w-full text-sm">
+              <thead className="sticky top-0 bg-panel">
+                <tr>
+                  {columns
+                    .filter(c => !__shouldHide(c))
+                    .map((c,i) => (
+                    <th key={i} className="px-3 py-2 text-left border-b border-border whitespace-nowrap">{headerLabel(c)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {paged.map((r, idx) => (
+                  <tr key={idx} className="odd:bg-panel">
                     {columns
                       .filter(c => !__shouldHide(c))
                       .map((c,i) => (
-                      <th key={i} className="px-3 py-2 text-left border-b border-border whitespace-nowrap">{headerLabel(c)}</th>
+                      <td key={i} className="px-3 py-2 border-b border-border whitespace-nowrap">{renderValue(c, r[c])}</td>
                     ))}
                   </tr>
-                </thead>
-                <tbody>
-                  {paged.map((r, idx) => (
-                    <tr key={idx} className="odd:bg-panel">
-                      {columns
-                        .filter(c => !__shouldHide(c))
-                        .map((c,i) => (
-                        <td key={i} className="px-3 py-2 border-b border-border whitespace-nowrap">{renderValue(c, r[c])}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
