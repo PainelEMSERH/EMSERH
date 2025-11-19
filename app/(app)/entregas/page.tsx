@@ -526,7 +526,6 @@ export default function EntregasPage() {
           </div>
         </div>
       )}
-      )}
     </div>
   );
 }
