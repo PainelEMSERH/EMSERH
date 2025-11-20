@@ -236,13 +236,12 @@ export default function EntregasPage() {
                 <th className="px-3 py-2 text-left">Função</th>
                 <th className="px-3 py-2 text-left">Unidade</th>
                 <th className="px-3 py-2 text-left">Regional</th>
-                <th className="px-3 py-2 text-left">Kit esperado</th>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={7} className="px-3 py-6 text-center opacity-70">Carregando…</td></tr>
+                <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Carregando…</td></tr>
               )}
               {!loading && rows.map((r) => (
                 <tr key={r.id} className="border-t border-neutral-200 dark:border-neutral-800">
@@ -251,14 +250,13 @@ export default function EntregasPage() {
                   <td className="px-3 py-2">{r.funcao}</td>
                   <td className="px-3 py-2">{r.unidade}</td>
                   <td className="px-3 py-2">{r.regional}</td>
-                  <td className="px-3 py-2">{r.nome_site || '—'}</td>
                   <td className="px-3 py-2 text-right">
                     <button onClick={() => openDeliver(r)} className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600">Entregar</button>
                   </td>
                 </tr>
               ))}
               {!loading && rows.length === 0 && (
-                <tr><td colSpan={7} className="px-3 py-6 text-center opacity-70">Sem resultados.</td></tr>
+                <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Sem resultados.</td></tr>
               )}
             </tbody>
           </table>
@@ -291,13 +289,13 @@ export default function EntregasPage() {
             </div>
             <div className="p-4 grid md:grid-cols-2 gap-4">
               <div>
-                <div className="font-medium text-sm">Kit esperado (função: {modal.row.funcao || '—'})</div>
+                <div className="font-medium text-sm">Kit esperado</div>
                 <div className="space-y-2 mt-2">
                   {kit.map((k, i) => {
                     const delivered = deliv.find(d => d.item.toLowerCase() === (k.item||'').toLowerCase());
                     return (
                       <div key={i} className="border rounded-xl p-2">
-                        <div className="text-sm">{k.nome_site || k.item}</div>
+                        <div className="text-sm">{k.item}</div>
                         <div className="text-xs opacity-70">
                           Requerido: {k.quantidade} • Entregue: {delivered?.qty_delivered || 0}
                         </div>
@@ -313,7 +311,7 @@ export default function EntregasPage() {
                 <div className="flex flex-col gap-2 mt-2">
                   <select value={deliverForm.item} onChange={e => setDeliverForm({ ...deliverForm, item: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900">
                     <option value="">Selecione o EPI…</option>
-                    {kit.map((k, i) => <option key={i} value={k.item}>{k.nome_site || k.item}</option>)}
+                    {kit.map((k, i) => <option key={i} value={k.item}>{k.item}</option>)}
                   </select>
                   <input type="date" value={deliverForm.data} onChange={e => setDeliverForm({ ...deliverForm, data: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" />
                   <input type="number" min={1} value={deliverForm.qtd} onChange={e => setDeliverForm({ ...deliverForm, qtd: Math.max(1, Number(e.target.value)||1) })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" />
