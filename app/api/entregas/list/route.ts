@@ -150,15 +150,12 @@ export async function GET(req: Request) {
     const funcKey = pickKeyByName(acc, ['func','cargo']);
     const unidKey = pickKeyByName(acc, ['unid','lotac','setor','hosp','posto','local']);
     const regKey  = pickKeyByName(acc, ['regi','regional','gerencia']); // se existir direto no dataset
-    const demKey  = pickKeyByName(acc, ['demissao','demiss','demissao_colab','dt_demissao']);
+    const demKey  = pickKeyByName(acc, ['demissao','demiss','dt_demissao','demissao_colab']);
 
     // 3) Carrega mapas auxiliares
     const [unidDBMap, kitMap] = await Promise.all([loadUnidMapFromDB(), loadKitMap()]);
 
-    // 4) Mapeia linhas + regional + kit
-    const DEMISSAO_LIMITE = '2025-01-01';
-
-    // 4) Mapeia linhas + regional + kit + aplica regra de demissão
+    // 4) Mapeia linhas + regional + kit + captura demissão
     type InternalRow = Row & { _demissao?: string };
 
     let rowsAll: InternalRow[] = acc.map((r: any) => {
@@ -167,20 +164,17 @@ export async function GET(req: Request) {
       const nome = String((nomeKey && (r as any)[nomeKey]) ?? '');
       const func = String((funcKey && (r as any)[funcKey]) ?? '');
       const un   = String((unidKey && (r as any)[unidKey]) ?? '');
-      const demRaw = demKey ? String((r as any)[demKey] ?? '') : '';
-
+      const demRaw = demKey ? String(((r as any)[demKey] ?? '') as any) : '';
       // Regional por prioridade: coluna direta -> lib/unidReg -> tabela stg_unid_reg
       let reg = String((regKey && (r as any)[regKey]) ?? '');
       if (!reg) {
         const canon = canonUnidade(un);
         reg = (UNID_TO_REGIONAL as any)[canon] || unidDBMap[canon] || '';
       }
-
       const k1 = normKey(func);
       const k2 = normKey(un);
       const kitItems = (k1 && kitMap[k1]) || (k2 && kitMap[k2]) || undefined;
       const kitStr = formatKit(kitItems);
-
       return {
         id,
         nome,
@@ -192,70 +186,24 @@ export async function GET(req: Request) {
         kit_esperado: kitStr,
         _demissao: demRaw,
       };
-
-    // 4.1) Acrescenta colaboradores cadastrados manualmente (epi_manual_colab)
-    try {
-      const manualRows: any[] = await prisma.$queryRawUnsafe(`
-        SELECT
-          COALESCE(cpf, '')::text     AS cpf,
-          COALESCE(nome, '')::text    AS nome,
-          COALESCE(funcao, '')::text  AS funcao,
-          COALESCE(unidade, '')::text AS unidade,
-          demissao
-        FROM epi_manual_colab
-      `);
-
-      const existing = new Set(rowsAll.map(r => r.id));
-
-      for (const m of manualRows) {
-        const id = onlyDigits((m.cpf || '').toString()).slice(-11);
-        if (!id || existing.has(id)) continue;
-
-        const nome = String(m.nome ?? '');
-        const func = String(m.funcao ?? '');
-        const un   = String(m.unidade ?? '');
-        const demRaw = m.demissao ? String(m.demissao) : '';
-
-        let reg = '';
-        if (un) {
-          const canon = canonUnidade(un);
-          reg = (UNID_TO_REGIONAL as any)[canon] || unidDBMap[canon] || '';
-        }
-
-        const k1 = normKey(func);
-        const k2 = normKey(un);
-        const kitItems = (k1 && kitMap[k1]) || (k2 && kitMap[k2]) || undefined;
-        const kitStr = formatKit(kitItems);
-
-        rowsAll.push({
-          id,
-          nome,
-          funcao: func,
-          unidade: un,
-          regional: reg || '—',
-          kit: kitStr,
-          kitEsperado: kitStr,
-          kit_esperado: kitStr,
-          _demissao: demRaw,
-        });
-      }
-    } catch {}
     }).filter(x => x.id || x.nome || x.unidade);
 
-    // 5) Aplica regra: demissão vazia fica; demissão < 2025-01-01 sai; demissão >= 2025-01-01 fica.
+    // 4.1) Aplica regra de demissão:
+    // - demissão vazia -> fica
+    // - data < 2025-01-01 -> sai
+    // - data >= 2025-01-01 -> fica
+    const DEMISSAO_LIMITE = '2025-01-01';
     function keepByDemissao(r: InternalRow): boolean {
       const raw = (r._demissao || '').trim();
       if (!raw) return true;
-      // Tenta normalizar para AAAA-MM-DD
       let d = raw;
       if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
         d = raw.slice(0, 10);
       } else if (/^\d{2}\/\d{2}\/\d{4}/.test(raw)) {
-        // dd/mm/aaaa -> aaaa-mm-dd
         const [dd, mm, yyyy] = raw.slice(0, 10).split('/');
         d = `${yyyy}-${mm}-${dd}`;
       } else {
-        // formato estranho, não exclui por segurança
+        // formato desconhecido: não exclui por segurança
         return true;
       }
       return d >= DEMISSAO_LIMITE;
@@ -263,7 +211,7 @@ export async function GET(req: Request) {
 
     let rows: Row[] = rowsAll.filter(keepByDemissao).map(({ _demissao, ...rest }) => rest);
 
-    // 6) Filtros (regional leniente: aceita vazio/—)
+    // 5) Filtros (regional leniente: aceita vazio/—)
     const nreg = normUp(regional);
     const nuni = normUp(unidade);
     const nq   = normUp(q);
@@ -271,13 +219,13 @@ export async function GET(req: Request) {
     if (nuni) rows = rows.filter(r => normUp(r.unidade) === nuni);
     if (nq)   rows = rows.filter(r => normUp(r.nome).includes(nq) || normUp(r.id).includes(nq));
 
-    // 7) Pagina
+    // 6) Pagina
     rows.sort((a,b)=> a.nome.localeCompare(b.nome));
     const total = rows.length;
     const start = (page - 1) * pageSize;
     const pageRows = rows.slice(start, start + pageSize);
 
-    return NextResponse.json({ rows: pageRows, total, page, pageSize, source: 'safe_mirror_auth+regional+kit+DEMISS' });
+    return NextResponse.json({ rows: pageRows, total, page, pageSize, source: 'safe_mirror_auth+regional+kit+ALL' });
   } catch (e:any) {
     return NextResponse.json({ rows: [], total: 0, page, pageSize, source: 'error', error: e?.message || String(e) }, { status: 200 });
   }
