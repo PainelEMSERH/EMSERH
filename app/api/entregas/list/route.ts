@@ -20,17 +20,6 @@ type Row = {
 function normUp(s: any): string {
   return (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
 }
-
-function prettyRegional(reg: any): string {
-  const n = normUp(reg);
-  if (!n || n === '-' || n === '—') return '—';
-  if (n === 'NORTE') return 'Norte';
-  if (n === 'SUL') return 'Sul';
-  if (n === 'LESTE') return 'Leste';
-  if (n === 'CENTRO' || n === 'CENTRAL') return 'Central';
-  return (reg ?? '').toString() || '—';
-}
-
 function normKey(s: any): string {
   return (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
 }
@@ -161,70 +150,34 @@ export async function GET(req: Request) {
     const funcKey = pickKeyByName(acc, ['func','cargo']);
     const unidKey = pickKeyByName(acc, ['unid','lotac','setor','hosp','posto','local']);
     const regKey  = pickKeyByName(acc, ['regi','regional','gerencia']); // se existir direto no dataset
-    const demKey  = pickKeyByName(acc, ['demissao','demiss','dt_demissao','demissao_colab']);
 
     // 3) Carrega mapas auxiliares
     const [unidDBMap, kitMap] = await Promise.all([loadUnidMapFromDB(), loadKitMap()]);
 
-    // 4) Mapeia linhas + regional + kit + captura demissão
-    type InternalRow = Row & { _demissao?: string };
-
-    const DEMISSAO_LIMITE = '2025-01-01';
-
-    let rowsAll: InternalRow[] = acc.map((r: any) => {
-      const idRaw = cpfKey ? (r as any)[cpfKey] : '';
+    // 4) Mapeia linhas + regional + kit
+    let rows: Row[] = acc.map(r => {
+      const idRaw = cpfKey ? r[cpfKey] : '';
       const id = onlyDigits(idRaw).slice(-11);
-      const nome = String((nomeKey && (r as any)[nomeKey]) ?? '');
-      const func = String((funcKey && (r as any)[funcKey]) ?? '');
-      const un   = String((unidKey && (r as any)[unidKey]) ?? '');
-      const demRaw = demKey ? String(((r as any)[demKey] ?? '') as any) : '';
+      const nome = String((nomeKey && r[nomeKey]) ?? '');
+      const func = String((funcKey && r[funcKey]) ?? '');
+      const un   = String((unidKey && r[unidKey]) ?? '');
       // Regional por prioridade: coluna direta -> lib/unidReg -> tabela stg_unid_reg
-      let reg = String((regKey && (r as any)[regKey]) ?? '');
+      let reg = String((regKey && r[regKey]) ?? '');
       if (!reg) {
         const canon = canonUnidade(un);
         reg = (UNID_TO_REGIONAL as any)[canon] || unidDBMap[canon] || '';
       }
-      const regOut = prettyRegional(reg);
       const k1 = normKey(func);
       const k2 = normKey(un);
       const kitItems = (k1 && kitMap[k1]) || (k2 && kitMap[k2]) || undefined;
       const kitStr = formatKit(kitItems);
       return {
-        id,
-        nome,
-        funcao: func,
-        unidade: un,
-        regional: regOut,
-        kit: kitStr,
-        kitEsperado: kitStr,
-        kit_esperado: kitStr,
-        _demissao: demRaw,
+        id, nome, funcao: func, unidade: un, regional: reg || '—',
+        kit: kitStr, kitEsperado: kitStr, kit_esperado: kitStr
       };
     }).filter(x => x.id || x.nome || x.unidade);
 
-    // 5) Aplica regra de demissão:
-    // - demissão vazia -> fica
-    // - data < 2025-01-01 -> sai
-    // - data >= 2025-01-01 -> fica
-    function keepByDemissao(r: InternalRow): boolean {
-      const raw = (r._demissao || '').trim();
-      if (!raw) return true;
-      let d = raw;
-      if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
-        d = raw.slice(0, 10);
-      } else if (/^\d{2}\/\d{2}\/\d{4}/.test(raw)) {
-        const [dd, mm, yyyy] = raw.slice(0, 10).split('/');
-        d = `${yyyy}-${mm}-${dd}`;
-      } else {
-        // formato desconhecido: não exclui por segurança
-        return true;
-      }
-      return d >= DEMISSAO_LIMITE;
-    }
-
-    let rows: Row[] = rowsAll.filter(keepByDemissao).map(({ _demissao, ...rest }) => rest);
-
-    // 6) Filtros (regional leniente: aceita vazio/—)
+    // 5) Filtros (regional leniente: aceita vazio/—)
     const nreg = normUp(regional);
     const nuni = normUp(unidade);
     const nq   = normUp(q);
@@ -232,13 +185,13 @@ export async function GET(req: Request) {
     if (nuni) rows = rows.filter(r => normUp(r.unidade) === nuni);
     if (nq)   rows = rows.filter(r => normUp(r.nome).includes(nq) || normUp(r.id).includes(nq));
 
-    // 7) Pagina
+    // 6) Pagina
     rows.sort((a,b)=> a.nome.localeCompare(b.nome));
     const total = rows.length;
     const start = (page - 1) * pageSize;
     const pageRows = rows.slice(start, start + pageSize);
 
-    return NextResponse.json({ rows: pageRows, total, page, pageSize, source: 'safe_mirror_auth+regional+kit+DEMISS' });
+    return NextResponse.json({ rows: pageRows, total, page, pageSize, source: 'safe_mirror_auth+regional+kit+ALL' });
   } catch (e:any) {
     return NextResponse.json({ rows: [], total: 0, page, pageSize, source: 'error', error: e?.message || String(e) }, { status: 200 });
   }
