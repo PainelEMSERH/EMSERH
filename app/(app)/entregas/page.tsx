@@ -42,7 +42,6 @@ export default function EntregasPage() {
     pageSize: 25,
   });
 
-
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -52,33 +51,12 @@ export default function EntregasPage() {
   const [modal, setModal] = useState<{ open: boolean; row?: Row | null }>({ open: false });
   const [kit, setKit] = useState<KitItem[]>([]);
   const [deliv, setDeliv] = useState<Deliver[]>([]);
-  const [deliverForm, setDeliverForm] = useState<{ item: string; qtd: number; data: string }>({
-    item: '',
-    qtd: 1,
-    data: new Date().toISOString().substring(0, 10),
-  });
+  const [deliverForm, setDeliverForm] = useState<{ item: string; qtd: number; data: string }>({ item: '', qtd: 1, data: new Date().toISOString().substring(0, 10) });
 
   // ---- CADASTRO MANUAL (DECLARADO ANTES DO JSX) ----
-  const [newColab, setNewColab] = useState<{
-    cpf: string;
-    nome: string;
-    funcao: string;
-    unidade: string;
-    regional: string;
-    admissao?: string;
-    demissao?: string;
-  }>({
-    cpf: '',
-    nome: '',
-    funcao: '',
-    unidade: '',
-    regional: '',
-  });
+  const [newColab, setNewColab] = useState<{ cpf: string; nome: string; funcao: string; unidade: string; regional: string; matricula?: string; admissao?: string; demissao?: string }>({ cpf: '', nome: '', funcao: '', unidade: '', regional: '' });
   const [modalNew, setModalNew] = useState(false);
 
-  const [cpfExists, setCpfExists] = useState<string | null>(null);
-  const [checkingCpf, setCheckingCpf] = useState(false);
-  const [lastCheckedCpf, setLastCheckedCpf] = useState<string>('');
   function openNewManual() {
     setNewColab({ cpf: '', nome: '', funcao: '', unidade: state.unidade || '', regional: state.regional || '' });
     setModalNew(true);
@@ -106,36 +84,9 @@ export default function EntregasPage() {
       setTotal(Number(j2.total || 0));
     }
   }
-
-  useEffect(() => {
-    const d = String(newColab.cpf || '').replace(/\D/g, '');
-    if (d.length === 11 && d !== lastCheckedCpf) {
-      setCheckingCpf(true);
-      setLastCheckedCpf(d);
-      (async () => {
-        try {
-          const res = await fetch('/api/entregas/check-cpf?cpf=' + encodeURIComponent(d));
-          const json = await res.json().catch(() => ({}));
-          if (json?.ok && json.exists) {
-            const source = json.source === 'manual' ? 'manual' : 'oficial';
-            setCpfExists(source);
-          } else {
-            setCpfExists(null);
-          }
-        } catch {
-          setCpfExists(null);
-        } finally {
-          setCheckingCpf(false);
-        }
-      })();
-    } else if (d.length < 11) {
-      setCpfExists(null);
-    }
-  }, [newColab.cpf, lastCheckedCpf]);
-
   // ---------------------------------------------------
 
-  const unidades = useMemo(() => unidadesAll.filter(u => !state.regional || !u.regional || u.regional === state.regional), [unidadesAll, state.regional]);
+  const unidades = useMemo(() => unidadesAll.filter(u => !state.regional || u.regional === state.regional), [unidadesAll, state.regional]);
 
   useEffect(() => {
     let on = true;
@@ -280,17 +231,18 @@ export default function EntregasPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-neutral-50 dark:bg-neutral-900/50">
               <tr>
-                <th className="px-3 py-2 text-center">Nome</th>
-                <th className="px-3 py-2 text-center">CPF</th>
-                <th className="px-3 py-2 text-center">Função</th>
-                <th className="px-3 py-2 text-center">Unidade</th>
-                <th className="px-3 py-2 text-center">Regional</th>
+                <th className="px-3 py-2 text-left">Nome</th>
+                <th className="px-3 py-2 text-left">CPF</th>
+                <th className="px-3 py-2 text-left">Função</th>
+                <th className="px-3 py-2 text-left">Unidade</th>
+                <th className="px-3 py-2 text-left">Regional</th>
+                <th className="px-3 py-2 text-left">Kit esperado</th>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Carregando…</td></tr>
+                <tr><td colSpan={7} className="px-3 py-6 text-center opacity-70">Carregando…</td></tr>
               )}
               {!loading && rows.map((r) => (
                 <tr key={r.id} className="border-t border-neutral-200 dark:border-neutral-800">
@@ -299,13 +251,14 @@ export default function EntregasPage() {
                   <td className="px-3 py-2">{r.funcao}</td>
                   <td className="px-3 py-2">{r.unidade}</td>
                   <td className="px-3 py-2">{r.regional}</td>
+                  <td className="px-3 py-2">{r.nome_site || '—'}</td>
                   <td className="px-3 py-2 text-right">
                     <button onClick={() => openDeliver(r)} className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600">Entregar</button>
                   </td>
                 </tr>
               ))}
               {!loading && rows.length === 0 && (
-                <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Sem resultados.</td></tr>
+                <tr><td colSpan={7} className="px-3 py-6 text-center opacity-70">Sem resultados.</td></tr>
               )}
             </tbody>
           </table>
@@ -388,140 +341,36 @@ export default function EntregasPage() {
         </div>
       )}
 
-      
       {modalNew && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50"
-          onClick={() => setModalNew(false)}
-        >
-          <div
-            className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-2xl shadow-xl"
-            onClick={e => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50" onClick={()=>setModalNew(false)}>
+          <div className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-2xl shadow-xl" onClick={e=>e.stopPropagation()}>
             <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
               <div className="text-lg font-semibold">Cadastrar colaborador</div>
-              <div className="text-xs opacity-70">
-                Use este cadastro quando o Alterdata ainda não refletiu a admissão.
-              </div>
+              <div className="text-xs opacity-70">Use este cadastro quando o Alterdata ainda não refletiu a admissão.</div>
             </div>
-
             <div className="p-4 grid md:grid-cols-2 gap-3">
-              <div className="md:col-span-1">
-                <label className="text-xs block mb-1">CPF</label>
-                <input
-                  value={newColab.cpf}
-                  onChange={e => setNewColab({ ...newColab, cpf: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-                  placeholder="000.000.000-00"
-                />
-                {checkingCpf && (
-                  <div className="mt-1 text-[11px] text-blue-500">Verificando CPF…</div>
-                )}
-                {!checkingCpf && cpfExists === 'oficial' && (
-                  <div className="mt-1 text-[11px] text-red-500">
-                    Este CPF já está cadastrado na base oficial (Alterdata).
-                  </div>
-                )}
-                {!checkingCpf && cpfExists === 'manual' && (
-                  <div className="mt-1 text-[11px] text-red-500">
-                    Este CPF já está cadastrado manualmente.
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="text-xs block mb-1">Matrícula</label>
-                <input
-                  value={(newColab as any).matricula || ''}
-                  onChange={e => setNewColab({ ...newColab, ...(newColab as any), matricula: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-                  placeholder="(opcional)"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-xs block mb-1">Nome</label>
-                <input
-                  value={newColab.nome}
-                  onChange={e => setNewColab({ ...newColab, nome: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs block mb-1">Função</label>
-                <input
-                  value={newColab.funcao}
-                  onChange={e => setNewColab({ ...newColab, funcao: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-                  placeholder="Ex.: Enfermeiro UTI"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs block mb-1">Regional</label>
-                <select
-                  value={newColab.regional}
-                  onChange={e => setNewColab({ ...newColab, regional: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-                >
+              <div><label className="text-xs block mb-1">CPF</label><input value={newColab.cpf} onChange={e=>setNewColab({...newColab, cpf: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" placeholder="000.000.000-00" /></div>
+              <div><label className="text-xs block mb-1">Matrícula</label><input value={newColab.matricula||''} onChange={e=>setNewColab({...newColab, matricula: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" placeholder="(opcional)" /></div>
+              <div className="md:col-span-2"><label className="text-xs block mb-1">Nome</label><input value={newColab.nome} onChange={e=>setNewColab({...newColab, nome: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" /></div>
+              <div><label className="text-xs block mb-1">Função</label><input value={newColab.funcao} onChange={e=>setNewColab({...newColab, funcao: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" placeholder="Ex.: Enfermeiro UTI" /></div>
+              <div><label className="text-xs block mb-1">Regional</label>
+                <select value={newColab.regional} onChange={e=>setNewColab({...newColab, regional: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900">
                   <option value="">Selecione…</option>
-                  {regionais.map(r => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
+                  {regionais.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
-
-              <div className="md:col-span-2">
-                <label className="text-xs block mb-1">Unidade</label>
-                <select
-                  value={newColab.unidade}
-                  onChange={e => setNewColab({ ...newColab, unidade: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-                >
+              <div className="md:col-span-2"><label className="text-xs block mb-1">Unidade</label>
+                <select value={newColab.unidade} onChange={e=>setNewColab({...newColab, unidade: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900">
                   <option value="">Selecione…</option>
-                  {unidades.map(u => (
-                    <option key={u.unidade} value={u.unidade}>
-                      {u.unidade}
-                    </option>
-                  ))}
+                  {unidades.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
                 </select>
               </div>
-
-              <div>
-                <label className="text-xs block mb-1">Admissão</label>
-                <input
-                  type="date"
-                  value={newColab.admissao || ''}
-                  onChange={e => setNewColab({ ...newColab, admissao: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs block mb-1">Demissão</label>
-                <input
-                  type="date"
-                  value={newColab.demissao || ''}
-                  onChange={e => setNewColab({ ...newColab, demissao: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-                />
-              </div>
+              <div><label className="text-xs block mb-1">Admissão</label><input type="date" value={newColab.admissao||''} onChange={e=>setNewColab({...newColab, admissao: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" /></div>
+              <div><label className="text-xs block mb-1">Demissão</label><input type="date" value={newColab.demissao||''} onChange={e=>setNewColab({...newColab, demissao: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" /></div>
             </div>
-
             <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2">
-              <button className="px-3 py-2 rounded-xl border" onClick={() => setModalNew(false)}>
-                Cancelar
-              </button>
-              <button
-                className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600 disabled:opacity-50"
-                onClick={saveNewManual}
-                disabled={!!cpfExists || checkingCpf}
-              >
-                Salvar
-              </button>
+              <button className="px-3 py-2 rounded-xl border" onClick={()=>setModalNew(false)}>Cancelar</button>
+              <button className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600" onClick={saveNewManual}>Salvar</button>
             </div>
           </div>
         </div>

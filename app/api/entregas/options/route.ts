@@ -1,106 +1,59 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { UNID_TO_REGIONAL, canonUnidade, REGIONALS } from '@/lib/unidReg';
-
-type UnidadeRow = { unidade: string; regional: string };
 
 export async function GET() {
   try {
+    // Discover column names dynamically
+    const cols = await prisma.$queryRawUnsafe<Array<{ column_name: string }>>(`
+      select column_name
+      from information_schema.columns
+      where table_schema = current_schema()
+        and table_name = 'stg_unid_reg'
+    `);
+    const names = new Set((cols || []).map(c => c.column_name.toLowerCase()));
+
+    const pick = (cands: string[]) => cands.find(c => names.has(c));
+    const colRegional = pick(['regional','regiao','regional_nome','regiao_nome','nome_regional']);
+    const colUnidade  = pick(['unidade','unidade_nome','nome_unidade']);
+
     let regionais: string[] = [];
-    let unidades: UnidadeRow[] = [];
+    let unidades: { unidade: string; regional: string }[] = [];
 
-    // 1) Tenta usar tabela stg_unid_reg se existir
-    try {
-      const cols = await prisma.$queryRawUnsafe<Array<{ column_name: string }>>(`
-        select column_name
-        from information_schema.columns
-        where table_schema = current_schema()
-          and table_name = 'stg_unid_reg'
-      `);
-      const names = new Set((cols || []).map(c => c.column_name.toLowerCase()));
-      const pick = (cands: string[]) => cands.find(c => names.has(c));
-
-      const uniCol = pick(['unidade','unid','setor','hospital','posto','unidade_hospitalar']);
-      const regCol = pick(['regional','regiao','gerencia','polo']);
-
-      if (uniCol && regCol) {
-        const rows = await prisma.$queryRawUnsafe<Array<{ unidade: string; regional: string }>>(
-          `select distinct ${uniCol} as unidade, ${regCol} as regional from stg_unid_reg where ${uniCol} is not null`
-        );
-        unidades = rows
-          .map(r => ({
-            unidade: (r.unidade ?? '').toString(),
-            regional: (r.regional ?? '').toString(),
-          }))
-          .filter(r => r.unidade);
+    if (colRegional && colUnidade) {
+      const rows = await prisma.$queryRawUnsafe<any[]>(
+        `select distinct ${colRegional} as regional, ${colUnidade} as unidade from stg_unid_reg`
+      );
+      for (const r of rows) {
+        const reg = (r.regional ?? '').toString();
+        const uni = (r.unidade ?? '').toString();
+        if (reg) regionais.push(reg);
+        if (uni) unidades.push({ unidade: uni, regional: reg });
       }
-    } catch {
-      // ignora, cai para os fallbacks abaixo
-    }
-
-    // 2) Fallback: deriva unidades direto da base Alterdata
-    if (!unidades.length) {
-      try {
-        const rows = await prisma.$queryRawUnsafe<Array<{ unidade: string }>>(
-          `select distinct unidade from stg_alterdata_v2 where unidade is not null`
-        );
-        unidades = rows
-          .map(r => ({ unidade: (r.unidade ?? '').toString(), regional: '' }))
-          .filter(r => r.unidade);
-      } catch {
-        const rows = await prisma.$queryRawUnsafe<Array<{ unidade: string }>>(
-          `select distinct unidade from stg_alterdata where unidade is not null`
-        );
-        unidades = rows
-          .map(r => ({ unidade: (r.unidade ?? '').toString(), regional: '' }))
-          .filter(r => r.unidade);
-      }
-    }
-
-    // 3) Normaliza regionais a partir das unidades + mapa UNID_TO_REGIONAL
-    const regSet = new Set<string>();
-    const normUnidades: UnidadeRow[] = [];
-
-    for (const u of unidades) {
-      const unidade = (u.unidade ?? '').toString();
-      let reg = (u.regional ?? '').toString().trim();
-
-      if (!reg) {
-        const canon = canonUnidade(unidade);
-        const mapped = (UNID_TO_REGIONAL as any)[canon] || '';
-        if (mapped) {
-          reg = mapped;
-        }
-      }
-
-      if (reg) {
-        const up = reg.toUpperCase();
-        if ((REGIONALS as readonly string[]).includes(up)) {
-          reg = up.charAt(0) + up.slice(1).toLowerCase(); // "SUL" -> "Sul"
-        }
-        regSet.add(reg);
-      }
-
-      if (unidade) {
-        normUnidades.push({ unidade, regional: reg });
-      }
-    }
-
-    regionais = Array.from(regSet);
-    if (!regionais.length) {
-      // fallback absoluto
+    } else if (colUnidade) {
+      // Unidades a partir do stg_unid_reg; regionais fallback padrão (Norte/Sul/Leste/Central)
+      const rows = await prisma.$queryRawUnsafe<any[]>(
+        `select distinct ${colUnidade} as unidade from stg_unid_reg`
+      );
+      unidades = rows.map(r => ({ unidade: (r.unidade ?? '').toString(), regional: '' })).filter(r => r.unidade);
+      regionais = ['Norte','Sul','Leste','Central'];
+    } else {
+      // Fallback total: Unidades do stg_alterdata; regionais padrão
+      const rows = await prisma.$queryRawUnsafe<any[]>(
+        `select distinct unidade from stg_alterdata where unidade is not null`
+      );
+      unidades = rows.map(r => ({ unidade: (r.unidade ?? '').toString(), regional: '' })).filter(r => r.unidade);
       regionais = ['Norte','Sul','Leste','Central'];
     }
 
-    // Ordena resultados
-    regionais.sort((a,b) => a.localeCompare(b));
-    normUnidades.sort((a,b) => a.unidade.localeCompare(b.unidade));
-
-    return NextResponse.json({ regionais, unidades: normUnidades });
-  } catch (e:any) {
+    // Normalize & sort
+    regionais = Array.from(new Set(regionais.filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+    unidades.sort((a,b)=>a.unidade.localeCompare(b.unidade));
+    return NextResponse.json({ regionais, unidades });
+  } catch (e: any) {
+    // Absolute fallback to avoid build breaks
     const regionais = ['Norte','Sul','Leste','Central'];
-    const unidades: UnidadeRow[] = [];
+    const unidades: { unidade: string; regional: string }[] = [];
     return NextResponse.json({ regionais, unidades });
   }
 }
