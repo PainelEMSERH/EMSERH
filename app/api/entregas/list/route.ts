@@ -188,10 +188,7 @@ export async function GET(req: Request) {
       };
     }).filter(x => x.id || x.nome || x.unidade);
 
-    // 4.1) Aplica regra de demissão:
-    // - demissão vazia -> fica
-    // - data < 2025-01-01 -> sai
-    // - data >= 2025-01-01 -> fica
+    // 4.1) Aplica regra de demissão
     const DEMISSAO_LIMITE = '2025-01-01';
     function keepByDemissao(r: InternalRow): boolean {
       const raw = (r._demissao || '').trim();
