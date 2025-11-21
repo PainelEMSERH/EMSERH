@@ -1,0 +1,1102 @@
+[
+  {
+    "codigo_pa": "16653",
+    "descricao_cahosp": "ABAFADOR AURICULAR RUIDO TIPO CONCHA",
+    "descricao_site": "Abafador Auricular Tipo Concha",
+    "categoria_site": "Proteção auditiva",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16722",
+    "descricao_cahosp": "ABAFADOR AURICULAR RUIDO TIPO PLUG",
+    "descricao_site": "Abafador Auricular  Tipo Plug",
+    "categoria_site": "Proteção auditiva",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "17576",
+    "descricao_cahosp": "AVENTAL CHUMBO 110X60CM C/ PROTEÇÃO FRENTE (0,50MMPB) OMBROS (0,25MMPB) IMPERMEAVEL",
+    "descricao_site": "Avental Chumbo Impermeavel",
+    "categoria_site": "Proteção do corpo",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "17174",
+    "descricao_cahosp": "AVENTAL TIPO BARBEIRO tAM UNICO",
+    "descricao_site": "Avental Tipo Barbeiro",
+    "categoria_site": "Proteção do corpo",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16675",
+    "descricao_cahosp": "BOTA DE PVC BRANCA CANO LONGO - TAM 33",
+    "descricao_site": "Bota De Pvc Branca Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "33",
+    "tamanho": "33"
+  },
+  {
+    "codigo_pa": "16676",
+    "descricao_cahosp": "BOTA DE PVC BRANCA CANO LONGO - TAM 34",
+    "descricao_site": "Bota De Pvc Branca Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "34",
+    "tamanho": "34"
+  },
+  {
+    "codigo_pa": "16677",
+    "descricao_cahosp": "BOTA DE PVC BRANCA CANO LONGO - TAM 35",
+    "descricao_site": "Bota De Pvc Branca Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "35",
+    "tamanho": "35"
+  },
+  {
+    "codigo_pa": "16678",
+    "descricao_cahosp": "BOTA DE PVC BRANCA CANO LONGO - TAM 36",
+    "descricao_site": "Bota De Pvc Branca Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "36",
+    "tamanho": "36"
+  },
+  {
+    "codigo_pa": "17285",
+    "descricao_cahosp": "BOTA DE PVC BRANCA CANO LONGO - TAM 37",
+    "descricao_site": "Bota De Pvc Branca Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "37",
+    "tamanho": "37"
+  },
+  {
+    "codigo_pa": "16679",
+    "descricao_cahosp": "BOTA DE PVC BRANCA CANO LONGO - TAM 38",
+    "descricao_site": "Bota De Pvc Branca Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "38",
+    "tamanho": "38"
+  },
+  {
+    "codigo_pa": "16680",
+    "descricao_cahosp": "BOTA DE PVC BRANCA CANO LONGO - TAM 39",
+    "descricao_site": "Bota De Pvc Branca Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "39",
+    "tamanho": "39"
+  },
+  {
+    "codigo_pa": "16682",
+    "descricao_cahosp": "BOTA DE PVC BRANCA CANO LONGO - TAM 40",
+    "descricao_site": "Bota De Pvc Branca Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "40",
+    "tamanho": "40"
+  },
+  {
+    "codigo_pa": "16683",
+    "descricao_cahosp": "BOTA DE PVC BRANCA CANO LONGO - TAM 41",
+    "descricao_site": "Bota De Pvc Branca Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "41",
+    "tamanho": "41"
+  },
+  {
+    "codigo_pa": "16684",
+    "descricao_cahosp": "BOTA DE PVC BRANCA CANO LONGO - TAM 42",
+    "descricao_site": "Bota De Pvc Branca Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "42",
+    "tamanho": "42"
+  },
+  {
+    "codigo_pa": "16685",
+    "descricao_cahosp": "BOTA DE PVC BRANCA CANO LONGO - TAM 43",
+    "descricao_site": "Bota De Pvc Branca Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "43",
+    "tamanho": "43"
+  },
+  {
+    "codigo_pa": "16687",
+    "descricao_cahosp": "BOTA DE PVC BRANCA CANO LONGO - TAM 44",
+    "descricao_site": "Bota De Pvc Branca Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "44",
+    "tamanho": "44"
+  },
+  {
+    "codigo_pa": "16689",
+    "descricao_cahosp": "BOTA DE PVC BRANCA CANO LONGO - TAM 45",
+    "descricao_site": "Bota De Pvc Branca Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "45",
+    "tamanho": "45"
+  },
+  {
+    "codigo_pa": "16690",
+    "descricao_cahosp": "BOTA DE PVC BRANCA CANO LONGO - TAM 46",
+    "descricao_site": "Bota De Pvc Branca Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "46",
+    "tamanho": "46"
+  },
+  {
+    "codigo_pa": "17278",
+    "descricao_cahosp": "BOTA DE PVC PRETA CANO LONGO - TAM 36",
+    "descricao_site": "Bota De Pvc Preta Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "36",
+    "tamanho": "36"
+  },
+  {
+    "codigo_pa": "17275",
+    "descricao_cahosp": "BOTA DE PVC PRETA CANO LONGO - TAM 38",
+    "descricao_site": "Bota De Pvc Preta Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "38",
+    "tamanho": "38"
+  },
+  {
+    "codigo_pa": "17279",
+    "descricao_cahosp": "BOTA DE PVC PRETA CANO LONGO - TAM 39",
+    "descricao_site": "Bota De Pvc Preta Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "39",
+    "tamanho": "39"
+  },
+  {
+    "codigo_pa": "17269",
+    "descricao_cahosp": "BOTA DE PVC PRETA CANO LONGO - TAM 40",
+    "descricao_site": "Bota De Pvc Preta Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "40",
+    "tamanho": "40"
+  },
+  {
+    "codigo_pa": "17268",
+    "descricao_cahosp": "BOTA DE PVC PRETA CANO LONGO - TAM 41",
+    "descricao_site": "Bota De Pvc Preta Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "41",
+    "tamanho": "41"
+  },
+  {
+    "codigo_pa": "17272",
+    "descricao_cahosp": "BOTA DE PVC PRETA CANO LONGO - TAM 42",
+    "descricao_site": "Bota De Pvc Preta Cano Longo",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "42",
+    "tamanho": "42"
+  },
+  {
+    "codigo_pa": "16695",
+    "descricao_cahosp": "BOTA DE SEGURANÇA C/ PROTEÇAO ELETRICA E MECANICA - TAM 34",
+    "descricao_site": "Bota De Segurança C/ Proteçao Eletrica E Mecanica",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "34",
+    "tamanho": "34"
+  },
+  {
+    "codigo_pa": "16697",
+    "descricao_cahosp": "BOTA DE SEGURANÇA C/ PROTEÇAO ELETRICA E MECANICA - TAM 35",
+    "descricao_site": "Bota De Segurança C/ Proteçao Eletrica E Mecanica",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "35",
+    "tamanho": "35"
+  },
+  {
+    "codigo_pa": "16698",
+    "descricao_cahosp": "BOTA DE SEGURANÇA C/ PROTEÇAO ELETRICA E MECANICA - TAM 36",
+    "descricao_site": "Bota De Segurança C/ Proteçao Eletrica E Mecanica",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "36",
+    "tamanho": "36"
+  },
+  {
+    "codigo_pa": "16699",
+    "descricao_cahosp": "BOTA DE SEGURANÇA C/ PROTEÇAO ELETRICA E MECANICA - TAM 38",
+    "descricao_site": "Bota De Segurança C/ Proteçao Eletrica E Mecanica",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "38",
+    "tamanho": "38"
+  },
+  {
+    "codigo_pa": "16701",
+    "descricao_cahosp": "BOTA DE SEGURANÇA C/ PROTEÇAO ELETRICA E MECANICA - TAM 39",
+    "descricao_site": "Bota De Segurança C/ Proteçao Eletrica E Mecanica",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "39",
+    "tamanho": "39"
+  },
+  {
+    "codigo_pa": "16702",
+    "descricao_cahosp": "BOTA DE SEGURANÇA C/ PROTEÇAO ELETRICA E MECANICA - TAM 40",
+    "descricao_site": "Bota De Segurança C/ Proteçao Eletrica E Mecanica",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "40",
+    "tamanho": "40"
+  },
+  {
+    "codigo_pa": "16703",
+    "descricao_cahosp": "BOTA DE SEGURANÇA C/ PROTEÇAO ELETRICA E MECANICA - TAM 41",
+    "descricao_site": "Bota De Segurança C/ Proteçao Eletrica E Mecanica",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "41",
+    "tamanho": "41"
+  },
+  {
+    "codigo_pa": "16704",
+    "descricao_cahosp": "BOTA DE SEGURANÇA C/ PROTEÇAO ELETRICA E MECANICA - TAM 42",
+    "descricao_site": "Bota De Segurança C/ Proteçao Eletrica E Mecanica",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "42",
+    "tamanho": "42"
+  },
+  {
+    "codigo_pa": "16705",
+    "descricao_cahosp": "BOTA DE SEGURANÇA C/ PROTEÇAO ELETRICA E MECANICA - TAM 43",
+    "descricao_site": "Bota De Segurança C/ Proteçao Eletrica E Mecanica",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "43",
+    "tamanho": "43"
+  },
+  {
+    "codigo_pa": "16706",
+    "descricao_cahosp": "BOTA DE SEGURANÇA C/ PROTEÇAO ELETRICA E MECANICA - TAM 44",
+    "descricao_site": "Bota De Segurança C/ Proteçao Eletrica E Mecanica",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "44",
+    "tamanho": "44"
+  },
+  {
+    "codigo_pa": "16707",
+    "descricao_cahosp": "BOTA DE SEGURANÇA C/ PROTEÇAO ELETRICA E MECANICA - TAM 45",
+    "descricao_site": "Bota De Segurança C/ Proteçao Eletrica E Mecanica",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "45",
+    "tamanho": "45"
+  },
+  {
+    "codigo_pa": "16708",
+    "descricao_cahosp": "BOTA DE SEGURANÇA C/ PROTEÇAO ELETRICA E MECANICA - TAM 46",
+    "descricao_site": "Bota De Segurança C/ Proteçao Eletrica E Mecanica",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "46",
+    "tamanho": "46"
+  },
+  {
+    "codigo_pa": "17296",
+    "descricao_cahosp": "BOTA MICROFIBRA PRETA TAMANHO 34",
+    "descricao_site": "Bota Microfibra Preta",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "34",
+    "tamanho": "34"
+  },
+  {
+    "codigo_pa": "17295",
+    "descricao_cahosp": "BOTA MICROFIBRA PRETA TAMANHO 35",
+    "descricao_site": "Bota Microfibra Preta",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "35",
+    "tamanho": "35"
+  },
+  {
+    "codigo_pa": "17298",
+    "descricao_cahosp": "BOTA MICROFIBRA PRETA TAMANHO 36",
+    "descricao_site": "Bota Microfibra Preta",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "36",
+    "tamanho": "36"
+  },
+  {
+    "codigo_pa": "17297",
+    "descricao_cahosp": "BOTA MICROFIBRA PRETA TAMANHO 44",
+    "descricao_site": "Bota Microfibra Preta",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "44",
+    "tamanho": "44"
+  },
+  {
+    "codigo_pa": "17294",
+    "descricao_cahosp": "BOTA MICROFIBRA PRETA TAMANHO 45",
+    "descricao_site": "Bota Microfibra Preta",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "45",
+    "tamanho": "45"
+  },
+  {
+    "codigo_pa": "17293",
+    "descricao_cahosp": "BOTA MICROFIBRA PRETA TAMANHO 46",
+    "descricao_site": "Bota Microfibra Preta",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "46",
+    "tamanho": "46"
+  },
+  {
+    "codigo_pa": "17392",
+    "descricao_cahosp": "BOTA PVC BRANCA CANO LONGO - TAM 33/34 (ALL WORK)",
+    "descricao_site": "Bota Pvc Branca Cano Longo (All Work)",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "33",
+    "tamanho": "33"
+  },
+  {
+    "codigo_pa": "17393",
+    "descricao_cahosp": "BOTA PVC BRANCA CANO LONGO - TAM 35/36 (ALL WORK)",
+    "descricao_site": "Bota Pvc Branca Cano Longo (All Work)",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "35",
+    "tamanho": "35"
+  },
+  {
+    "codigo_pa": "17391",
+    "descricao_cahosp": "BOTA PVC BRANCA CANO LONGO - TAM 39 (ALL WORK)",
+    "descricao_site": "Bota Pvc Branca Cano Longo (All Work)",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "39",
+    "tamanho": "39"
+  },
+  {
+    "codigo_pa": "17394",
+    "descricao_cahosp": "BOTA PVC BRANCA CANO LONGO - TAM 40 (ALL WORK)",
+    "descricao_site": "Bota Pvc Branca Cano Longo (All Work)",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "40",
+    "tamanho": "40"
+  },
+  {
+    "codigo_pa": "17396",
+    "descricao_cahosp": "BOTA PVC BRANCA CANO LONGO - TAM 41 (ALL WORK)",
+    "descricao_site": "Bota Pvc Branca Cano Longo (All Work)",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "41",
+    "tamanho": "41"
+  },
+  {
+    "codigo_pa": "17397",
+    "descricao_cahosp": "BOTA PVC BRANCA CANO LONGO - TAM 43 (ALL WORK)",
+    "descricao_site": "Bota Pvc Branca Cano Longo (All Work)",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "43",
+    "tamanho": "43"
+  },
+  {
+    "codigo_pa": "17395",
+    "descricao_cahosp": "BOTA PVC BRANCA CANO LONGO - TAM 44 (ALL WORK)",
+    "descricao_site": "Bota Pvc Branca Cano Longo (All Work)",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "44",
+    "tamanho": "44"
+  },
+  {
+    "codigo_pa": "17398",
+    "descricao_cahosp": "BOTA PVC BRANCA CANO LONGO - TAM 45/46 (ALL WORK)",
+    "descricao_site": "Bota Pvc Branca Cano Longo (All Work)",
+    "categoria_site": "Calçados",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "45",
+    "tamanho": "45"
+  },
+  {
+    "codigo_pa": "16693",
+    "descricao_cahosp": "CAPACETE ABA TOTAL C/JUGULAR",
+    "descricao_site": "Capacete Aba Total C/Jugular",
+    "categoria_site": "Outros",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16692",
+    "descricao_cahosp": "CAPACETE DE SEGURANÇA C/ CARNEIRA E JUGULAR",
+    "descricao_site": "Capacete De Segurança C/ Carneira E Jugular",
+    "categoria_site": "Outros",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "17175",
+    "descricao_cahosp": "CINTA LOMBAR ERGONOMICA TAM G",
+    "descricao_site": "Cinta Lombar Ergonomica",
+    "categoria_site": "Ergonômicos",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "G",
+    "tamanho": "G"
+  },
+  {
+    "codigo_pa": "16723",
+    "descricao_cahosp": "CINTA LOMBAR ERGONOMICA TAM M",
+    "descricao_site": "Cinta Lombar Ergonomica",
+    "categoria_site": "Ergonômicos",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "M",
+    "tamanho": "M"
+  },
+  {
+    "codigo_pa": "16725",
+    "descricao_cahosp": "CINTO DE SEGURANÇA TIPO PARAQUEDISTA",
+    "descricao_site": "Cinto De Segurança Tipo Paraquedista",
+    "categoria_site": "Outros",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16668",
+    "descricao_cahosp": "LUVA ANTICORTE - G",
+    "descricao_site": "Luva Anticorte",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "G",
+    "tamanho": "G"
+  },
+  {
+    "codigo_pa": "16667",
+    "descricao_cahosp": "LUVA ANTICORTE - M",
+    "descricao_site": "Luva Anticorte",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "M",
+    "tamanho": "M"
+  },
+  {
+    "codigo_pa": "17172",
+    "descricao_cahosp": "LUVA DE LATEX AMARELA - EG",
+    "descricao_site": "Luva De Latex Amarela",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "EG",
+    "tamanho": "EG"
+  },
+  {
+    "codigo_pa": "16674",
+    "descricao_cahosp": "LUVA DE LATEX AMARELA - G",
+    "descricao_site": "Luva De Latex Amarela",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "G",
+    "tamanho": "G"
+  },
+  {
+    "codigo_pa": "16672",
+    "descricao_cahosp": "LUVA DE LATEX AMARELA - M",
+    "descricao_site": "Luva De Latex Amarela",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "M",
+    "tamanho": "M"
+  },
+  {
+    "codigo_pa": "16669",
+    "descricao_cahosp": "LUVA DE LATEX AMARELA - P",
+    "descricao_site": "Luva De Latex Amarela",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "P",
+    "tamanho": "P"
+  },
+  {
+    "codigo_pa": "17642",
+    "descricao_cahosp": "LUVA DE SEGURAÇA SS 1010 TAM ( 8 )",
+    "descricao_site": "Luva De Seguraça Ss 1010",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": null,
+    "tamanho": null
+  },
+  {
+    "codigo_pa": "17530",
+    "descricao_cahosp": "LUVA DE SEGURANÇA NITRILICA G",
+    "descricao_site": "Luva De Segurança Nitrilica",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "G",
+    "tamanho": "G"
+  },
+  {
+    "codigo_pa": "17529",
+    "descricao_cahosp": "LUVA DE SEGURANÇA NITRILICA M",
+    "descricao_site": "Luva De Segurança Nitrilica",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "M",
+    "tamanho": "M"
+  },
+  {
+    "codigo_pa": "17528",
+    "descricao_cahosp": "LUVA DE SEGURANÇA NITRILICA P",
+    "descricao_site": "Luva De Segurança Nitrilica",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "P",
+    "tamanho": "P"
+  },
+  {
+    "codigo_pa": "17641",
+    "descricao_cahosp": "LUVA DE SEGURANÇA SS 1010 TAM ( 9 )",
+    "descricao_site": "Luva De Segurança Ss 1010",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "8",
+    "tamanho": "8"
+  },
+  {
+    "codigo_pa": "17531",
+    "descricao_cahosp": "LUVA FIBRA PALMA PVC",
+    "descricao_site": "Luva Fibra Palma Pvc",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "17292",
+    "descricao_cahosp": "LUVA MULTIUSO TAMANHO G - 09",
+    "descricao_site": "Luva Multiuso",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "G",
+    "tamanho": "G"
+  },
+  {
+    "codigo_pa": "17291",
+    "descricao_cahosp": "LUVA MULTIUSO TAMANHO M - 08",
+    "descricao_site": "Luva Multiuso",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "M",
+    "tamanho": "M"
+  },
+  {
+    "codigo_pa": "17290",
+    "descricao_cahosp": "LUVA MULTIUSO TAMANHO P - 07",
+    "descricao_site": "Luva Multiuso",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "P",
+    "tamanho": "P"
+  },
+  {
+    "codigo_pa": "16654",
+    "descricao_cahosp": "LUVA PIGMENTADA BRANCA",
+    "descricao_site": "Luva Pigmentada Branca",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16631",
+    "descricao_cahosp": "LUVA TERMICA 35 CM",
+    "descricao_site": "Luva Termica",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "35",
+    "tamanho": "35"
+  },
+  {
+    "codigo_pa": "16632",
+    "descricao_cahosp": "LUVA TERMICA 45 CM",
+    "descricao_site": "Luva Termica",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": "45",
+    "tamanho": "45"
+  },
+  {
+    "codigo_pa": "16659",
+    "descricao_cahosp": "MACACAO IMPERMEAVEL DE MANGA LONGA",
+    "descricao_site": "Macacao Impermeavel De Manga Longa",
+    "categoria_site": "Outros",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16658",
+    "descricao_cahosp": "MACACAO IMPERMEAVEL DE TNT - BRANCO",
+    "descricao_site": "Macacao Impermeavel De Tnt - Branco",
+    "categoria_site": "Outros",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16660",
+    "descricao_cahosp": "MACACAO TERMICO PARA CAMARA FRIA XGG",
+    "descricao_site": "Macacao Termico Para Camara Fria",
+    "categoria_site": "Outros",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "XGG",
+    "tamanho": "XGG"
+  },
+  {
+    "codigo_pa": "16661",
+    "descricao_cahosp": "MASCARA RESPIRADOR N95 - PFF2 (SESMT)",
+    "descricao_site": "Mascara Respirador N95 - Pff2",
+    "categoria_site": "Proteção respiratória",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "5419",
+    "descricao_cahosp": "OCULOS DE PROTECAO LENTES BRANCAS (INCOLOR)",
+    "descricao_site": "Oculos De Protecao Lentes Brancas (Incolor)",
+    "categoria_site": "Proteção ocular/facial",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16721",
+    "descricao_cahosp": "OCULOS DE SEGURANÇA C/ ARCO PLASTICO PRETO",
+    "descricao_site": "Oculos De Segurança C/ Arco Plastico Preto",
+    "categoria_site": "Proteção ocular/facial",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16720",
+    "descricao_cahosp": "OCULOS DE SOBREBOR C/ RECUO ALONGADO",
+    "descricao_site": "Oculos De Sobrebor C/ Recuo Alongado",
+    "categoria_site": "Proteção ocular/facial",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "17575",
+    "descricao_cahosp": "ÓCULOS PLUMBÍFEROS - BLINDAGEM RADIOLOGICA",
+    "descricao_site": "Óculos Plumbíferos - Blindagem Radiologica",
+    "categoria_site": "Proteção ocular/facial",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16652",
+    "descricao_cahosp": "OCULOS SEGURANCA AMPLA VISAO",
+    "descricao_site": "Oculos Seguranca Ampla Visao",
+    "categoria_site": "Proteção ocular/facial",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "17245",
+    "descricao_cahosp": "PLACA DE INCENDIO 15 X 20 (CHUVEIROS AUTOMATICOS)",
+    "descricao_site": "Placa De Incendio (Chuveiros Automaticos)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "15x20",
+    "tamanho": "15x20"
+  },
+  {
+    "codigo_pa": "17438",
+    "descricao_cahosp": "PLACA DE SINALIZACAO (PORTA CORTA-FOGO, MANTENHA FECHADA)",
+    "descricao_site": "Placa De Sinalizacao (Porta Corta-Fogo, Mantenha Fechada)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "17250",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 14 X 14 (1º ANDAR)",
+    "descricao_site": "Placa De Sinalizacao (1º Andar)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "14x14",
+    "tamanho": "14x14"
+  },
+  {
+    "codigo_pa": "17251",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 14 X 14 (2º ANDAR)",
+    "descricao_site": "Placa De Sinalizacao (2º Andar)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "14x14",
+    "tamanho": "14x14"
+  },
+  {
+    "codigo_pa": "17252",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 14 X 14 (3º ANDAR)",
+    "descricao_site": "Placa De Sinalizacao (3º Andar)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "14x14",
+    "tamanho": "14x14"
+  },
+  {
+    "codigo_pa": "17253",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 14 X 14 (4º ANDAR)",
+    "descricao_site": "Placa De Sinalizacao (4º Andar)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "14x14",
+    "tamanho": "14x14"
+  },
+  {
+    "codigo_pa": "17254",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 14 X 14 (5º ANDAR)",
+    "descricao_site": "Placa De Sinalizacao (5º Andar)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "14x14",
+    "tamanho": "14x14"
+  },
+  {
+    "codigo_pa": "17255",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 14 X 14 (6º ANDAR)",
+    "descricao_site": "Placa De Sinalizacao (6º Andar)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "14x14",
+    "tamanho": "14x14"
+  },
+  {
+    "codigo_pa": "17213",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 14 X 14 (SUBSOLO)",
+    "descricao_site": "Placa De Sinalizacao (Subsolo)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "14x14",
+    "tamanho": "14x14"
+  },
+  {
+    "codigo_pa": "17249",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 14 X 14 (TERREO)",
+    "descricao_site": "Placa De Sinalizacao (Terreo)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "14x14",
+    "tamanho": "14x14"
+  },
+  {
+    "codigo_pa": "17246",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 15 X 20 (CHUVEIROS AUTOMATICOS)",
+    "descricao_site": "Placa De Sinalizacao (Chuveiros Automaticos)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "15x20",
+    "tamanho": "15x20"
+  },
+  {
+    "codigo_pa": "17435",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 15 X 20 (EXTINTOR ABC)",
+    "descricao_site": "Placa De Sinalizacao (Extintor Abc)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "15x20",
+    "tamanho": "15x20"
+  },
+  {
+    "codigo_pa": "17257",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 15 X 20 (EXTINTOR CO2)",
+    "descricao_site": "Placa De Sinalizacao (Extintor Co2)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "15x20",
+    "tamanho": "15x20"
+  },
+  {
+    "codigo_pa": "17436",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 15 X 20 (EXTINTOR DE AGUA)",
+    "descricao_site": "Placa De Sinalizacao (Extintor De Agua)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "15x20",
+    "tamanho": "15x20"
+  },
+  {
+    "codigo_pa": "17437",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 15 X 20 (EXTINTOR DE PO BC)",
+    "descricao_site": "Placa De Sinalizacao (Extintor De Po Bc)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "15x20",
+    "tamanho": "15x20"
+  },
+  {
+    "codigo_pa": "17214",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 23 X 18 (CUIDADO, TRAFEGO DE EMPILHADEIRAS, MANTENHA A AREA LIVRE)",
+    "descricao_site": "Placa De Sinalizacao (Cuidado, Trafego De Empilhadeiras, Mantenha A Area Livre)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "23x18",
+    "tamanho": "23x18"
+  },
+  {
+    "codigo_pa": "17227",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 23 x 18 (PERIGO 380 VOLTS)",
+    "descricao_site": "Placa De Sinalizacao (Perigo 380 Volts)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "23x18",
+    "tamanho": "23x18"
+  },
+  {
+    "codigo_pa": "17238",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 24 X 12 (EM CASO DE INCENDIO NAO USE ELEVADOR, USE AS ESCADAS)",
+    "descricao_site": "Placa De Sinalizacao (Em Caso De Incendio Nao Use Elevador, Use As Escadas)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "24x12",
+    "tamanho": "24x12"
+  },
+  {
+    "codigo_pa": "17224",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 24 X 12 (ESCADA DESCE DIREITA)",
+    "descricao_site": "Placa De Sinalizacao (Escada Desce Direita)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "24x12",
+    "tamanho": "24x12"
+  },
+  {
+    "codigo_pa": "17276",
+    "descricao_cahosp": "PLACA DE SINALIZACAO CASA DE GERADOR",
+    "descricao_site": "Placa De Sinalizacao Casa De Gerador",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16663",
+    "descricao_cahosp": "PLACA DE SINALIZACAO DE HIDRANTE",
+    "descricao_site": "Placa De Sinalizacao De Hidrante",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16724",
+    "descricao_cahosp": "PLACA DE SINALIZAÇAO DE PISO",
+    "descricao_site": "Placa De Sinalizaçao De Piso",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16656",
+    "descricao_cahosp": "PROTETOR DE GONADAS PLUMBIFERO 30CM X 45CM 0.50 MM/PB",
+    "descricao_site": "Protetor De Gonadas Plumbifero",
+    "categoria_site": "Proteção radiológica",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "17578",
+    "descricao_cahosp": "PROTETOR RADIOLOGICO DE GÔNADAS AZUL - PROTECTIVE RADIO SHIELD 0,50MM PB EM 100KV 0,25MM",
+    "descricao_site": "Protetor Radiologico De Gônadas Azul",
+    "categoria_site": "Outros",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "9",
+    "tamanho": "9"
+  },
+  {
+    "codigo_pa": "17577",
+    "descricao_cahosp": "PROTETOR TIREOIDE EM CHUMBO 0,50MM - COMP600MMXLARG150MM",
+    "descricao_site": "Protetor Tireoide Em Chumbo",
+    "categoria_site": "Proteção radiológica",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16726",
+    "descricao_cahosp": "TALABARTE P/ CINTO DE SEGURANÇA",
+    "descricao_site": "Talabarte P/ Cinto De Segurança",
+    "categoria_site": "Outros",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "17424",
+    "descricao_cahosp": "VISEIRA DE PROTECAO FACIAL - LEDAN",
+    "descricao_site": "Viseira De Protecao Facial - Ledan",
+    "categoria_site": "Outros",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
+    "codigo_pa": "16655",
+    "descricao_cahosp": "VISEIRA PROTECAO FACIAL",
+    "descricao_site": "Viseira Protecao Facial",
+    "categoria_site": "Outros",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  }
+]

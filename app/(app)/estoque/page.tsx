@@ -2,54 +2,20 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
 
-type Row = {
-  id: string;
-  regionalId: string;
-  regional: string;
-  unidadeId: string;
-  unidade: string;
-  itemId: string;
-  item: string;
-  quantidade: number;
-  minimo: number;
-  maximo: number;
+type Row = { id:string; regionalId:string; regional:string; unidadeId:string; unidade:string; itemId:string; item:string; quantidade:number; minimo:number; maximo:number };
+type Mov = { id:string; tipo:'entrada'|'saida'; quantidade:number; destino?:string; observacao?:string; data:string; unidadeId:string; unidade:string; regionalId:string; regional:string; itemId:string; item:string };
+type Pedido = { id:string; status:'pendente'|'recebido'|'cancelado'; criadoEm:string; previstoEm?:string; recebidoEm?:string; observacao?:string; regionalId?:string; regional?:string; unidadeId?:string; unidade?:string; qtd_solicitada:number; qtd_recebida:number };
+type Opts = { regionais:string[]; unidades:{unidade:string, regional:string}[] };
+type CatalogItem = {
+  codigo_pa: string | null;
+  descricao_cahosp: string | null;
+  descricao_site: string | null;
+  categoria_site: string | null;
+  grupo_cahosp: string | null;
+  unidade_site: string | null;
+  tamanho_site: string | null;
+  tamanho: string | null;
 };
-
-type Mov = {
-  id: string;
-  tipo: 'entrada' | 'saida';
-  quantidade: number;
-  destino?: string | null;
-  observacao?: string | null;
-  data: string;
-  unidadeId: string;
-  unidade: string;
-  regionalId: string;
-  regional: string;
-  itemId: string;
-  item: string;
-};
-
-type Pedido = {
-  id: string;
-  status: 'pendente' | 'recebido' | 'cancelado';
-  criadoEm: string;
-  previstoEm?: string | null;
-  recebidoEm?: string | null;
-  observacao?: string | null;
-  regionalId?: string | null;
-  regional?: string | null;
-  unidadeId?: string | null;
-  unidade?: string | null;
-  qtd_solicitada: number;
-  qtd_recebida: number;
-};
-
-type Opts = {
-  regionais: string[];
-  unidades: { unidade: string; regional: string }[];
-};
-
 
 async function fetchJSON<T>(u:string, init?:RequestInit){ const r = await fetch(u, { cache:'no-store', ...init }); if(!r.ok) throw new Error(await r.text()); return r.json() as Promise<T>; }
 
@@ -93,6 +59,11 @@ const [newItemUnidade, setNewItemUnidade] = useState('');
 const [newItemQtdInicial, setNewItemQtdInicial] = useState<number>(0);
 const [newItemSaving, setNewItemSaving] = useState(false);
 
+// Busca no catálogo SESMT (planilha)
+const [catQuery, setCatQuery] = useState('');
+const [catOptions, setCatOptions] = useState<CatalogItem[]>([]);
+const [catLoading, setCatLoading] = useState(false);
+
   useEffect(()=>{ fetchJSON<Opts>('/api/entregas/options').then(setOpts).catch(()=>{}); },[]);
 
   useEffect(()=>{
@@ -121,29 +92,49 @@ const [newItemSaving, setNewItemSaving] = useState(false);
   const unidadesFiltradas = useMemo(()=> opts.unidades.filter(u => !regional || u.regional===regional), [opts, regional]);
 
   const itensCat = useMemo(()=>{
-  const uniq = new Map<string,string>();
-  rows.forEach(r => uniq.set(r.itemId, r.item));
-  return Array.from(uniq.entries()).map(([id, nome]) => ({id, nome}));
-}, [rows]);
+    const uniq = new Map<string,string>();
+    rows.forEach(r => uniq.set(r.itemId, r.item));
+    return Array.from(uniq.entries()).map(([id, nome]) => ({id, nome}));
+  }, [rows]);
 
-const resumo = useMemo(() => {
-  let totalItens = rows.length;
-  let baixo = 0;
-  let zerado = 0;
-  let semMinimo = 0;
-  for (const r of rows) {
-    if (r.quantidade <= 0) {
-      zerado++;
+  const resumo = useMemo(() => {
+    let totalItens = rows.length;
+    let baixo = 0;
+    let zerado = 0;
+    let semMinimo = 0;
+    for (const r of rows) {
+      if (r.quantidade <= 0) zerado++;
+      if (r.minimo > 0 && r.quantidade > 0 && r.quantidade <= r.minimo) baixo++;
+      if (r.minimo === 0) semMinimo++;
     }
-    if (r.minimo > 0 && r.quantidade > 0 && r.quantidade <= r.minimo) {
-      baixo++;
+    return { totalItens, baixo, zerado, semMinimo };
+  }, [rows]);
+
+  useEffect(() => {
+    if (!catQuery.trim()) {
+      setCatOptions([]);
+      return;
     }
-    if (r.minimo === 0) {
-      semMinimo++;
-    }
-  }
-  return { totalItens, baixo, zerado, semMinimo };
-}, [rows]);
+    let active = true;
+    setCatLoading(true);
+    const url = `/api/estoque/catalogo?q=${encodeURIComponent(catQuery)}`;
+    fetchJSON<{ items: CatalogItem[] }>(url)
+      .then(d => {
+        if (!active) return;
+        setCatOptions(d.items || []);
+      })
+      .catch(() => {
+        if (!active) return;
+        setCatOptions([]);
+      })
+      .finally(() => {
+        if (!active) return;
+        setCatLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [catQuery]);
 
 
   async function criarMov(){
@@ -189,21 +180,21 @@ const resumo = useMemo(() => {
 
       {tab==='visao' && (
   <div className="rounded-xl border border-border bg-panel">
-    {/* Resumo do estoque da Regional/Unidade selecionada */}
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 p-4 border-b border-border">
-      <div className="rounded-lg bg-card px-3 py-2 text-xs flex flex-col gap-1">
+    {/* Cards de resumo do estoque */}
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 p-4 border-b border-border text-xs">
+      <div className="rounded-lg bg-card px-3 py-2 flex flex-col gap-1">
         <div className="text-muted">Itens em estoque</div>
         <div className="text-lg font-semibold">{resumo.totalItens}</div>
       </div>
-      <div className="rounded-lg bg-card px-3 py-2 text-xs flex flex-col gap-1">
+      <div className="rounded-lg bg-card px-3 py-2 flex flex-col gap-1">
         <div className="text-muted">Abaixo do mínimo</div>
         <div className="text-lg font-semibold">{resumo.baixo}</div>
       </div>
-      <div className="rounded-lg bg-card px-3 py-2 text-xs flex flex-col gap-1">
+      <div className="rounded-lg bg-card px-3 py-2 flex flex-col gap-1">
         <div className="text-muted">Zerados</div>
         <div className="text-lg font-semibold">{resumo.zerado}</div>
       </div>
-      <div className="rounded-lg bg-card px-3 py-2 text-xs flex flex-col gap-1">
+      <div className="rounded-lg bg-card px-3 py-2 flex flex-col gap-1">
         <div className="text-muted">Sem mínimo configurado</div>
         <div className="text-lg font-semibold">{resumo.semMinimo}</div>
       </div>
@@ -330,7 +321,6 @@ const resumo = useMemo(() => {
                     maximo,
                   }),
                 });
-                // Recarrega saldos
                 const urlSaldo = `/api/estoque/list?regionalId=${encodeURIComponent(
                   regional
                 )}&unidadeId=${encodeURIComponent(unidade)}&q=${encodeURIComponent(q)}&page=${page}&size=${size}`;
@@ -359,13 +349,51 @@ const resumo = useMemo(() => {
 
     {/* Cadastro rápido de novo item vinculado à Unidade */}
     <div className="border-t border-border px-4 py-4 text-xs bg-card/20 flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
         <div>
           <div className="font-semibold text-sm">Cadastrar novo item</div>
-          <div className="text-muted">Cria o item no catálogo interno e já abre estoque para a unidade selecionada.</div>
+          <div className="text-muted">
+            Use o catálogo SESMT para buscar o item ou preencha manualmente. O estoque inicial será lançado para a unidade selecionada.
+          </div>
+        </div>
+        <div className="flex flex-col md:flex-row gap-2 items-center">
+          <input
+            className="px-3 py-2 rounded bg-card border border-border text-xs"
+            placeholder="Buscar no catálogo SESMT (código ou descrição)"
+            value={catQuery}
+            onChange={e => setCatQuery(e.target.value)}
+          />
+          {catLoading && <span className="text-[11px] text-muted">Buscando...</span>}
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+
+      {catOptions.length > 0 && (
+        <div className="max-h-40 overflow-y-auto rounded border border-border bg-card text-[11px] mt-2">
+          {catOptions.map((c, idx) => (
+            <button
+              key={idx}
+              type="button"
+              className="w-full text-left px-3 py-1.5 hover:bg-white/10 border-b border-border last:border-b-0"
+              onClick={() => {
+                setNewItemNome(c.descricao_site || c.descricao_cahosp || '');
+                setNewItemCategoria(c.categoria_site || 'EPI');
+                setNewItemUnidadeMedida(c.unidade_site || 'UN');
+              }}
+            >
+              <div className="font-medium">
+                {c.descricao_site || c.descricao_cahosp || 'Sem descrição'}
+              </div>
+              <div className="text-muted">
+                {c.codigo_pa ? `Código: ${c.codigo_pa}` : ''}
+                {c.grupo_cahosp ? ` · Grupo: ${c.grupo_cahosp}` : ''}
+                {c.tamanho_site ? ` · Tam.: ${c.tamanho_site}` : ''}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mt-3">
         <input
           className="px-3 py-2 rounded bg-card border border-border text-xs md:col-span-2"
           placeholder="Nome do item"
@@ -399,7 +427,7 @@ const resumo = useMemo(() => {
         <input
           className="px-3 py-2 rounded bg-card border border-border text-xs w-full"
           placeholder="Qtd inicial"
-          value={Number.isNaN(newItemQtdInicial) ? '' : String(newItemQtdInicial)}
+          value={newItemQtdInicial ? String(newItemQtdInicial) : ''}
           onChange={e => {
             const v = e.target.value.replace(/[^0-9]/g, '');
             setNewItemQtdInicial(v ? Number(v) : 0);
@@ -407,10 +435,14 @@ const resumo = useMemo(() => {
           inputMode="numeric"
         />
       </div>
-      <div className="flex justify-end">
+      <div className="flex justify-end mt-2">
         <button
           className="px-3 py-2 rounded border border-border text-[11px] disabled:opacity-50"
-          disabled={newItemSaving || !newItemNome || !(newItemUnidade || unidade)}
+          disabled={
+            newItemSaving ||
+            !newItemNome ||
+            !(newItemUnidade || unidade)
+          }
           onClick={async () => {
             try {
               setNewItemSaving(true);
@@ -426,12 +458,13 @@ const resumo = useMemo(() => {
                   quantidadeInicial: newItemQtdInicial || 0,
                 }),
               });
-              // limpa formulário e recarrega saldo
               setNewItemNome('');
               setNewItemCategoria('EPI');
               setNewItemUnidadeMedida('UN');
               setNewItemUnidade('');
               setNewItemQtdInicial(0);
+              setCatQuery('');
+              setCatOptions([]);
               const urlSaldo = `/api/estoque/list?regionalId=${encodeURIComponent(
                 regional
               )}&unidadeId=${encodeURIComponent(unidade)}&q=${encodeURIComponent(q)}&page=${page}&size=${size}`;
