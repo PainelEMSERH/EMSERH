@@ -175,7 +175,7 @@ export default function EntregasPage() {
 
   return (
     <div className="space-y-4">
-      {/* Linha principal de filtros */}
+      {/* Filtros principais */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col md:flex-row gap-3 items-stretch">
           <div className="flex-1 min-w-[180px]">
@@ -234,7 +234,7 @@ export default function EntregasPage() {
           </div>
         </div>
 
-        {/* Legenda de status e toggle fora da meta */}
+        {/* Legenda de status (por enquanto apenas visual) */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 text-xs text-neutral-700 dark:text-neutral-300 gap-3">
           <div className="flex flex-wrap items-center gap-3">
             <span className="opacity-70">Legenda:</span>
@@ -268,15 +268,9 @@ export default function EntregasPage() {
             </span>
           </div>
 
-          <label className="inline-flex items-center gap-2">
-            <input
-              type="checkbox"
-              className="rounded border-neutral-400"
-              checked={showExcluded}
-              onChange={(e) => setShowExcluded(e.target.checked)}
-            />
-            <span>Mostrar colaboradores fora da meta</span>
-          </label>
+          <span className="text-xs opacity-70">
+            Em breve: controle de situação por colaborador (férias, INSS, licença etc.) direto nesta tela.
+          </span>
         </div>
       </div>
 
@@ -304,55 +298,19 @@ export default function EntregasPage() {
               {loading && (
                 <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Carregando…</td></tr>
               )}
-              {!loading && visibleRows.map((r) => {
-                const st = statusMap[r.id];
-                const code: StatusCode = (st?.code || 'ATIVO');
-                const label = st?.label || STATUS_LABELS[code];
-                const obs = st?.obs || '';
-                const isForaMeta = EXCLUDED_STATUS.includes(code);
-                return (
-                  <tr key={r.id} className="border-t border-neutral-200 dark:border-neutral-800">
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${statusDotClass(code)}`} />
-                        <span className="truncate">{r.nome}</span>
-                        {(obs || code !== 'ATIVO') && (
-                          <span
-                            className="text-[11px] px-1.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 cursor-default"
-                            title={obs || label}
-                          >
-                            🅘
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{maskCPF(r.id)}</td>
-                    <td className="px-3 py-2">{r.funcao}</td>
-                    <td className="px-3 py-2">{r.unidade}</td>
-                    <td className="px-3 py-2">{r.regional}</td>
-                    <td className="px-3 py-2 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => openStatusModal(r, st)}
-                          className="px-2 py-1 rounded-lg border text-xs"
-                        >
-                          Situação
-                        </button>
-                        <button
-                          onClick={() => openDeliver(r)}
-                          disabled={isForaMeta}
-                          className={\`px-3 py-2 rounded-xl text-sm \${isForaMeta
-                            ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500'
-                            : 'bg-neutral-800 text-white dark:bg-emerald-600'}\`}
-                        >
-                          Entregar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {!loading && visibleRows.length === 0 && (
+              {!loading && rows.map((r) => (
+                <tr key={r.id} className="border-t border-neutral-200 dark:border-neutral-800">
+                  <td className="px-3 py-2">{r.nome}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{maskCPF(r.id)}</td>
+                  <td className="px-3 py-2">{r.funcao}</td>
+                  <td className="px-3 py-2">{r.unidade}</td>
+                  <td className="px-3 py-2">{r.regional}</td>
+                  <td className="px-3 py-2 text-right">
+                    <button onClick={() => openDeliver(r)} className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600">Entregar</button>
+                  </td>
+                </tr>
+              ))}
+              {!loading && rows.length === 0 && (
                 <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Sem resultados.</td></tr>
               )}
             </tbody>
@@ -372,90 +330,6 @@ export default function EntregasPage() {
                 disabled={state.page >= totalPages}
                 onClick={() => setFilter({ page: Math.min(totalPages, state.page + 1) })}
               >Próxima</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-
-      {statusModal.open && statusModal.row && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50"
-          onClick={() => setStatusModal({ open: false })}
-        >
-          <div
-            className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-md shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
-              <div>
-                <div className="text-xs uppercase tracking-wide opacity-70">Situação do colaborador</div>
-                <div className="font-semibold text-sm truncate">
-                  {statusModal.row?.nome} <span className="opacity-60 text-xs ml-1">({maskCPF(statusModal.row?.id)})</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setStatusModal({ open: false })}
-                className="text-xs px-2 py-1 rounded-lg border border-neutral-300 dark:border-neutral-700"
-              >
-                Fechar
-              </button>
-            </div>
-            <div className="px-4 py-4 space-y-3 text-sm">
-              <div>
-                <label className="text-xs block mb-1">Status</label>
-                <select
-                  value={statusModal.code || 'ATIVO'}
-                  onChange={(e) =>
-                    setStatusModal((prev) => ({
-                      ...prev,
-                      code: e.target.value as StatusCode,
-                    }))
-                  }
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
-                >
-                  <option value="ATIVO">Ativo (entra na meta)</option>
-                  <option value="FERIAS">Férias</option>
-                  <option value="INSS">INSS</option>
-                  <option value="LICENCA_MATERNIDADE">Licença maternidade</option>
-                  <option value="DEMITIDO_2025_SEM_EPI">Demitido 2025 sem EPI (fora da meta, justificado)</option>
-                  <option value="EXCLUIDO_META">Excluído da meta (outros motivos)</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs block mb-1">Observação rápida (aparece no 🅘)</label>
-                <input
-                  type="text"
-                  maxLength={100}
-                  value={statusModal.obs || ''}
-                  onChange={(e) =>
-                    setStatusModal((prev) => ({
-                      ...prev,
-                      obs: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
-                  placeholder="Ex.: Férias jan/2025; Gestante; INSS desde 02/2025..."
-                />
-              </div>
-              <p className="text-[11px] opacity-70">
-                Colaboradores marcados como <strong>Demitido 2025 sem EPI</strong> ou <strong>Excluído da meta</strong> ficam com o botão de entrega desativado
-                e são sinalizados como <em>fora da meta</em> nesta tela e nos futuros dashboards.
-              </p>
-            </div>
-            <div className="px-4 py-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2">
-              <button
-                onClick={() => setStatusModal({ open: false })}
-                className="px-3 py-2 rounded-xl text-sm border border-neutral-300 dark:border-neutral-700"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={saveStatusModal}
-                className="px-4 py-2 rounded-xl text-sm bg-neutral-800 text-white dark:bg-emerald-600"
-              >
-                Salvar
-              </button>
             </div>
           </div>
         </div>
