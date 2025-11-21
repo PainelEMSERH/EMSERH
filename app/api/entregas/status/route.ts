@@ -1,138 +1,68 @@
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
-
-const ANO_REFERENCIA = 2025;
-
-type StatusCode =
-  | 'ATIVO'
-  | 'FERIAS'
-  | 'INSS'
-  | 'LICENCA_MATERNIDADE'
-  | 'DEMITIDO_2025_SEM_EPI'
-  | 'EXCLUIDO_META';
-
-const STATUS_ALLOWED: StatusCode[] = [
-  'ATIVO',
-  'FERIAS',
-  'INSS',
-  'LICENCA_MATERNIDADE',
-  'DEMITIDO_2025_SEM_EPI',
-  'EXCLUIDO_META',
-];
-
-function cleanCpf(v: any): string {
-  return String(v || '').replace(/\D/g, '').slice(-11);
-}
-
-async function ensureTable() {
-  try {
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS epi_colab_status (
-        cpf_limpo       varchar(11) NOT NULL,
-        ano_referencia  integer NOT NULL DEFAULT 2025,
-        status          varchar(40) NOT NULL,
-        observacao      varchar(100),
-        updated_at      timestamptz NOT NULL DEFAULT now(),
-        PRIMARY KEY (cpf_limpo, ano_referencia)
-      )
-    `);
-  } catch (e) {
-    console.error('ensureTable epi_colab_status error', e);
-  }
-}
+import { prisma } from '@/lib/prisma';
 
 export async function GET(req: Request) {
-  await ensureTable();
-  const url = new URL(req.url);
-  const idsParam = url.searchParams.get('ids') || '';
-  const ids = Array.from(
-    new Set(
-      idsParam
-        .split(',')
-        .map((s) => cleanCpf(s))
-        .filter(Boolean),
-    ),
-  );
-
+  const { searchParams } = new URL(req.url);
+  const idsParam = searchParams.get('ids') || '';
+  const ids = idsParam.split(',').map(s => s.trim()).filter(Boolean);
   if (!ids.length) {
     return NextResponse.json({ rows: [] });
   }
 
-  try {
-    const rows = await prisma.$queryRawUnsafe<any[]>(
-      `
-      SELECT cpf_limpo, status, observacao
-      FROM epi_colab_status
-      WHERE ano_referencia = $1
-        AND cpf_limpo = ANY($2::text[])
-      `,
-      ANO_REFERENCIA,
-      ids,
-    );
-    return NextResponse.json({ rows });
-  } catch (e: any) {
-    console.error('GET /api/entregas/status error', e);
-    return NextResponse.json(
-      { rows: [], error: e?.message || String(e) },
-      { status: 200 },
-    );
+  const cpfs = Array.from(new Set(ids.map(cpf => String(cpf).replace(/\D/g, '').slice(-11))));
+  if (!cpfs.length) {
+    return NextResponse.json({ rows: [] });
   }
+
+  const rows = await prisma.$queryRawUnsafe<any[]>(`
+    SELECT
+      regexp_replace(cpf, '[^0-9]', '', 'g') AS cpf_limpo,
+      status,
+      observacao
+    FROM public.epi_colab_status
+    WHERE regexp_replace(cpf, '[^0-9]', '', 'g') = ANY($1::text[])
+  `, cpfs);
+
+  return NextResponse.json({ rows });
 }
 
 export async function POST(req: Request) {
-  await ensureTable();
-  let body: any = {};
-  try {
-    body = await req.json();
-  } catch {
-    body = {};
+  const body = await req.json().catch(() => ({} as any));
+  const cpfRaw = String(body.cpf || '');
+  const status = String(body.status || '').toUpperCase();
+  const observacao = (body.observacao || '').toString().slice(0, 200);
+
+  if (!cpfRaw || !status) {
+    return NextResponse.json({ ok: false, error: 'cpf/status inválidos' }, { status: 400 });
   }
 
-  const cpf = cleanCpf(body.cpf);
-  const statusRaw = (body.status || '').toString().toUpperCase().trim() as StatusCode;
-  const observacao =
-    (body.observacao || '').toString().slice(0, 100).trim() || null;
+  const cpf = cpfRaw.replace(/\D/g, '').slice(-11);
 
-  if (!cpf) {
-    return NextResponse.json(
-      { ok: false, error: 'CPF inválido' },
-      { status: 400 },
-    );
+  // garante apenas códigos que mapeamos na tela
+  const allowed = [
+    'ATIVO',
+    'FERIAS',
+    'INSS',
+    'LICENCA_MATERNIDADE',
+    'DEMITIDO_2025_SEM_EPI',
+    'EXCLUIDO_META',
+  ];
+  if (!allowed.includes(status)) {
+    return NextResponse.json({ ok: false, error: 'status inválido' }, { status: 400 });
   }
 
-  if (!STATUS_ALLOWED.includes(statusRaw)) {
-    return NextResponse.json(
-      { ok: false, error: 'Status inválido' },
-      { status: 400 },
-    );
-  }
+  await prisma.$executeRawUnsafe(
+    \`
+    INSERT INTO public.epi_colab_status (cpf, status, observacao)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (cpf)
+    DO UPDATE SET status = EXCLUDED.status, observacao = EXCLUDED.observacao
+    \`,
+    cpf,
+    status,
+    observacao,
+  );
 
-  try {
-    await prisma.$executeRawUnsafe(
-      `
-      INSERT INTO epi_colab_status (cpf_limpo, ano_referencia, status, observacao)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (cpf_limpo, ano_referencia)
-      DO UPDATE SET
-        status     = EXCLUDED.status,
-        observacao = EXCLUDED.observacao,
-        updated_at = now()
-      `,
-      cpf,
-      ANO_REFERENCIA,
-      statusRaw,
-      observacao,
-    );
-    return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    console.error('POST /api/entregas/status error', e);
-    return NextResponse.json(
-      { ok: false, error: e?.message || String(e) },
-      { status: 200 },
-    );
-  }
+  return NextResponse.json({ ok: true });
 }

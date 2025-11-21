@@ -6,49 +6,6 @@ type Row = { id: string; nome: string; funcao: string; unidade: string; regional
 type KitItem = { item: string; quantidade: number; nome_site?: string | null; };
 type Deliver = { item: string; qty_delivered: number; qty_required: number; deliveries: Array<{date:string, qty:number}>; };
 
-
-type StatusCode =
-  | 'ATIVO'
-  | 'FERIAS'
-  | 'INSS'
-  | 'LICENCA_MATERNIDADE'
-  | 'DEMITIDO_2025_SEM_EPI'
-  | 'EXCLUIDO_META';
-
-type StatusInfo = {
-  code: StatusCode;
-  label: string;
-  obs?: string | null;
-};
-
-const STATUS_LABELS: Record<StatusCode, string> = {
-  ATIVO: 'Ativo',
-  FERIAS: 'Férias',
-  INSS: 'INSS',
-  LICENCA_MATERNIDADE: 'Licença maternidade',
-  DEMITIDO_2025_SEM_EPI: 'Demitido 2025 sem EPI',
-  EXCLUIDO_META: 'Excluído da meta',
-};
-
-const EXCLUDED_STATUS: StatusCode[] = ['DEMITIDO_2025_SEM_EPI', 'EXCLUIDO_META'];
-
-function statusDotClass(code: StatusCode): string {
-  switch (code) {
-    case 'FERIAS':
-      return 'bg-sky-500';
-    case 'INSS':
-      return 'bg-amber-500';
-    case 'LICENCA_MATERNIDADE':
-      return 'bg-purple-500';
-    case 'DEMITIDO_2025_SEM_EPI':
-      return 'bg-red-500';
-    case 'EXCLUIDO_META':
-      return 'bg-neutral-400';
-    default:
-      return 'bg-emerald-500';
-  }
-}
-
 const LS_KEY = 'entregas:v2025-11-07';
 
 function maskCPF(cpf?: string) {
@@ -91,16 +48,6 @@ export default function EntregasPage() {
   const [regionais, setRegionais] = useState<string[]>([]);
   const [unidadesAll, setUnidadesAll] = useState<Array<{ unidade: string; regional: string }>>([]);
 
-  const [statusMap, setStatusMap] = useState<Record<string, StatusInfo>>({});
-  const [showExcluded, setShowExcluded] = useState(false);
-
-  const [statusModal, setStatusModal] = useState<{
-    open: boolean;
-    row?: Row | null;
-    code?: StatusCode;
-    obs?: string;
-  }>({ open: false });
-
   const [modal, setModal] = useState<{ open: boolean; row?: Row | null }>({ open: false });
   const [kit, setKit] = useState<KitItem[]>([]);
   const [deliv, setDeliv] = useState<Deliver[]>([]);
@@ -139,21 +86,7 @@ export default function EntregasPage() {
   }
   // ---------------------------------------------------
 
-  
-  const unidades = useMemo(
-    () => unidadesAll.filter(u => !state.regional || u.regional === state.regional),
-    [unidadesAll, state.regional],
-  );
-
-  const visibleRows = useMemo(() => {
-    return rows.filter((r) => {
-      const st = statusMap[r.id];
-      const code = st?.code || 'ATIVO';
-      if (!showExcluded && EXCLUDED_STATUS.includes(code)) return false;
-      return true;
-    });
-  }, [rows, statusMap, showExcluded]);
-
+  const unidades = useMemo(() => unidadesAll.filter(u => !state.regional || u.regional === state.regional), [unidadesAll, state.regional]);
 
   useEffect(() => {
     let on = true;
@@ -166,11 +99,10 @@ export default function EntregasPage() {
     return () => { on = false };
   }, []);
 
-  
   useEffect(() => {
     let on = true;
     (async () => {
-      if (!state.regional) { setRows([]); setTotal(0); setStatusMap({}); return; }
+      if (!state.regional) { setRows([]); setTotal(0); return; }
       setLoading(true);
       const params = new URLSearchParams();
       params.set('regional', state.regional);
@@ -180,92 +112,15 @@ export default function EntregasPage() {
       params.set('pageSize', String(state.pageSize));
       const { json } = await fetchJSON('/api/entregas/list?' + params.toString(), { cache: 'no-store' });
       if (!on) return;
-      const rowsResp = (json.rows || []) as Row[];
-      setRows(rowsResp);
+      setRows((json.rows || []) as Row[]);
       setTotal(Number(json.total || 0));
-
-      // carrega status em lote para os CPFs desta página
-      try {
-        const ids = Array.from(new Set(rowsResp.map(r => String((r as any).id || '')).filter(Boolean)));
-        if (ids.length) {
-          const { json: stJ } = await fetchJSON('/api/entregas/status?ids=' + encodeURIComponent(ids.join(',')), { cache: 'no-store' });
-          if (on) {
-            const map: Record<string, StatusInfo> = {};
-            const arr: any[] = (stJ?.rows || []) as any[];
-            for (const r of arr) {
-              const cpf = String(r.cpf_limpo || '').replace(/\D/g, '').slice(-11);
-              const code = (r.status || '').toString().toUpperCase() as StatusCode;
-              if (!cpf || !code) continue;
-              if (!(code in STATUS_LABELS)) continue;
-              map[cpf] = {
-                code,
-                label: STATUS_LABELS[code],
-                obs: r.observacao || null,
-              };
-            }
-            setStatusMap(map);
-          }
-        } else {
-          if (on) setStatusMap({});
-        }
-      } catch (e) {
-        if (on) setStatusMap({});
-      }
-
-      if (on) setLoading(false);
+      setLoading(false);
     })();
     return () => { on = false };
   }, [state.regional, state.unidade, state.q, state.page, state.pageSize]);
 
-
   function setFilter(patch: Partial<typeof state>) {
     setState({ ...state, ...patch, page: patch.page ? patch.page : 1 });
-  }
-
-
-  function openStatusModal(row: Row, current?: StatusInfo) {
-    const code = current?.code || 'ATIVO';
-    const obs = (current?.obs || '') as string;
-    setStatusModal({
-      open: true,
-      row,
-      code,
-      obs,
-    });
-  }
-
-  async function saveStatusModal() {
-    if (!statusModal.row || !statusModal.code) {
-      setStatusModal({ open: false });
-      return;
-    }
-    const cpf = String((statusModal.row as any).id || '');
-    const payload = {
-      cpf,
-      status: statusModal.code,
-      observacao: statusModal.obs || '',
-    };
-    try {
-      await fetchJSON('/api/entregas/status', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const code = statusModal.code;
-      const info: StatusInfo = {
-        code,
-        label: STATUS_LABELS[code],
-        obs: statusModal.obs || '',
-      };
-      setStatusMap(prev => ({
-        ...prev,
-        [cpf]: info,
-      }));
-    } catch (e) {
-      // mantém estado anterior em caso de erro
-    } finally {
-      setStatusModal({ open: false });
-    }
   }
 
   async function openDeliver(row: Row) {
@@ -328,7 +183,7 @@ export default function EntregasPage() {
             <select
               value={state.regional}
               onChange={e => setFilter({ regional: e.target.value, unidade: '', page: 1 })}
-              className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+              className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
             >
               <option value="">Selecione a Regional…</option>
               {regionais.map(r => <option key={r} value={r}>{r}</option>)}
@@ -340,7 +195,7 @@ export default function EntregasPage() {
             <select
               value={state.unidade}
               onChange={e => setFilter({ unidade: e.target.value, page: 1 })}
-              className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+              className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
               disabled={!state.regional}
             >
               <option value="">(todas)</option>
@@ -354,7 +209,7 @@ export default function EntregasPage() {
               value={state.q}
               onChange={e => setFilter({ q: e.target.value })}
               placeholder="Digite para filtrar…"
-              className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+              className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
             />
           </div>
 
@@ -364,7 +219,7 @@ export default function EntregasPage() {
               <select
                 value={state.pageSize}
                 onChange={e => setFilter({ pageSize: Number(e.target.value) || 25, page: 1 })}
-                className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
               >
                 {[10,25,50,100].map(n => <option key={n} value={n}>{n}</option>)}
               </select>
@@ -471,7 +326,7 @@ export default function EntregasPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2">{maskCPF(r.id)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{maskCPF(r.id)}</td>
                     <td className="px-3 py-2">{r.funcao}</td>
                     <td className="px-3 py-2">{r.unidade}</td>
                     <td className="px-3 py-2">{r.regional}</td>
@@ -486,11 +341,9 @@ export default function EntregasPage() {
                         <button
                           onClick={() => openDeliver(r)}
                           disabled={isForaMeta}
-                          className={`px-3 py-2 rounded-xl text-sm ${
-                            isForaMeta
-                              ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500'
-                              : 'bg-neutral-800 text-white dark:bg-emerald-600'
-                          }`}
+                          className={\`px-3 py-2 rounded-xl text-sm \${isForaMeta
+                            ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500'
+                            : 'bg-neutral-800 text-white dark:bg-emerald-600'}\`}
                         >
                           Entregar
                         </button>
@@ -559,7 +412,7 @@ export default function EntregasPage() {
                       code: e.target.value as StatusCode,
                     }))
                   }
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
                 >
                   <option value="ATIVO">Ativo (entra na meta)</option>
                   <option value="FERIAS">Férias</option>
@@ -581,7 +434,7 @@ export default function EntregasPage() {
                       obs: e.target.value,
                     }))
                   }
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
                   placeholder="Ex.: Férias jan/2025; Gestante; INSS desde 02/2025..."
                 />
               </div>
