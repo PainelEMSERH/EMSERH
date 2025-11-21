@@ -2,10 +2,54 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
 
-type Row = { id:string; regionalId:string; regional:string; unidadeId:string; unidade:string; itemId:string; item:string; quantidade:number; minimo:number; maximo:number };
-type Mov = { id:string; tipo:'entrada'|'saida'; quantidade:number; destino?:string; observacao?:string; data:string; unidadeId:string; unidade:string; regionalId:string; regional:string; itemId:string; item:string };
-type Pedido = { id:string; status:'pendente'|'recebido'|'cancelado'; criadoEm:string; previstoEm?:string; recebidoEm?:string; observacao?:string; regionalId?:string; regional?:string; unidadeId?:string; unidade?:string; qtd_solicitada:number; qtd_recebida:number };
-type Opts = { regionais:string[]; unidades:{unidade:string, regional:string}[] };
+type Row = {
+  id: string;
+  regionalId: string;
+  regional: string;
+  unidadeId: string;
+  unidade: string;
+  itemId: string;
+  item: string;
+  quantidade: number;
+  minimo: number;
+  maximo: number;
+};
+
+type Mov = {
+  id: string;
+  tipo: 'entrada' | 'saida';
+  quantidade: number;
+  destino?: string | null;
+  observacao?: string | null;
+  data: string;
+  unidadeId: string;
+  unidade: string;
+  regionalId: string;
+  regional: string;
+  itemId: string;
+  item: string;
+};
+
+type Pedido = {
+  id: string;
+  status: 'pendente' | 'recebido' | 'cancelado';
+  criadoEm: string;
+  previstoEm?: string | null;
+  recebidoEm?: string | null;
+  observacao?: string | null;
+  regionalId?: string | null;
+  regional?: string | null;
+  unidadeId?: string | null;
+  unidade?: string | null;
+  qtd_solicitada: number;
+  qtd_recebida: number;
+};
+
+type Opts = {
+  regionais: string[];
+  unidades: { unidade: string; regional: string }[];
+};
+
 
 async function fetchJSON<T>(u:string, init?:RequestInit){ const r = await fetch(u, { cache:'no-store', ...init }); if(!r.ok) throw new Error(await r.text()); return r.json() as Promise<T>; }
 
@@ -33,7 +77,21 @@ export default function Page(){
   const [peds,setPeds] = useState<Pedido[]>([]); const [pedTotal,setPedTotal] = useState(0); const [pedPage,setPedPage] = useState(1);
   const [pedPrevisto,setPedPrevisto] = useState('');
   const [pedObs,setPedObs] = useState('');
-  const [pedItens,setPedItens] = useState<Array<{itemId:string, quantidade:number}>>([]);
+const [pedItens,setPedItens] = useState<Array<{itemId:string, quantidade:number}>>([]);
+
+// Configuração de mínimo/máximo por item/unidade
+const [editRow, setEditRow] = useState<Row | null>(null);
+const [editMin, setEditMin] = useState<string>('');
+const [editMax, setEditMax] = useState<string>('');
+const [savingConfig, setSavingConfig] = useState(false);
+
+// Cadastro rápido de novo item de estoque
+const [newItemNome, setNewItemNome] = useState('');
+const [newItemCategoria, setNewItemCategoria] = useState('EPI');
+const [newItemUnidadeMedida, setNewItemUnidadeMedida] = useState('UN');
+const [newItemUnidade, setNewItemUnidade] = useState('');
+const [newItemQtdInicial, setNewItemQtdInicial] = useState<number>(0);
+const [newItemSaving, setNewItemSaving] = useState(false);
 
   useEffect(()=>{ fetchJSON<Opts>('/api/entregas/options').then(setOpts).catch(()=>{}); },[]);
 
@@ -63,10 +121,30 @@ export default function Page(){
   const unidadesFiltradas = useMemo(()=> opts.unidades.filter(u => !regional || u.regional===regional), [opts, regional]);
 
   const itensCat = useMemo(()=>{
-    const uniq = new Map<string,string>();
-    rows.forEach(r => uniq.set(r.itemId, r.item));
-    return Array.from(uniq.entries()).map(([id, nome]) => ({id, nome}));
-  }, [rows]);
+  const uniq = new Map<string,string>();
+  rows.forEach(r => uniq.set(r.itemId, r.item));
+  return Array.from(uniq.entries()).map(([id, nome]) => ({id, nome}));
+}, [rows]);
+
+const resumo = useMemo(() => {
+  let totalItens = rows.length;
+  let baixo = 0;
+  let zerado = 0;
+  let semMinimo = 0;
+  for (const r of rows) {
+    if (r.quantidade <= 0) {
+      zerado++;
+    }
+    if (r.minimo > 0 && r.quantidade > 0 && r.quantidade <= r.minimo) {
+      baixo++;
+    }
+    if (r.minimo === 0) {
+      semMinimo++;
+    }
+  }
+  return { totalItens, baixo, zerado, semMinimo };
+}, [rows]);
+
 
   async function criarMov(){
     const body = { unidadeId: novoUnidadeId, itemId: novoItemId, tipo: novoTipo, quantidade: Number(novoQtd||0), destino: novoDestino||null, observacao: novoObs||null, data: novoData||null };
@@ -110,46 +188,290 @@ export default function Page(){
       </div>
 
       {tab==='visao' && (
-        <div className="rounded-xl border border-border bg-panel">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-white/10"><tr>
-                <th className="px-3 py-2 text-left">Regional</th>
-                <th className="px-3 py-2 text-left">Unidade</th>
-                <th className="px-3 py-2 text-left">Item</th>
-                <th className="px-3 py-2 text-right">Qtd</th>
-                <th className="px-3 py-2 text-right">Mín</th>
-                <th className="px-3 py-2 text-right">Máx</th>
-              </tr></thead>
-              <tbody>
-                {rows.map(r => {
-                  const low = r.minimo>0 && r.quantidade < r.minimo;
-                  return (
-                    <tr key={r.id} className={'border-t border-border '+(low?'bg-red-500/5':'hover:bg-white/10')}>
-                      <td className="px-3 py-2">{r.regional}</td>
-                      <td className="px-3 py-2">{r.unidade}</td>
-                      <td className="px-3 py-2">{r.item}</td>
-                      <td className="px-3 py-2 text-right">{r.quantidade}</td>
-                      <td className="px-3 py-2 text-right">{r.minimo}</td>
-                      <td className="px-3 py-2 text-right">{r.maximo}</td>
-                    </tr>
-                  )
-                })}
-                {rows.length===0 && (<tr><td colSpan={6} className="px-3 py-6 text-center text-muted">Nenhum registro</td></tr>)}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex items-center justify-between p-3 text-xs text-muted">
-            <div>Total: {total}</div>
-            <div className="flex items-center gap-2">
-              <button className="px-2 py-1 border border-border rounded disabled:opacity-40" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}>Anterior</button>
-              <div>Página {page}</div>
-              <button className="px-2 py-1 border border-border rounded disabled:opacity-40" onClick={()=>setPage(p=>p+1)} disabled={rows.length<size}>Próxima</button>
-            </div>
+  <div className="rounded-xl border border-border bg-panel">
+    {/* Resumo do estoque da Regional/Unidade selecionada */}
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 p-4 border-b border-border">
+      <div className="rounded-lg bg-card px-3 py-2 text-xs flex flex-col gap-1">
+        <div className="text-muted">Itens em estoque</div>
+        <div className="text-lg font-semibold">{resumo.totalItens}</div>
+      </div>
+      <div className="rounded-lg bg-card px-3 py-2 text-xs flex flex-col gap-1">
+        <div className="text-muted">Abaixo do mínimo</div>
+        <div className="text-lg font-semibold">{resumo.baixo}</div>
+      </div>
+      <div className="rounded-lg bg-card px-3 py-2 text-xs flex flex-col gap-1">
+        <div className="text-muted">Zerados</div>
+        <div className="text-lg font-semibold">{resumo.zerado}</div>
+      </div>
+      <div className="rounded-lg bg-card px-3 py-2 text-xs flex flex-col gap-1">
+        <div className="text-muted">Sem mínimo configurado</div>
+        <div className="text-lg font-semibold">{resumo.semMinimo}</div>
+      </div>
+    </div>
+
+    {/* Tabela de saldo por item */}
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead className="bg-white/10">
+          <tr>
+            <th className="px-3 py-2 text-left">Regional</th>
+            <th className="px-3 py-2 text-left">Unidade</th>
+            <th className="px-3 py-2 text-left">Item</th>
+            <th className="px-3 py-2 text-right">Qtd</th>
+            <th className="px-3 py-2 text-right">Mín</th>
+            <th className="px-3 py-2 text-right">Máx</th>
+            <th className="px-3 py-2 text-left">Situação</th>
+            <th className="px-3 py-2 text-left">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => {
+            const zero = r.quantidade <= 0;
+            const baixo = r.minimo > 0 && r.quantidade > 0 && r.quantidade <= r.minimo;
+            const semMinimo = r.minimo === 0;
+            let badge = 'OK';
+            let badgeClass = 'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] bg-emerald-500/10 text-emerald-300';
+            if (zero) {
+              badge = 'Zerado';
+              badgeClass = 'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] bg-red-500/10 text-red-300';
+            } else if (baixo) {
+              badge = 'Abaixo do mínimo';
+              badgeClass = 'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] bg-amber-500/10 text-amber-300';
+            } else if (semMinimo) {
+              badge = 'Sem mínimo';
+              badgeClass = 'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] bg-slate-500/10 text-slate-200';
+            }
+            return (
+              <tr
+                key={r.id}
+                className={
+                  'border-t border-border hover:bg-white/5 ' +
+                  (zero ? 'bg-red-500/5' : baixo ? 'bg-amber-500/5' : '')
+                }
+              >
+                <td className="px-3 py-2">{r.regional}</td>
+                <td className="px-3 py-2">{r.unidade}</td>
+                <td className="px-3 py-2">{r.item}</td>
+                <td className="px-3 py-2 text-right">{r.quantidade}</td>
+                <td className="px-3 py-2 text-right">{r.minimo}</td>
+                <td className="px-3 py-2 text-right">{r.maximo}</td>
+                <td className="px-3 py-2">
+                  <span className={badgeClass}>{badge}</span>
+                </td>
+                <td className="px-3 py-2">
+                  <button
+                    className="px-2 py-1 text-[11px] rounded border border-border hover:bg-white/10"
+                    onClick={() => {
+                      setEditRow(r);
+                      setEditMin(String(r.minimo ?? 0));
+                      setEditMax(String(r.maximo ?? 0));
+                    }}
+                  >
+                    Configurar
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={8} className="px-3 py-6 text-center text-muted">
+                Nenhum registro
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+
+    {/* Edição rápida de mínimo/máximo */}
+    {editRow && (
+      <div className="border-t border-border px-4 py-3 text-xs bg-card/40 flex flex-wrap gap-3 items-end">
+        <div className="flex-1 min-w-[220px]">
+          <div className="text-muted mb-1">
+            Configurar mínimo/máximo para <strong>{editRow.item}</strong> ({editRow.unidade})
           </div>
         </div>
-      )}
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] text-muted">Mínimo</label>
+          <input
+            className="px-2 py-1 rounded bg-card border border-border text-xs w-24"
+            value={editMin}
+            onChange={e => setEditMin(e.target.value.replace(/[^0-9]/g, ''))}
+            inputMode="numeric"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] text-muted">Máximo (opcional)</label>
+          <input
+            className="px-2 py-1 rounded bg-card border border-border text-xs w-24"
+            value={editMax}
+            onChange={e => setEditMax(e.target.value.replace(/[^0-9]/g, ''))}
+            inputMode="numeric"
+          />
+        </div>
+        <div className="flex gap-2">
+          <button
+            className="px-3 py-2 rounded border border-border text-[11px] disabled:opacity-50"
+            disabled={savingConfig}
+            onClick={async () => {
+              if (!editRow) return;
+              const minimo = Number(editMin || '0');
+              const maximo = editMax ? Number(editMax) : null;
+              try {
+                setSavingConfig(true);
+                await fetchJSON('/api/estoque/config', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    unidadeId: editRow.unidadeId,
+                    itemId: editRow.itemId,
+                    minimo,
+                    maximo,
+                  }),
+                });
+                // Recarrega saldos
+                const urlSaldo = `/api/estoque/list?regionalId=${encodeURIComponent(
+                  regional
+                )}&unidadeId=${encodeURIComponent(unidade)}&q=${encodeURIComponent(q)}&page=${page}&size=${size}`;
+                const d = await fetchJSON<{ rows: Row[]; total: number }>(urlSaldo);
+                setRows(d.rows || []);
+                setTotal(d.total || 0);
+                setEditRow(null);
+              } catch (e) {
+                console.error(e);
+              } finally {
+                setSavingConfig(false);
+              }
+            }}
+          >
+            Salvar
+          </button>
+          <button
+            className="px-3 py-2 rounded border border-border text-[11px]"
+            onClick={() => setEditRow(null)}
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    )}
 
+    {/* Cadastro rápido de novo item vinculado à Unidade */}
+    <div className="border-t border-border px-4 py-4 text-xs bg-card/20 flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div className="font-semibold text-sm">Cadastrar novo item</div>
+          <div className="text-muted">Cria o item no catálogo interno e já abre estoque para a unidade selecionada.</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+        <input
+          className="px-3 py-2 rounded bg-card border border-border text-xs md:col-span-2"
+          placeholder="Nome do item"
+          value={newItemNome}
+          onChange={e => setNewItemNome(e.target.value)}
+        />
+        <input
+          className="px-3 py-2 rounded bg-card border border-border text-xs"
+          placeholder="Categoria"
+          value={newItemCategoria}
+          onChange={e => setNewItemCategoria(e.target.value)}
+        />
+        <input
+          className="px-3 py-2 rounded bg-card border border-border text-xs"
+          placeholder="Unidade de medida (ex.: UN, PAR)"
+          value={newItemUnidadeMedida}
+          onChange={e => setNewItemUnidadeMedida(e.target.value)}
+        />
+        <select
+          className="px-3 py-2 rounded bg-card border border-border text-xs"
+          value={newItemUnidade || unidade}
+          onChange={e => setNewItemUnidade(e.target.value)}
+        >
+          <option value="">Unidade para o estoque</option>
+          {unidadesFiltradas.map(u => (
+            <option key={u.unidade} value={u.unidade}>
+              {u.unidade}
+            </option>
+          ))}
+        </select>
+        <input
+          className="px-3 py-2 rounded bg-card border border-border text-xs w-full"
+          placeholder="Qtd inicial"
+          value={Number.isNaN(newItemQtdInicial) ? '' : String(newItemQtdInicial)}
+          onChange={e => {
+            const v = e.target.value.replace(/[^0-9]/g, '');
+            setNewItemQtdInicial(v ? Number(v) : 0);
+          }}
+          inputMode="numeric"
+        />
+      </div>
+      <div className="flex justify-end">
+        <button
+          className="px-3 py-2 rounded border border-border text-[11px] disabled:opacity-50"
+          disabled={newItemSaving || !newItemNome || !(newItemUnidade || unidade)}
+          onClick={async () => {
+            try {
+              setNewItemSaving(true);
+              const unidadeKey = newItemUnidade || unidade;
+              await fetchJSON('/api/estoque/item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  nome: newItemNome,
+                  categoria: newItemCategoria || 'EPI',
+                  unidadeMedida: newItemUnidadeMedida || 'UN',
+                  unidadeId: unidadeKey,
+                  quantidadeInicial: newItemQtdInicial || 0,
+                }),
+              });
+              // limpa formulário e recarrega saldo
+              setNewItemNome('');
+              setNewItemCategoria('EPI');
+              setNewItemUnidadeMedida('UN');
+              setNewItemUnidade('');
+              setNewItemQtdInicial(0);
+              const urlSaldo = `/api/estoque/list?regionalId=${encodeURIComponent(
+                regional
+              )}&unidadeId=${encodeURIComponent(unidade)}&q=${encodeURIComponent(q)}&page=${page}&size=${size}`;
+              const d = await fetchJSON<{ rows: Row[]; total: number }>(urlSaldo);
+              setRows(d.rows || []);
+              setTotal(d.total || 0);
+            } catch (e) {
+              console.error(e);
+            } finally {
+              setNewItemSaving(false);
+            }
+          }}
+        >
+          Salvar novo item
+        </button>
+      </div>
+    </div>
+
+    <div className="flex items-center justify-between p-3 text-xs text-muted">
+      <div>Total: {total}</div>
+      <div className="flex items-center gap-2">
+        <button
+          className="px-2 py-1 border border-border rounded disabled:opacity-40"
+          onClick={() => setPage(p => Math.max(1, p - 1))}
+          disabled={page === 1}
+        >
+          Anterior
+        </button>
+        <div>Página {page}</div>
+        <button
+          className="px-2 py-1 border border-border rounded disabled:opacity-40"
+          onClick={() => setPage(p => p + 1)}
+          disabled={rows.length < size}
+        >
+          Próxima
+        </button>
+      </div>
+    </div>
+  </div>
+)}
       {tab==='mov' && (
         <div className="space-y-4">
           <div className="rounded-xl border border-border bg-panel p-4">
