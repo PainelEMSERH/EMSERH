@@ -33,5 +33,5 @@ export async function GET(req: Request) {
     });
   }
 
-  return NextResponse.json({ items: items.slice(0, 50) });
+  return NextResponse.json({ items: items.slice(0, 80) });
 }

@@ -23,9 +23,10 @@ export async function POST(req: Request) {
     const nome = nomeRaw;
     const categoria = categoriaRaw;
     const unidadeMedida = unidadeMedidaRaw;
-    const quantidadeInicial = Number.isFinite(quantidadeInicialNum) && quantidadeInicialNum > 0
-      ? Math.floor(quantidadeInicialNum)
-      : 0;
+    const quantidadeInicial =
+      Number.isFinite(quantidadeInicialNum) && quantidadeInicialNum > 0
+        ? Math.floor(quantidadeInicialNum)
+        : 0;
 
     // Reutiliza item existente com mesmo nome/categoria, se houver
     let item = await prisma.item.findFirst({
