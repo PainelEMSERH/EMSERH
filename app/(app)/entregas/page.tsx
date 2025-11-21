@@ -8,6 +8,49 @@ type Deliver = { item: string; qty_delivered: number; qty_required: number; deli
 
 const LS_KEY = 'entregas:v2025-11-07';
 
+
+type StatusCode =
+  | 'ATIVO'
+  | 'FERIAS'
+  | 'INSS'
+  | 'LICENCA_MATERNIDADE'
+  | 'DEMITIDO_2025_SEM_EPI'
+  | 'EXCLUIDO_META';
+
+type StatusInfo = {
+  code: StatusCode;
+  label: string;
+  obs?: string | null;
+};
+
+const STATUS_LABELS: Record<StatusCode, string> = {
+  ATIVO: 'Ativo',
+  FERIAS: 'Férias',
+  INSS: 'INSS',
+  LICENCA_MATERNIDADE: 'Licença maternidade',
+  DEMITIDO_2025_SEM_EPI: 'Demitido 2025 sem EPI',
+  EXCLUIDO_META: 'Excluído da meta',
+};
+
+const EXCLUDED_STATUS: StatusCode[] = ['DEMITIDO_2025_SEM_EPI', 'EXCLUIDO_META'];
+
+function statusDotClass(code: StatusCode): string {
+  switch (code) {
+    case 'FERIAS':
+      return 'bg-sky-500';
+    case 'INSS':
+      return 'bg-amber-500';
+    case 'LICENCA_MATERNIDADE':
+      return 'bg-purple-500';
+    case 'DEMITIDO_2025_SEM_EPI':
+      return 'bg-red-500';
+    case 'EXCLUIDO_META':
+      return 'bg-neutral-400';
+    default:
+      return 'bg-emerald-500';
+  }
+}
+
 function maskCPF(cpf?: string) {
   const d = String(cpf || '').replace(/\D/g, '').padStart(11, '0').slice(-11);
   return d ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}` : '';
@@ -48,10 +91,45 @@ export default function EntregasPage() {
   const [regionais, setRegionais] = useState<string[]>([]);
   const [unidadesAll, setUnidadesAll] = useState<Array<{ unidade: string; regional: string }>>([]);
 
+
+  const [statusMap, setStatusMap] = useState<Record<string, StatusInfo>>({});
+  const [showExcluded, setShowExcluded] = useState(false);
+  const [statusModal, setStatusModal] = useState<{
+    open: boolean;
+    row?: Row | null;
+    code?: StatusCode;
+    obs?: string;
+  }>({ open: false });
+
   const [modal, setModal] = useState<{ open: boolean; row?: Row | null }>({ open: false });
   const [kit, setKit] = useState<KitItem[]>([]);
   const [deliv, setDeliv] = useState<Deliver[]>([]);
   const [deliverForm, setDeliverForm] = useState<{ item: string; qtd: number; data: string }>({ item: '', qtd: 1, data: new Date().toISOString().substring(0, 10) });
+
+
+  // Carrega / persiste status dos colaboradores no localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem('entregas:status:v1');
+      if (!raw) return;
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === 'object') {
+        setStatusMap(obj as Record<string, StatusInfo>);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem('entregas:status:v1', JSON.stringify(statusMap));
+    } catch {
+      // ignore
+    }
+  }, [statusMap]);
 
   // ---- CADASTRO MANUAL (DECLARADO ANTES DO JSX) ----
   const [newColab, setNewColab] = useState<{ cpf: string; nome: string; funcao: string; unidade: string; regional: string; matricula?: string; admissao?: string; demissao?: string }>({ cpf: '', nome: '', funcao: '', unidade: '', regional: '' });
@@ -123,6 +201,37 @@ export default function EntregasPage() {
     setState({ ...state, ...patch, page: patch.page ? patch.page : 1 });
   }
 
+
+  function openStatusModal(row: Row) {
+    const current = statusMap[row.id];
+    const code: StatusCode = (current?.code || 'ATIVO');
+    setStatusModal({
+      open: true,
+      row,
+      code,
+      obs: current?.obs || '',
+    });
+  }
+
+  function saveStatusModal() {
+    if (!statusModal.row) {
+      setStatusModal({ open: false });
+      return;
+    }
+    const baseCode: StatusCode = (statusModal.code || 'ATIVO');
+    const info: StatusInfo = {
+      code: baseCode,
+      label: STATUS_LABELS[baseCode],
+      obs: statusModal.obs || '',
+    };
+    const cpf = statusModal.row.id;
+    setStatusMap((prev) => ({
+      ...prev,
+      [cpf]: info,
+    }));
+    setStatusModal({ open: false });
+  }
+
   async function openDeliver(row: Row) {
     setModal({ open: true, row });
     setDeliverForm({ item: '', qtd: 1, data: new Date().toISOString().substring(0,10) });
@@ -172,6 +281,17 @@ export default function EntregasPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
 
+  const visibleRows = useMemo(() => {
+    return rows.filter((r) => {
+      const st = statusMap[r.id];
+      const code: StatusCode = (st?.code || 'ATIVO');
+      if (!showExcluded && EXCLUDED_STATUS.includes(code)) return false;
+      return true;
+    });
+  }, [rows, statusMap, showExcluded]);
+
+
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row gap-3 items-stretch">
@@ -180,7 +300,7 @@ export default function EntregasPage() {
           <select
             value={state.regional}
             onChange={e => setFilter({ regional: e.target.value, unidade: '', page: 1 })}
-            className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
+            className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
           >
             <option value="">Selecione a Regional…</option>
             {regionais.map(r => <option key={r} value={r}>{r}</option>)}
@@ -191,7 +311,7 @@ export default function EntregasPage() {
           <select
             value={state.unidade}
             onChange={e => setFilter({ unidade: e.target.value, page: 1 })}
-            className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
+            className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
             disabled={!state.regional}
           >
             <option value="">(todas)</option>
@@ -204,7 +324,7 @@ export default function EntregasPage() {
             value={state.q}
             onChange={e => setFilter({ q: e.target.value })}
             placeholder="Digite para filtrar…"
-            className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
+            className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
           />
         </div>
         <button onClick={openNewManual} className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600 self-end h-10 md:h-auto">Cadastrar colaborador</button>
@@ -213,11 +333,57 @@ export default function EntregasPage() {
           <select
             value={state.pageSize}
             onChange={e => setFilter({ pageSize: Number(e.target.value) || 25, page: 1 })}
-            className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
+            className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
           >
             {[10,25,50,100].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
+
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 text-xs text-neutral-700 dark:text-neutral-300 gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="opacity-70">Legenda:</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span>Ativo</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-sky-500" />
+            <span>Férias</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span>INSS</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-purple-500" />
+            <span>Licença maternidade</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+            <span>Demitido 2025 sem EPI</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-neutral-400" />
+            <span>Excluído da meta</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="text-[11px] px-1.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700">🅘</span>
+            <span>observação rápida</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="inline-flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              className="rounded border-neutral-300 dark:border-neutral-700"
+              checked={showExcluded}
+              onChange={(e) => setShowExcluded(e.target.checked)}
+            />
+            <span>Mostrar colaboradores fora da meta</span>
+          </label>
+        </div>
+      </div>
+
       </div>
 
       {!state.regional && (
@@ -243,19 +409,57 @@ export default function EntregasPage() {
               {loading && (
                 <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Carregando…</td></tr>
               )}
-              {!loading && rows.map((r) => (
-                <tr key={r.id} className="border-t border-neutral-200 dark:border-neutral-800">
-                  <td className="px-3 py-2">{r.nome}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{maskCPF(r.id)}</td>
-                  <td className="px-3 py-2">{r.funcao}</td>
-                  <td className="px-3 py-2">{r.unidade}</td>
-                  <td className="px-3 py-2">{r.regional}</td>
-                  <td className="px-3 py-2 text-right">
-                    <button onClick={() => openDeliver(r)} className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600">Entregar</button>
-                  </td>
-                </tr>
-              ))}
-              {!loading && rows.length === 0 && (
+              {!loading && visibleRows.map((r) => {
+                const st = statusMap[r.id];
+                const code: StatusCode = (st?.code || 'ATIVO');
+                const label = st?.label || STATUS_LABELS[code];
+                const obs = st?.obs || '';
+                const isForaMeta = EXCLUDED_STATUS.includes(code);
+                return (
+                  <tr key={r.id} className="border-t border-neutral-200 dark:border-neutral-800">
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${statusDotClass(code)}`} />
+                        <span className="truncate">{r.nome}</span>
+                        {(obs || code !== 'ATIVO') && (
+                          <span
+                            className="text-[11px] px-1.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 cursor-default"
+                            title={obs || label}
+                          >
+                            🅘
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">{maskCPF(r.id)}</td>
+                    <td className="px-3 py-2">{r.funcao}</td>
+                    <td className="px-3 py-2">{r.unidade}</td>
+                    <td className="px-3 py-2">{r.regional}</td>
+                    <td className="px-3 py-2 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openStatusModal(r)}
+                          className="px-2 py-1 rounded-lg border text-xs"
+                        >
+                          Situação
+                        </button>
+                        <button
+                          onClick={() => openDeliver(r)}
+                          disabled={isForaMeta}
+                          className={`px-3 py-2 rounded-xl text-sm ${
+                            isForaMeta
+                              ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500'
+                              : 'bg-neutral-800 text-white dark:bg-emerald-600'
+                          }`}
+                        >
+                          Entregar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!loading && visibleRows.length === 0 && (
                 <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Sem resultados.</td></tr>
               )}
             </tbody>
@@ -280,7 +484,88 @@ export default function EntregasPage() {
         </div>
       )}
 
-      {modal.open && modal.row && (
+      
+      {statusModal.open && statusModal.row && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center p-4 z-50" onClick={() => setStatusModal({ open: false })}>
+          <div
+            className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-md shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
+              <div className="text-lg font-semibold">Situação do colaborador</div>
+              <div className="text-xs opacity-70 mt-1">
+                Ajuste a situação atual do colaborador para fins de meta e acompanhamento.
+              </div>
+            </div>
+            <div className="p-4 space-y-3 text-sm">
+              <div>
+                <div className="text-xs opacity-70">Colaborador</div>
+                <div className="font-medium">
+                  {statusModal.row?.nome}
+                </div>
+                <div className="text-xs text-neutral-600 dark:text-neutral-400">
+                  CPF: {maskCPF(statusModal.row?.id)}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs block mb-1">Situação</label>
+                <select
+                  value={statusModal.code || 'ATIVO'}
+                  onChange={(e) =>
+                    setStatusModal((prev) => ({
+                      ...prev,
+                      code: e.target.value as StatusCode,
+                    }))
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
+                >
+                  <option value="ATIVO">Ativo (conta na meta)</option>
+                  <option value="FERIAS">Férias</option>
+                  <option value="INSS">INSS</option>
+                  <option value="LICENCA_MATERNIDADE">Licença maternidade</option>
+                  <option value="DEMITIDO_2025_SEM_EPI">Demitido 2025 sem EPI (fora da meta)</option>
+                  <option value="EXCLUIDO_META">Excluído da meta (outros motivos)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs block mb-1">Observação rápida (aparece no 🅘)</label>
+                <input
+                  type="text"
+                  maxLength={100}
+                  value={statusModal.obs || ''}
+                  onChange={(e) =>
+                    setStatusModal((prev) => ({
+                      ...prev,
+                      obs: e.target.value,
+                    }))
+                  }
+                  placeholder="Ex.: Férias jan/2025, INSS desde fev/2025, gestante, etc."
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
+                />
+                <div className="text-[10px] opacity-60 mt-1">
+                  Status marcados como &quot;Demitido 2025 sem EPI&quot; ou &quot;Excluído da meta&quot; ficarão com o botão de entrega desativado e podem ser ocultados usando o filtro acima.
+                </div>
+              </div>
+            </div>
+            <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2">
+              <button
+                className="px-3 py-2 rounded-xl border"
+                onClick={() => setStatusModal({ open: false })}
+              >
+                Cancelar
+              </button>
+              <button
+                className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600"
+                onClick={saveStatusModal}
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+{modal.open && modal.row && (
         <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50" onClick={() => setModal({ open: false })}>
           <div className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-3xl shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
@@ -347,24 +632,24 @@ export default function EntregasPage() {
               <div className="text-xs opacity-70">Use este cadastro quando o Alterdata ainda não refletiu a admissão.</div>
             </div>
             <div className="p-4 grid md:grid-cols-2 gap-3">
-              <div><label className="text-xs block mb-1">CPF</label><input value={newColab.cpf} onChange={e=>setNewColab({...newColab, cpf: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800" placeholder="000.000.000-00" /></div>
-              <div><label className="text-xs block mb-1">Matrícula</label><input value={newColab.matricula||''} onChange={e=>setNewColab({...newColab, matricula: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800" placeholder="(opcional)" /></div>
-              <div className="md:col-span-2"><label className="text-xs block mb-1">Nome</label><input value={newColab.nome} onChange={e=>setNewColab({...newColab, nome: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800" /></div>
-              <div><label className="text-xs block mb-1">Função</label><input value={newColab.funcao} onChange={e=>setNewColab({...newColab, funcao: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800" placeholder="Ex.: Enfermeiro UTI" /></div>
+              <div><label className="text-xs block mb-1">CPF</label><input value={newColab.cpf} onChange={e=>setNewColab({...newColab, cpf: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" placeholder="000.000.000-00" /></div>
+              <div><label className="text-xs block mb-1">Matrícula</label><input value={newColab.matricula||''} onChange={e=>setNewColab({...newColab, matricula: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" placeholder="(opcional)" /></div>
+              <div className="md:col-span-2"><label className="text-xs block mb-1">Nome</label><input value={newColab.nome} onChange={e=>setNewColab({...newColab, nome: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" /></div>
+              <div><label className="text-xs block mb-1">Função</label><input value={newColab.funcao} onChange={e=>setNewColab({...newColab, funcao: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" placeholder="Ex.: Enfermeiro UTI" /></div>
               <div><label className="text-xs block mb-1">Regional</label>
-                <select value={newColab.regional} onChange={e=>setNewColab({...newColab, regional: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+                <select value={newColab.regional} onChange={e=>setNewColab({...newColab, regional: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900">
                   <option value="">Selecione…</option>
                   {regionais.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
               <div className="md:col-span-2"><label className="text-xs block mb-1">Unidade</label>
-                <select value={newColab.unidade} onChange={e=>setNewColab({...newColab, unidade: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+                <select value={newColab.unidade} onChange={e=>setNewColab({...newColab, unidade: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900">
                   <option value="">Selecione…</option>
                   {unidades.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
                 </select>
               </div>
-              <div><label className="text-xs block mb-1">Admissão</label><input type="date" value={newColab.admissao||''} onChange={e=>setNewColab({...newColab, admissao: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800" /></div>
-              <div><label className="text-xs block mb-1">Demissão</label><input type="date" value={newColab.demissao||''} onChange={e=>setNewColab({...newColab, demissao: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800" /></div>
+              <div><label className="text-xs block mb-1">Admissão</label><input type="date" value={newColab.admissao||''} onChange={e=>setNewColab({...newColab, admissao: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" /></div>
+              <div><label className="text-xs block mb-1">Demissão</label><input type="date" value={newColab.demissao||''} onChange={e=>setNewColab({...newColab, demissao: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" /></div>
             </div>
             <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2">
               <button className="px-3 py-2 rounded-xl border" onClick={()=>setModalNew(false)}>Cancelar</button>
