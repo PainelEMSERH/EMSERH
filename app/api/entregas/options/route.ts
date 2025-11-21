@@ -14,8 +14,8 @@ export async function GET() {
     const names = new Set((cols || []).map(c => c.column_name.toLowerCase()));
 
     const pick = (cands: string[]) => cands.find(c => names.has(c));
-    const colRegional = pick(['regional','regiao','regional_nome','regiao_nome','nome_regional']);
-    const colUnidade  = pick(['unidade','unidade_nome','nome_unidade']);
+    const colRegional = pick(['regional_responsavel','regional','regiao','regional_nome','regiao_nome','nome_regional']);
+    const colUnidade  = pick(['nmdepartamento','unidade','unidade_nome','nome_unidade']);
 
     let regionais: string[] = [];
     let unidades: { unidade: string; regional: string }[] = [];

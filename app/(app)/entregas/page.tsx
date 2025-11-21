@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string; nome_site?: string | null; };
 type KitItem = { item: string; quantidade: number; nome_site?: string | null; };
+type Deliver = { item: string; qty_delivered: number; qty_required: number; deliveries: Array<{date:string, qty:number}>; };
+
 
 type StatusCode =
   | 'ATIVO'
@@ -46,8 +48,6 @@ function statusDotClass(code: StatusCode): string {
       return 'bg-emerald-500';
   }
 }
-
-type Deliver = { item: string; qty_delivered: number; qty_required: number; deliveries: Array<{date:string, qty:number}>; };
 
 const LS_KEY = 'entregas:v2025-11-07';
 
@@ -140,7 +140,7 @@ export default function EntregasPage() {
   // ---------------------------------------------------
 
   
-const unidades = useMemo(
+  const unidades = useMemo(
     () => unidadesAll.filter(u => !state.regional || u.regional === state.regional),
     [unidadesAll, state.regional],
   );
@@ -167,7 +167,7 @@ const unidades = useMemo(
   }, []);
 
   
-useEffect(() => {
+  useEffect(() => {
     let on = true;
     (async () => {
       if (!state.regional) { setRows([]); setTotal(0); setStatusMap({}); return; }
@@ -251,7 +251,6 @@ useEffect(() => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      // Atualiza mapa local
       const code = statusModal.code;
       const info: StatusInfo = {
         code,
@@ -263,7 +262,7 @@ useEffect(() => {
         [cpf]: info,
       }));
     } catch (e) {
-      // mantém o mapa anterior em caso de erro
+      // mantém estado anterior em caso de erro
     } finally {
       setStatusModal({ open: false });
     }
@@ -318,97 +317,114 @@ useEffect(() => {
 
   const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
 
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col md:flex-row gap-3 items-stretch">
-        <div className="flex-1">
-          <label className="text-xs block mb-1">Regional</label>
-          <select
-            value={state.regional}
-            onChange={e => setFilter({ regional: e.target.value, unidade: '', page: 1 })}
-            className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-          >
-            <option value="">Selecione a Regional…</option>
-            {regionais.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
-        <div className="flex-1">
-          <label className="text-xs block mb-1">Unidade</label>
-          <select
-            value={state.unidade}
-            onChange={e => setFilter({ unidade: e.target.value, page: 1 })}
-            className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-            disabled={!state.regional}
-          >
-            <option value="">(todas)</option>
-            {unidades.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
-          </select>
-        </div>
-        <div className="flex-1">
-          <label className="text-xs block mb-1">Busca (nome/CPF)</label>
-          <input
-            value={state.q}
-            onChange={e => setFilter({ q: e.target.value })}
-            placeholder="Digite para filtrar…"
-            className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-          />
-        </div>
-        <button onClick={openNewManual} className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600 self-end h-10 md:h-auto">Cadastrar colaborador</button>
-        <div className="w-40">
-          <label className="text-xs block mb-1">Itens por página</label>
-          <select
-            value={state.pageSize}
-            onChange={e => setFilter({ pageSize: Number(e.target.value) || 25, page: 1 })}
-            className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-          >
-            {[10,25,50,100].map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
+      {/* Linha principal de filtros */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col md:flex-row gap-3 items-stretch">
+          <div className="flex-1 min-w-[180px]">
+            <label className="text-xs block mb-1 uppercase tracking-wide opacity-70">Regional</label>
+            <select
+              value={state.regional}
+              onChange={e => setFilter({ regional: e.target.value, unidade: '', page: 1 })}
+              className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+            >
+              <option value="">Selecione a Regional…</option>
+              {regionais.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+
+          <div className="flex-1 min-w-[200px]">
+            <label className="text-xs block mb-1 uppercase tracking-wide opacity-70">Unidade</label>
+            <select
+              value={state.unidade}
+              onChange={e => setFilter({ unidade: e.target.value, page: 1 })}
+              className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+              disabled={!state.regional}
+            >
+              <option value="">(todas)</option>
+              {unidades.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
+            </select>
+          </div>
+
+          <div className="flex-1 min-w-[220px]">
+            <label className="text-xs block mb-1 uppercase tracking-wide opacity-70">Busca (nome / CPF)</label>
+            <input
+              value={state.q}
+              onChange={e => setFilter({ q: e.target.value })}
+              placeholder="Digite para filtrar…"
+              className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+            />
+          </div>
+
+          <div className="flex items-end gap-3 justify-end">
+            <div className="w-36">
+              <label className="text-xs block mb-1 uppercase tracking-wide opacity-70">Itens por página</label>
+              <select
+                value={state.pageSize}
+                onChange={e => setFilter({ pageSize: Number(e.target.value) || 25, page: 1 })}
+                className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+              >
+                {[10,25,50,100].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+
+            <button
+              onClick={openNewManual}
+              className="px-4 py-2 rounded-xl bg-neutral-900 text-white dark:bg-emerald-600 text-sm whitespace-nowrap"
+            >
+              Cadastrar colaborador
+            </button>
+          </div>
         </div>
 
-      <div className="flex items-center justify-between px-3 py-2 text-xs text-neutral-700 dark:text-neutral-300">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="opacity-70">Legenda:</span>
-          <span className="inline-flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>Ativo</span>
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-sky-500" />
-            <span>Férias</span>
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-amber-500" />
-            <span>INSS</span>
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-purple-500" />
-            <span>Licença maternidade</span>
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-red-500" />
-            <span>Demitido 2025 sem EPI</span>
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-neutral-400" />
-            <span>Excluído da meta</span>
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="text-[11px] px-1.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700">🅘</span>
-            <span>observação rápida</span>
-          </span>
+        {/* Legenda de status e toggle fora da meta */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 text-xs text-neutral-700 dark:text-neutral-300 gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="opacity-70">Legenda:</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span>Ativo</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-sky-500" />
+              <span>Férias</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <span>INSS</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-purple-500" />
+              <span>Licença maternidade</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-red-500" />
+              <span>Demitido 2025 sem EPI</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-neutral-400" />
+              <span>Excluído da meta</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-[11px] px-1.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700">🅘</span>
+              <span>observação rápida</span>
+            </span>
+          </div>
+
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="rounded border-neutral-400"
+              checked={showExcluded}
+              onChange={(e) => setShowExcluded(e.target.checked)}
+            />
+            <span>Mostrar colaboradores fora da meta</span>
+          </label>
         </div>
-        <label className="inline-flex items-center gap-2">
-          <input
-            type="checkbox"
-            className="rounded border-neutral-400"
-            checked={showExcluded}
-            onChange={(e) => setShowExcluded(e.target.checked)}
-          />
-          <span>Mostrar colaboradores fora da meta</span>
-        </label>
       </div>
 
-      </div>
 
       {!state.regional && (
         <div className="p-4 rounded-xl bg-amber-100 text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
@@ -591,7 +607,6 @@ useEffect(() => {
           </div>
         </div>
       )}
-
 
       {modal.open && modal.row && (
         <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50" onClick={() => setModal({ open: false })}>
