@@ -3,19 +3,35 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-type ItemRow = { id: string; nome: string };
-
 export async function GET() {
   try {
-    const rows = await prisma.$queryRawUnsafe<ItemRow[]>(`
-      SELECT id::text AS id, nome::text AS nome
-      FROM "Item"
-      WHERE ativo = true
-      ORDER BY nome
+    // Verifica se tabela item existe
+    const tableExists = await prisma.$queryRawUnsafe<Array<{ exists: boolean }>>(
+      `select true as exists
+         from information_schema.tables
+        where table_schema = current_schema()
+          and table_name = 'item'
+        limit 1`
+    );
+    if (!tableExists || tableExists.length === 0) {
+      return NextResponse.json({ items: [] });
+    }
+
+    const rows = await prisma.$queryRawUnsafe<any[]>(`
+      select id, nome
+        from item
+       where ativo = true
+       order by nome
     `);
-    return NextResponse.json({ items: rows || [] });
+
+    const items = rows.map(r => ({
+      id: String(r.id),
+      nome: (r.nome ?? '').toString(),
+    }));
+
+    return NextResponse.json({ items });
   } catch (e: any) {
     console.error('Erro em /api/estoque/items', e);
-    return NextResponse.json({ items: [] as ItemRow[] });
+    return NextResponse.json({ items: [], error: e?.message ?? 'Erro interno' });
   }
 }

@@ -14,14 +14,10 @@ export async function POST(req: Request) {
     const itemId = (body?.itemId || '').toString().trim();
     const minimoNum = Number(body?.minimo ?? 0);
     const maximoRaw = body?.maximo;
-    const maximoNum =
-      maximoRaw === null || maximoRaw === undefined || maximoRaw === '' ? null : Number(maximoRaw);
+    const maximoNum = maximoRaw === null || maximoRaw === undefined || maximoRaw === '' ? null : Number(maximoRaw);
 
     if (!unidadeIdRaw || !itemId) {
-      return NextResponse.json(
-        { ok: false, error: 'unidadeId e itemId são obrigatórios' },
-        { status: 400 },
-      );
+      return NextResponse.json({ ok: false, error: 'unidadeId e itemId são obrigatórios' }, { status: 400 });
     }
 
     // unidadeId pode vir como id ou como nome/sigla
@@ -37,8 +33,7 @@ export async function POST(req: Request) {
     }
 
     const minimo = Number.isFinite(minimoNum) && minimoNum >= 0 ? minimoNum : 0;
-    const maximo =
-      maximoNum !== null && Number.isFinite(maximoNum) && maximoNum >= 0 ? maximoNum : null;
+    const maximo = maximoNum !== null && Number.isFinite(maximoNum) && maximoNum >= 0 ? maximoNum : null;
 
     const estoque = await prisma.estoque.upsert({
       where: { unidadeId_itemId: { unidadeId, itemId } },
