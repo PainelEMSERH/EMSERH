@@ -292,7 +292,8 @@ export default function EntregasPage() {
 
 
 
-  return (
+  
+return (
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row gap-3 items-stretch">
         <div className="flex-1">
@@ -327,7 +328,12 @@ export default function EntregasPage() {
             className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
           />
         </div>
-        <button onClick={openNewManual} className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600 self-end h-10 md:h-auto">Cadastrar colaborador</button>
+        <button
+          onClick={openNewManual}
+          className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600 self-end h-10 md:h-auto"
+        >
+          Cadastrar colaborador
+        </button>
         <div className="w-40">
           <label className="text-xs block mb-1">Itens por página</label>
           <select
@@ -338,6 +344,7 @@ export default function EntregasPage() {
             {[10,25,50,100].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
+      </div>
 
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 text-xs text-neutral-700 dark:text-neutral-300 gap-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -382,8 +389,6 @@ export default function EntregasPage() {
             <span>Mostrar colaboradores fora da meta</span>
           </label>
         </div>
-      </div>
-
       </div>
 
       {!state.regional && (
