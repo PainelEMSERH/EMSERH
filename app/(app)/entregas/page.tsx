@@ -4,6 +4,49 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string; nome_site?: string | null; };
 type KitItem = { item: string; quantidade: number; nome_site?: string | null; };
+
+type StatusCode =
+  | 'ATIVO'
+  | 'FERIAS'
+  | 'INSS'
+  | 'LICENCA_MATERNIDADE'
+  | 'DEMITIDO_2025_SEM_EPI'
+  | 'EXCLUIDO_META';
+
+type StatusInfo = {
+  code: StatusCode;
+  label: string;
+  obs?: string | null;
+};
+
+const STATUS_LABELS: Record<StatusCode, string> = {
+  ATIVO: 'Ativo',
+  FERIAS: 'Férias',
+  INSS: 'INSS',
+  LICENCA_MATERNIDADE: 'Licença maternidade',
+  DEMITIDO_2025_SEM_EPI: 'Demitido 2025 sem EPI',
+  EXCLUIDO_META: 'Excluído da meta',
+};
+
+const EXCLUDED_STATUS: StatusCode[] = ['DEMITIDO_2025_SEM_EPI', 'EXCLUIDO_META'];
+
+function statusDotClass(code: StatusCode): string {
+  switch (code) {
+    case 'FERIAS':
+      return 'bg-sky-500';
+    case 'INSS':
+      return 'bg-amber-500';
+    case 'LICENCA_MATERNIDADE':
+      return 'bg-purple-500';
+    case 'DEMITIDO_2025_SEM_EPI':
+      return 'bg-red-500';
+    case 'EXCLUIDO_META':
+      return 'bg-neutral-400';
+    default:
+      return 'bg-emerald-500';
+  }
+}
+
 type Deliver = { item: string; qty_delivered: number; qty_required: number; deliveries: Array<{date:string, qty:number}>; };
 
 const LS_KEY = 'entregas:v2025-11-07';
@@ -48,6 +91,16 @@ export default function EntregasPage() {
   const [regionais, setRegionais] = useState<string[]>([]);
   const [unidadesAll, setUnidadesAll] = useState<Array<{ unidade: string; regional: string }>>([]);
 
+  const [statusMap, setStatusMap] = useState<Record<string, StatusInfo>>({});
+  const [showExcluded, setShowExcluded] = useState(false);
+
+  const [statusModal, setStatusModal] = useState<{
+    open: boolean;
+    row?: Row | null;
+    code?: StatusCode;
+    obs?: string;
+  }>({ open: false });
+
   const [modal, setModal] = useState<{ open: boolean; row?: Row | null }>({ open: false });
   const [kit, setKit] = useState<KitItem[]>([]);
   const [deliv, setDeliv] = useState<Deliver[]>([]);
@@ -86,7 +139,21 @@ export default function EntregasPage() {
   }
   // ---------------------------------------------------
 
-  const unidades = useMemo(() => unidadesAll.filter(u => !state.regional || u.regional === state.regional), [unidadesAll, state.regional]);
+  
+const unidades = useMemo(
+    () => unidadesAll.filter(u => !state.regional || u.regional === state.regional),
+    [unidadesAll, state.regional],
+  );
+
+  const visibleRows = useMemo(() => {
+    return rows.filter((r) => {
+      const st = statusMap[r.id];
+      const code = st?.code || 'ATIVO';
+      if (!showExcluded && EXCLUDED_STATUS.includes(code)) return false;
+      return true;
+    });
+  }, [rows, statusMap, showExcluded]);
+
 
   useEffect(() => {
     let on = true;
@@ -99,10 +166,11 @@ export default function EntregasPage() {
     return () => { on = false };
   }, []);
 
-  useEffect(() => {
+  
+useEffect(() => {
     let on = true;
     (async () => {
-      if (!state.regional) { setRows([]); setTotal(0); return; }
+      if (!state.regional) { setRows([]); setTotal(0); setStatusMap({}); return; }
       setLoading(true);
       const params = new URLSearchParams();
       params.set('regional', state.regional);
@@ -112,15 +180,93 @@ export default function EntregasPage() {
       params.set('pageSize', String(state.pageSize));
       const { json } = await fetchJSON('/api/entregas/list?' + params.toString(), { cache: 'no-store' });
       if (!on) return;
-      setRows((json.rows || []) as Row[]);
+      const rowsResp = (json.rows || []) as Row[];
+      setRows(rowsResp);
       setTotal(Number(json.total || 0));
-      setLoading(false);
+
+      // carrega status em lote para os CPFs desta página
+      try {
+        const ids = Array.from(new Set(rowsResp.map(r => String((r as any).id || '')).filter(Boolean)));
+        if (ids.length) {
+          const { json: stJ } = await fetchJSON('/api/entregas/status?ids=' + encodeURIComponent(ids.join(',')), { cache: 'no-store' });
+          if (on) {
+            const map: Record<string, StatusInfo> = {};
+            const arr: any[] = (stJ?.rows || []) as any[];
+            for (const r of arr) {
+              const cpf = String(r.cpf_limpo || '').replace(/\D/g, '').slice(-11);
+              const code = (r.status || '').toString().toUpperCase() as StatusCode;
+              if (!cpf || !code) continue;
+              if (!(code in STATUS_LABELS)) continue;
+              map[cpf] = {
+                code,
+                label: STATUS_LABELS[code],
+                obs: r.observacao || null,
+              };
+            }
+            setStatusMap(map);
+          }
+        } else {
+          if (on) setStatusMap({});
+        }
+      } catch (e) {
+        if (on) setStatusMap({});
+      }
+
+      if (on) setLoading(false);
     })();
     return () => { on = false };
   }, [state.regional, state.unidade, state.q, state.page, state.pageSize]);
 
+
   function setFilter(patch: Partial<typeof state>) {
     setState({ ...state, ...patch, page: patch.page ? patch.page : 1 });
+  }
+
+
+  function openStatusModal(row: Row, current?: StatusInfo) {
+    const code = current?.code || 'ATIVO';
+    const obs = (current?.obs || '') as string;
+    setStatusModal({
+      open: true,
+      row,
+      code,
+      obs,
+    });
+  }
+
+  async function saveStatusModal() {
+    if (!statusModal.row || !statusModal.code) {
+      setStatusModal({ open: false });
+      return;
+    }
+    const cpf = String((statusModal.row as any).id || '');
+    const payload = {
+      cpf,
+      status: statusModal.code,
+      observacao: statusModal.obs || '',
+    };
+    try {
+      await fetchJSON('/api/entregas/status', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      // Atualiza mapa local
+      const code = statusModal.code;
+      const info: StatusInfo = {
+        code,
+        label: STATUS_LABELS[code],
+        obs: statusModal.obs || '',
+      };
+      setStatusMap(prev => ({
+        ...prev,
+        [cpf]: info,
+      }));
+    } catch (e) {
+      // mantém o mapa anterior em caso de erro
+    } finally {
+      setStatusModal({ open: false });
+    }
   }
 
   async function openDeliver(row: Row) {
@@ -218,6 +364,50 @@ export default function EntregasPage() {
             {[10,25,50,100].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
+
+      <div className="flex items-center justify-between px-3 py-2 text-xs text-neutral-700 dark:text-neutral-300">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="opacity-70">Legenda:</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span>Ativo</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-sky-500" />
+            <span>Férias</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span>INSS</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-purple-500" />
+            <span>Licença maternidade</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+            <span>Demitido 2025 sem EPI</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-neutral-400" />
+            <span>Excluído da meta</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="text-[11px] px-1.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700">🅘</span>
+            <span>observação rápida</span>
+          </span>
+        </div>
+        <label className="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            className="rounded border-neutral-400"
+            checked={showExcluded}
+            onChange={(e) => setShowExcluded(e.target.checked)}
+          />
+          <span>Mostrar colaboradores fora da meta</span>
+        </label>
+      </div>
+
       </div>
 
       {!state.regional && (
@@ -243,19 +433,57 @@ export default function EntregasPage() {
               {loading && (
                 <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Carregando…</td></tr>
               )}
-              {!loading && rows.map((r) => (
-                <tr key={r.id} className="border-t border-neutral-200 dark:border-neutral-800">
-                  <td className="px-3 py-2">{r.nome}</td>
-                  <td className="px-3 py-2">{maskCPF(r.id)}</td>
-                  <td className="px-3 py-2">{r.funcao}</td>
-                  <td className="px-3 py-2">{r.unidade}</td>
-                  <td className="px-3 py-2">{r.regional}</td>
-                  <td className="px-3 py-2 text-right">
-                    <button onClick={() => openDeliver(r)} className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600">Entregar</button>
-                  </td>
-                </tr>
-              ))}
-              {!loading && rows.length === 0 && (
+              {!loading && visibleRows.map((r) => {
+                const st = statusMap[r.id];
+                const code: StatusCode = (st?.code || 'ATIVO');
+                const label = st?.label || STATUS_LABELS[code];
+                const obs = st?.obs || '';
+                const isForaMeta = EXCLUDED_STATUS.includes(code);
+                return (
+                  <tr key={r.id} className="border-t border-neutral-200 dark:border-neutral-800">
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${statusDotClass(code)}`} />
+                        <span className="truncate">{r.nome}</span>
+                        {(obs || code !== 'ATIVO') && (
+                          <span
+                            className="text-[11px] px-1.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 cursor-default"
+                            title={obs || label}
+                          >
+                            🅘
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">{maskCPF(r.id)}</td>
+                    <td className="px-3 py-2">{r.funcao}</td>
+                    <td className="px-3 py-2">{r.unidade}</td>
+                    <td className="px-3 py-2">{r.regional}</td>
+                    <td className="px-3 py-2 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openStatusModal(r, st)}
+                          className="px-2 py-1 rounded-lg border text-xs"
+                        >
+                          Situação
+                        </button>
+                        <button
+                          onClick={() => openDeliver(r)}
+                          disabled={isForaMeta}
+                          className={`px-3 py-2 rounded-xl text-sm ${
+                            isForaMeta
+                              ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500'
+                              : 'bg-neutral-800 text-white dark:bg-emerald-600'
+                          }`}
+                        >
+                          Entregar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!loading && visibleRows.length === 0 && (
                 <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Sem resultados.</td></tr>
               )}
             </tbody>
@@ -279,6 +507,91 @@ export default function EntregasPage() {
           </div>
         </div>
       )}
+
+
+      {statusModal.open && statusModal.row && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50"
+          onClick={() => setStatusModal({ open: false })}
+        >
+          <div
+            className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-md shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+              <div>
+                <div className="text-xs uppercase tracking-wide opacity-70">Situação do colaborador</div>
+                <div className="font-semibold text-sm truncate">
+                  {statusModal.row?.nome} <span className="opacity-60 text-xs ml-1">({maskCPF(statusModal.row?.id)})</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setStatusModal({ open: false })}
+                className="text-xs px-2 py-1 rounded-lg border border-neutral-300 dark:border-neutral-700"
+              >
+                Fechar
+              </button>
+            </div>
+            <div className="px-4 py-4 space-y-3 text-sm">
+              <div>
+                <label className="text-xs block mb-1">Status</label>
+                <select
+                  value={statusModal.code || 'ATIVO'}
+                  onChange={(e) =>
+                    setStatusModal((prev) => ({
+                      ...prev,
+                      code: e.target.value as StatusCode,
+                    }))
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                >
+                  <option value="ATIVO">Ativo (entra na meta)</option>
+                  <option value="FERIAS">Férias</option>
+                  <option value="INSS">INSS</option>
+                  <option value="LICENCA_MATERNIDADE">Licença maternidade</option>
+                  <option value="DEMITIDO_2025_SEM_EPI">Demitido 2025 sem EPI (fora da meta, justificado)</option>
+                  <option value="EXCLUIDO_META">Excluído da meta (outros motivos)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs block mb-1">Observação rápida (aparece no 🅘)</label>
+                <input
+                  type="text"
+                  maxLength={100}
+                  value={statusModal.obs || ''}
+                  onChange={(e) =>
+                    setStatusModal((prev) => ({
+                      ...prev,
+                      obs: e.target.value,
+                    }))
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                  placeholder="Ex.: Férias jan/2025; Gestante; INSS desde 02/2025..."
+                />
+              </div>
+              <p className="text-[11px] opacity-70">
+                Colaboradores marcados como <strong>Demitido 2025 sem EPI</strong> ou <strong>Excluído da meta</strong> ficam com o botão de entrega desativado
+                e são sinalizados como <em>fora da meta</em> nesta tela e nos futuros dashboards.
+              </p>
+            </div>
+            <div className="px-4 py-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2">
+              <button
+                onClick={() => setStatusModal({ open: false })}
+                className="px-3 py-2 rounded-xl text-sm border border-neutral-300 dark:border-neutral-700"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveStatusModal}
+                className="px-4 py-2 rounded-xl text-sm bg-neutral-800 text-white dark:bg-emerald-600"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {modal.open && modal.row && (
         <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50" onClick={() => setModal({ open: false })}>
