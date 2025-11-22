@@ -94,6 +94,14 @@ export default function EstoqueSESMTPage() {
   const [catalogQuery, setCatalogQuery] = useState('');
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [novoEpiAberto, setNovoEpiAberto] = useState(false);
+  const [novoCodigo, setNovoCodigo] = useState('');
+  const [novoDescricao, setNovoDescricao] = useState('');
+  const [novoCategoria, setNovoCategoria] = useState('');
+  const [novoGrupo, setNovoGrupo] = useState('');
+  const [novoUnidade, setNovoUnidade] = useState('');
+  const [novoTamanho, setNovoTamanho] = useState('');
+  const [novoSalvando, setNovoSalvando] = useState(false);
 
   // Carrega regional do localStorage
   useEffect(() => {
@@ -215,6 +223,65 @@ export default function EstoqueSESMTPage() {
     if (tipo === 'saida' && !destinoUnidade) return false;
     return true;
   }, [regional, unidadeSESMTNome, itemId, quantidade, tipo, destinoUnidade]);
+
+async function handleSalvarNovoEpi() {
+  if (novoSalvando) return;
+  const desc = (novoDescricao || '').trim();
+  if (!desc) {
+    alert('Informe ao menos a descrição do EPI.');
+    return;
+  }
+  try {
+    setNovoSalvando(true);
+    const body = {
+      codigo_pa: novoCodigo || null,
+      descricao_site: desc,
+      categoria_site: (novoCategoria || 'EPI').trim() || 'EPI',
+      grupo_cahosp: (novoGrupo || '').trim() || null,
+      unidade_site: (novoUnidade || 'UN').trim() || 'UN',
+      tamanho_site: (novoTamanho || '').trim() || null,
+    };
+    await fetchJSON('/api/estoque/catalogo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    // Atualiza listas locais (catálogo e select de itens)
+    const novoItemCatalogo: CatalogItem = {
+      codigo_pa: body.codigo_pa,
+      descricao_cahosp: null,
+      descricao_site: body.descricao_site,
+      categoria_site: body.categoria_site,
+      grupo_cahosp: body.grupo_cahosp,
+      unidade_site: body.unidade_site,
+      tamanho_site: body.tamanho_site,
+      tamanho: body.tamanho_site,
+    };
+    setCatalogItems((prev) => [novoItemCatalogo, ...prev]);
+    const optId = body.descricao_site;
+    setItemOptions((prev) => {
+      const exists = prev.some((o) => o.id === optId);
+      if (exists) return prev;
+      return [{ id: optId, nome: body.descricao_site }, ...prev];
+    });
+    setItemId(optId);
+
+    // Limpa formulário
+    setNovoCodigo('');
+    setNovoDescricao('');
+    setNovoCategoria('');
+    setNovoGrupo('');
+    setNovoUnidade('');
+    setNovoTamanho('');
+    setNovoEpiAberto(false);
+  } catch (e) {
+    console.error(e);
+    alert('Erro ao cadastrar novo EPI.');
+  } finally {
+    setNovoSalvando(false);
+  }
+}
 
   async function handleSalvarMovimentacao() {
     if (!canSave) return;
@@ -722,20 +789,84 @@ export default function EstoqueSESMTPage() {
                     </tbody>
                   </table>
                 </div>
-                <div className="flex items-center justify-between border-t border-border px-4 py-3 text-[11px]">
-                  <div>Itens exibidos: {catalogItems.length}</div>
-                  <button
-                    type="button"
-                    className="rounded border border-border px-3 py-2"
-                    onClick={() => {
-                      if (typeof window !== 'undefined') {
-                        window.open('/admin', '_blank');
-                      }
-                    }}
-                  >
-                    Cadastrar novo EPI
-                  </button>
-                </div>
+{novoEpiAberto && (
+  <div className="border-t border-border px-4 py-3 text-[11px] space-y-2">
+    <div className="font-semibold">Cadastro rápido de novo EPI</div>
+    <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+      <input
+        className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+        placeholder="Código CAHOSP (opcional)"
+        value={novoCodigo}
+        onChange={(e) => setNovoCodigo(e.target.value)}
+      />
+      <input
+        className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+        placeholder="Descrição do EPI"
+        value={novoDescricao}
+        onChange={(e) => setNovoDescricao(e.target.value)}
+      />
+      <input
+        className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+        placeholder="Categoria (ex.: Proteção respiratória)"
+        value={novoCategoria}
+        onChange={(e) => setNovoCategoria(e.target.value)}
+      />
+      <input
+        className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+        placeholder="Grupo (ex.: EPI)"
+        value={novoGrupo}
+        onChange={(e) => setNovoGrupo(e.target.value)}
+      />
+      <input
+        className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+        placeholder="Unidade (ex.: UN, PAR, CX)"
+        value={novoUnidade}
+        onChange={(e) => setNovoUnidade(e.target.value)}
+      />
+      <input
+        className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+        placeholder="Tamanho (ex.: P, M, G, Único)"
+        value={novoTamanho}
+        onChange={(e) => setNovoTamanho(e.target.value)}
+      />
+    </div>
+    <div className="flex justify-end gap-2">
+      <button
+        type="button"
+        className="rounded border border-border px-3 py-2"
+        onClick={() => setNovoEpiAberto(false)}
+        disabled={novoSalvando}
+      >
+        Cancelar
+      </button>
+      <button
+        type="button"
+        className="rounded bg-emerald-600 px-3 py-2 font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+        onClick={handleSalvarNovoEpi}
+        disabled={novoSalvando || !novoDescricao.trim()}
+      >
+        {novoSalvando ? 'Salvando...' : 'Salvar novo EPI'}
+      </button>
+    </div>
+  </div>
+)}
+<div className="flex items-center justify-between border-t border-border px-4 py-3 text-[11px]">
+  <div>
+    Itens exibidos: {catalogItems.length}
+    {novoEpiAberto && (
+      <span className="ml-2 text-[10px] text-muted">
+        O EPI salvo já poderá ser usado nas movimentações.
+      </span>
+    )}
+  </div>
+  <button
+    type="button"
+    className="rounded border border-border px-3 py-2"
+    onClick={() => setNovoEpiAberto((v) => !v)}
+  >
+    {novoEpiAberto ? 'Fechar cadastro rápido' : 'Cadastrar novo EPI'}
+  </button>
+</div>
               </div>
             </div>
           )}
