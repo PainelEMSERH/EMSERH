@@ -87,10 +87,10 @@ export async function GET(req: Request){
 
   if (unidadeId){
     params.push(unidadeId);
-    where.push(`m."unidadeId" = $${params.length}`);
+    where.push(`m.unidadeid = $${params.length}`);
   } else if (regionalId){
     params.push(regionalId);
-    where.push(`m."unidadeId" IN (SELECT id FROM unidade WHERE "regionalId" = $${params.length})`);
+    where.push(`m.unidadeid IN (SELECT id FROM unidade WHERE "regionalId" = $${params.length})`);
   }
   if (itemId){ params.push(itemId); where.push(`m."itemId" = $${params.length}`); }
   if (tipo){ params.push(tipo); where.push(`m.tipo = $${params.length}`); }
@@ -109,9 +109,9 @@ export async function GET(req: Request){
            r.id AS "regionalId", r.nome AS regional,
            i.id AS "itemId",     i.nome AS item
     FROM estoque_mov m
-    JOIN unidade  u ON u.id = m."unidadeId"
+    JOIN unidade  u ON u.id = m.unidadeid
     JOIN regional r ON r.id = u."regionalId"
-    JOIN item     i ON i.id = m."itemId"
+    JOIN item     i ON i.id = m.itemid
     ${whereSql}
     ORDER BY m.data DESC
     LIMIT ${size} OFFSET ${offset}
@@ -120,9 +120,9 @@ export async function GET(req: Request){
   const total:any[] = await prisma.$queryRawUnsafe(`
     SELECT COUNT(*)::int AS c
     FROM estoque_mov m
-    JOIN unidade  u ON u.id = m."unidadeId"
+    JOIN unidade  u ON u.id = m.unidadeid
     JOIN regional r ON r.id = u."regionalId"
-    JOIN item     i ON i.id = m."itemId"
+    JOIN item     i ON i.id = m.itemid
     ${whereSql}
   `, ...params);
 
@@ -215,7 +215,7 @@ try {
     );
 
     const ins:any[] = await prisma.$queryRawUnsafe(
-      `INSERT INTO estoque_mov ("unidadeId","itemId",tipo,quantidade,destino,observacao,data)
+      `INSERT INTO estoque_mov (unidadeid,itemid,tipo,quantidade,destino,observacao,data)
        VALUES ($1,$2,$3,$4,$5,$6, COALESCE($7::timestamptz, NOW()))
        RETURNING id`,
       unidadeId,
