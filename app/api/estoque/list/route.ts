@@ -42,7 +42,6 @@ export async function GET(req: Request) {
            r.id   AS "regionalId", r.nome AS regional,
            u.id   AS "unidadeId",  u.nome AS unidade,
            i.id   AS "itemId",     i.nome AS item,
-           i.categoria AS categoria,
            e.quantidade, e.minimo, COALESCE(e.maximo, 0) AS maximo
     FROM estoque e
     JOIN unidade  u ON u.id = e."unidadeId"

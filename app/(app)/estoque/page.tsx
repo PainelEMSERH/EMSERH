@@ -2,7 +2,7 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
 
-type Row = { id:string; regionalId:string; regional:string; unidadeId:string; unidade:string; itemId:string; item:string; categoria?:string | null; quantidade:number; minimo:number; maximo:number };
+type Row = { id:string; regionalId:string; regional:string; unidadeId:string; unidade:string; itemId:string; item:string; quantidade:number; minimo:number; maximo:number };
 type Mov = { id:string; tipo:'entrada'|'saida'; quantidade:number; destino?:string; observacao?:string; data:string; unidadeId:string; unidade:string; regionalId:string; regional:string; itemId:string; item:string };
 type Pedido = { id:string; status:'pendente'|'recebido'|'cancelado'; criadoEm:string; previstoEm?:string; recebidoEm?:string; observacao?:string; regionalId?:string; regional?:string; unidadeId?:string; unidade?:string; qtd_solicitada:number; qtd_recebida:number };
 type Opts = { regionais:string[]; unidades:{unidade:string, regional:string}[] };
@@ -44,10 +44,6 @@ export default function Page(){
   const [pedPrevisto,setPedPrevisto] = useState('');
   const [pedObs,setPedObs] = useState('');
 const [pedItens,setPedItens] = useState<Array<{itemId:string, quantidade:number}>>([]);
-
-  const [pedTipo, setPedTipo] = useState<'entrada' | 'saida'>('entrada');
-  const [pedDestinoUnidade, setPedDestinoUnidade] = useState('');
-  const [pedOrigem, setPedOrigem] = useState('');
 
 // Configuração de mínimo/máximo por item/unidade
 const [editRow, setEditRow] = useState<Row | null>(null);
@@ -112,13 +108,6 @@ useEffect(() => {
 
   const unidadesFiltradas = useMemo(()=> opts.unidades.filter(u => !regional || u.regional===regional), [opts, regional]);
 
-  const sesmtUnidadeNome = React.useMemo(() => {
-    if (!regional) return '';
-    const reg = regional.toUpperCase();
-    return `ESTOQUE SESMT - ${reg}`;
-  }, [regional]);
-
-
   const itensCat = useMemo(()=> itemOptions, [itemOptions]);
 
   const resumo = useMemo(() => {
@@ -126,29 +115,22 @@ useEffect(() => {
     let baixo = 0;
     let zerado = 0;
     let semMinimo = 0;
-    const porCategoria: Record<string, { itens:number; quantidade:number }> = {};
     for (const r of rows) {
       if (r.quantidade <= 0) zerado++;
       if (r.minimo > 0 && r.quantidade > 0 && r.quantidade <= r.minimo) baixo++;
       if (r.minimo === 0) semMinimo++;
-      const cat = (r.categoria || 'Sem categoria').toString();
-      if (!porCategoria[cat]) porCategoria[cat] = { itens: 0, quantidade: 0 };
-      porCategoria[cat].itens += 1;
-      porCategoria[cat].quantidade += r.quantidade ?? 0;
     }
-    return { totalItens, baixo, zerado, semMinimo, porCategoria };
+    return { totalItens, baixo, zerado, semMinimo };
   }, [rows]);
 
   useEffect(() => {
-    const q = catQuery.trim();
-    if (!q) {
+    if (!catQuery.trim()) {
       setCatOptions([]);
-      setCatLoading(false);
       return;
     }
     let active = true;
     setCatLoading(true);
-    const url = `/api/estoque/catalogo?q=${encodeURIComponent(q)}`;
+    const url = `/api/estoque/catalogo?q=${encodeURIComponent(catQuery)}`;
     fetchJSON<{ items: CatalogItem[] }>(url)
       .then(d => {
         if (!active) return;
@@ -169,20 +151,7 @@ useEffect(() => {
 
 
   async function criarMov(){
-    const destinoEfetivo =
-      novoTipo === 'entrada'
-        ? 'CAHOSP → SESMT'
-        : (novoDestino || null);
-
-    const body = {
-      unidadeId: sesmtUnidadeNome,
-      itemId: novoItemId,
-      tipo: novoTipo,
-      quantidade: novoQtd,
-      destino: destinoEfetivo,
-      observacao: novoObs || null,
-      data: novoData || null,
-    };
+    const body = { unidadeId: novoUnidadeId, itemId: novoItemId, tipo: novoTipo, quantidade: Number(novoQtd||0), destino: novoDestino||null, observacao: novoObs||null, data: novoData||null };
     await fetchJSON('/api/estoque/mov', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     setNovoQtd(0); setNovoDestino(''); setNovoObs(''); setNovoData('');
     const url = `/api/estoque/mov?regionalId=${encodeURIComponent(regional)}&unidadeId=${encodeURIComponent(unidade)}&page=${movPage}&size=25`;
@@ -194,29 +163,6 @@ useEffect(() => {
   async function criarPedido(){
     const body:any = { regionalId: regional || null, unidadeId: unidade || null, previstoEm: pedPrevisto || null, observacao: pedObs || null, itens: pedItens };
     await fetchJSON('/api/estoque/pedidos', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-
-    // Também gera movimentações no estoque SESMT com base nos itens do pedido
-    const unidadeEstoque = sesmtUnidadeNome;
-    if (unidadeEstoque && pedItens.length > 0) {
-      for (const it of pedItens) {
-        if (!it.itemId || !it.quantidade) continue;
-        const movBody = {
-          unidadeId: unidadeEstoque,
-          itemId: it.itemId,
-          tipo: pedTipo,
-          quantidade: it.quantidade,
-          destino: pedTipo === 'saida' ? (pedDestinoUnidade || null) : (pedOrigem || null),
-          observacao: pedObs || null,
-          data: pedPrevisto || null,
-        };
-        await fetchJSON('/api/estoque/mov', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(movBody),
-        });
-      }
-    }
-
     setPedItens([]); setPedObs(''); setPedPrevisto('');
     const url = `/api/estoque/pedidos?regionalId=${encodeURIComponent(regional)}&unidadeId=${encodeURIComponent(unidade)}&page=${pedPage}&size=25`;
     fetchJSON<{ rows:Pedido[], total:number }>(url).then(d => { setPeds(d.rows||[]); setPedTotal(d.total||0); });
@@ -414,7 +360,146 @@ useEffect(() => {
       </div>
     )}
 
-        <div className="flex items-center justify-between p-3 text-xs text-muted">
+    {/* Cadastro rápido de novo item vinculado à Unidade */}
+    <div className="border-t border-border px-4 py-4 text-xs bg-card/20 flex flex-col gap-3">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        <div>
+          <div className="font-semibold text-sm">Cadastrar novo item</div>
+          <div className="text-muted">
+            Use o catálogo SESMT para buscar o item ou preencha manualmente. O estoque inicial será lançado para a unidade selecionada.
+          </div>
+        </div>
+        <div className="flex flex-col md:flex-row gap-2 items-center">
+          <input
+            className="px-3 py-2 rounded bg-card border border-border text-xs"
+            placeholder="Buscar no catálogo SESMT (código ou descrição)"
+            value={catQuery}
+            onChange={e => setCatQuery(e.target.value)}
+          />
+          {catLoading && <span className="text-[11px] text-muted">Buscando...</span>}
+        </div>
+      </div>
+
+      {catOptions.length > 0 && (
+        <div className="max-h-40 overflow-y-auto rounded border border-border bg-card text-[11px] mt-2">
+          {catOptions.map((c, idx) => (
+            <button
+              key={idx}
+              type="button"
+              className="w-full text-left px-3 py-1.5 hover:bg-white/10 border-b border-border last:border-b-0"
+              onClick={() => {
+                setNewItemNome(c.descricao_site || c.descricao_cahosp || '');
+                setNewItemCategoria(c.categoria_site || 'EPI');
+                setNewItemUnidadeMedida(c.unidade_site || 'UN');
+              }}
+            >
+              <div className="font-medium">
+                {c.descricao_site || c.descricao_cahosp || 'Sem descrição'}
+              </div>
+              <div className="text-muted">
+                {c.codigo_pa ? `Código: ${c.codigo_pa}` : ''}
+                {c.grupo_cahosp ? ` · Grupo: ${c.grupo_cahosp}` : ''}
+                {c.tamanho_site ? ` · Tam.: ${c.tamanho_site}` : ''}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mt-3">
+        <input
+          className="px-3 py-2 rounded bg-card border border-border text-xs md:col-span-2"
+          placeholder="Nome do item"
+          value={newItemNome}
+          onChange={e => setNewItemNome(e.target.value)}
+        />
+        <input
+          className="px-3 py-2 rounded bg-card border border-border text-xs"
+          placeholder="Categoria"
+          value={newItemCategoria}
+          onChange={e => setNewItemCategoria(e.target.value)}
+        />
+        <input
+          className="px-3 py-2 rounded bg-card border border-border text-xs"
+          placeholder="Unidade de medida (ex.: UN, PAR)"
+          value={newItemUnidadeMedida}
+          onChange={e => setNewItemUnidadeMedida(e.target.value)}
+        />
+        <select
+          className="px-3 py-2 rounded bg-card border border-border text-xs"
+          value={newItemUnidade || unidade}
+          onChange={e => setNewItemUnidade(e.target.value)}
+        >
+          <option value="">Unidade para o estoque</option>
+          {unidadesFiltradas.map(u => (
+            <option key={u.unidade} value={u.unidade}>
+              {u.unidade}
+            </option>
+          ))}
+        </select>
+        <input
+          className="px-3 py-2 rounded bg-card border border-border text-xs w-full"
+          placeholder="Qtd inicial"
+          value={newItemQtdInicial ? String(newItemQtdInicial) : ''}
+          onChange={e => {
+            const v = e.target.value.replace(/[^0-9]/g, '');
+            setNewItemQtdInicial(v ? Number(v) : 0);
+          }}
+          inputMode="numeric"
+        />
+      </div>
+      <div className="flex justify-end mt-2">
+        <button
+          className="px-3 py-2 rounded border border-border text-[11px] disabled:opacity-50"
+          disabled={
+            newItemSaving ||
+            !newItemNome ||
+            !(newItemUnidade || unidade)
+          }
+          onClick={async () => {
+            try {
+              setNewItemSaving(true);
+              const unidadeKey = newItemUnidade || unidade;
+              await fetchJSON('/api/estoque/item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  nome: newItemNome,
+                  categoria: newItemCategoria || 'EPI',
+                  unidadeMedida: newItemUnidadeMedida || 'UN',
+                  unidadeId: unidadeKey,
+                  quantidadeInicial: newItemQtdInicial || 0,
+                }),
+              });
+                    const itemsResp = await fetchJSON<{ items: { id: string; nome: string }[] }>('/api/estoque/items');
+                    setItemOptions(itemsResp.items || []);
+
+              setNewItemNome('');
+              setNewItemCategoria('EPI');
+              setNewItemUnidadeMedida('UN');
+              setNewItemUnidade('');
+              setNewItemQtdInicial(0);
+              setCatQuery('');
+              setCatOptions([]);
+              const urlSaldo = `/api/estoque/list?regionalId=${encodeURIComponent(
+                regional
+              )}&unidadeId=${encodeURIComponent(unidade)}&q=${encodeURIComponent(q)}&page=${page}&size=${size}`;
+              const d = await fetchJSON<{ rows: Row[]; total: number }>(urlSaldo);
+              setRows(d.rows || []);
+              setTotal(d.total || 0);
+            } catch (e) {
+              console.error(e);
+            } finally {
+              setNewItemSaving(false);
+            }
+          }}
+        >
+          Salvar novo item
+        </button>
+      </div>
+    </div>
+
+    <div className="flex items-center justify-between p-3 text-xs text-muted">
       <div>Total: {total}</div>
       <div className="flex items-center gap-2">
         <button
@@ -441,173 +526,29 @@ useEffect(() => {
           <div className="rounded-xl border border-border bg-panel p-4">
             <h2 className="font-semibold mb-2">Nova movimentação</h2>
             <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
-              <select
-                className="px-3 py-2 rounded bg-card border border-border text-xs"
-                value={novoTipo}
-                onChange={e => {
-                  const v = e.target.value as 'entrada' | 'saida';
-                  setNovoTipo(v);
-                  if (v === 'entrada') setNovoDestino('');
-                }}
-              >
+              <select className="px-3 py-2 rounded bg-card border border-border" value={novoTipo} onChange={e=>setNovoTipo(e.target.value as any)}>
                 <option value="entrada">Entrada</option>
                 <option value="saida">Saída</option>
               </select>
-              <input
-                className="px-3 py-2 rounded bg-card border border-border text-xs"
-                value={sesmtUnidadeNome || (regional ? 'Estoque do SESMT da Regional selecionada' : 'Selecione uma Regional')}
-                readOnly
-              />
+              <select className="px-3 py-2 rounded bg-card border border-border" value={novoUnidadeId} onChange={e=>setNovoUnidadeId(e.target.value)}>
+                <option value="">Unidade</option>
+                {unidadesFiltradas.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
+              </select>
               <select className="px-3 py-2 rounded bg-card border border-border" value={novoItemId} onChange={e=>setNovoItemId(e.target.value)}>
                 <option value="">Item</option>
                 {itensCat.map(i => <option key={i.id} value={i.id}>{i.nome}</option>)}
               </select>
               <input type="number" className="px-3 py-2 rounded bg-card border border-border" placeholder="Quantidade" value={novoQtd} onChange={e=>setNovoQtd(parseInt(e.target.value||'0',10))}/>
-              {novoTipo === 'entrada' ? (
-                <input
-                  className="px-3 py-2 rounded bg-card border border-border text-xs text-muted"
-                  value="Entrada no estoque do SESMT"
-                  disabled
-                />
-              ) : (
-                <select
-                  className="px-3 py-2 rounded bg-card border border-border text-xs"
-                  value={novoDestino}
-                  onChange={e => setNovoDestino(e.target.value)}
-                >
-                  <option value="">Unidade hospitalar destino</option>
-                  {unidadesFiltradas.map(u => (
-                    <option key={u.unidade} value={u.unidade}>{u.unidade}</option>
-                  ))}
-                </select>
-              )}
+              <input className="px-3 py-2 rounded bg-card border border-border" placeholder="Destino/Justificativa" value={novoDestino} onChange={e=>setNovoDestino(e.target.value)}/>
               <input type="date" className="px-3 py-2 rounded bg-card border border-border" value={novoData} onChange={e=>setNovoData(e.target.value)}/>
             </div>
             <div className="mt-2">
               <input className="w-full px-3 py-2 rounded bg-card border border-border" placeholder="Observação" value={novoObs} onChange={e=>setNovoObs(e.target.value)}/>
             </div>
             <div className="mt-3 flex justify-end">
-              <button className="px-3 py-2 border rounded" onClick={criarMov} disabled={!sesmtUnidadeNome || !novoItemId || !novoQtd || (novoTipo==='saida' && !novoDestino)}>Salvar movimentação</button>
+              <button className="px-3 py-2 border rounded" onClick={criarMov} disabled={!novoUnidadeId || !novoItemId || !novoQtd}>Salvar movimentação</button>
             </div>
           </div>
-
-
-          {/* Catálogo e cadastro de itens do SESMT */}
-          <div className="rounded-xl border border-border bg-panel">
-            <div className="px-4 py-3 border-b border-border flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-xs">
-              <div>
-                <div className="font-semibold text-sm">Catálogo de itens do SESMT</div>
-                <div className="text-muted">
-                  Itens disponíveis para movimentação. Use a busca para localizar o item
-                  ou cadastre um novo apenas se ele ainda não existir.
-                </div>
-              </div>
-              <div className="flex flex-col md:flex-row gap-2 items-center">
-                <input
-                  className="px-3 py-2 rounded bg-card border border-border text-xs"
-                  placeholder="Buscar no catálogo SESMT (código ou descrição)"
-                  value={catQuery}
-                  onChange={e => setCatQuery(e.target.value)}
-                />
-                {catLoading && <span className="text-[11px] text-muted">Buscando...</span>}
-              </div>
-            </div>
-
-            {catOptions.length > 0 && (
-              <div className="px-4 pt-2">
-                <div className="max-h-40 overflow-y-auto rounded border border-border bg-card text-[11px]">
-                  {catOptions.map((c, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      className="w-full text-left px-3 py-1.5 hover:bg-white/10 border-b border-border last:border-b-0"
-                      onClick={() => {
-                        setNewItemNome(c.descricao_site || c.descricao_cahosp || '');
-                        setNewItemCategoria(c.categoria_site || 'EPI');
-                        setNewItemUnidadeMedida(c.unidade_site || 'UN');
-                      }}
-                    >
-                      <div className="font-medium">
-                        {c.descricao_site || c.descricao_cahosp || 'Sem descrição'}
-                      </div>
-                      <div className="text-muted">
-                        {c.codigo_pa ? `Código: ${c.codigo_pa}` : ''}
-                        {c.grupo_cahosp ? ` · Grupo: ${c.grupo_cahosp}` : ''}
-                        {c.tamanho_site ? ` · Tam.: ${c.tamanho_site}` : ''}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="px-4 py-4 text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                <input
-                  className="px-3 py-2 rounded bg-card border border-border text-xs md:col-span-2"
-                  placeholder="Nome do item"
-                  value={newItemNome}
-                  onChange={e => setNewItemNome(e.target.value)}
-                />
-                <input
-                  className="px-3 py-2 rounded bg-card border border-border text-xs"
-                  placeholder="Categoria (ex.: EPI, Sinalização)"
-                  value={newItemCategoria}
-                  onChange={e => setNewItemCategoria(e.target.value)}
-                />
-                <input
-                  className="px-3 py-2 rounded bg-card border border-border text-xs"
-                  placeholder="Unidade de medida (ex.: UN, PAR)"
-                  value={newItemUnidadeMedida}
-                  onChange={e => setNewItemUnidadeMedida(e.target.value)}
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                <input
-                  className="px-3 py-2 rounded bg-card border border-border text-xs"
-                  placeholder="Código / tamanho / outras informações"
-                  value={newItemUnidade}
-                  onChange={e => setNewItemUnidade(e.target.value)}
-                />
-              </div>
-              <div className="flex justify-end mt-3">
-                <button
-                  className="px-3 py-2 rounded border border-border text-[11px] disabled:opacity-50"
-                  disabled={newItemSaving || !newItemNome}
-                  onClick={async () => {
-                    try {
-                      setNewItemSaving(true);
-                      await fetchJSON('/api/estoque/item', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          nome: newItemNome,
-                          categoria: newItemCategoria || 'EPI',
-                          unidadeMedida: newItemUnidadeMedida || 'UN',
-                          descricao: newItemUnidade || '',
-                        }),
-                      });
-                      const itemsResp = await fetchJSON<{ items: { id: string; nome: string }[] }>('/api/estoque/items');
-                      setItemOptions(itemsResp.items || []);
-                      setNewItemNome('');
-                      setNewItemCategoria('EPI');
-                      setNewItemUnidadeMedida('UN');
-                      setNewItemUnidade('');
-                      setCatQuery('');
-                      setCatOptions([]);
-                    } catch (e) {
-                      console.error(e);
-                    } finally {
-                      setNewItemSaving(false);
-                    }
-                  }}
-                >
-                  Salvar item
-                </button>
-              </div>
-            </div>
-          </div>
-
 
           <div className="rounded-xl border border-border bg-panel">
             <div className="overflow-x-auto">
@@ -654,50 +595,12 @@ useEffect(() => {
           <div className="rounded-xl border border-border bg-panel p-4">
             <h2 className="font-semibold mb-2">Novo pedido de reposição</h2>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-              <select
-                className="px-3 py-2 rounded bg-card border border-border text-xs"
-                value={pedTipo}
-                onChange={e => setPedTipo(e.target.value as 'entrada' | 'saida')}
-              >
-                <option value="entrada">Entrada (chegada no SESMT)</option>
-                <option value="saida">Saída (para unidade)</option>
+              <select className="px-3 py-2 rounded bg-card border border-border" value={unidade} onChange={e=>setUnidade(e.target.value)}>
+                <option value="">Selecione a Unidade</option>
+                {unidadesFiltradas.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
               </select>
-              <input
-                className="px-3 py-2 rounded bg-card border border-border text-xs"
-                value={sesmtUnidadeNome || (regional ? 'Estoque do SESMT da Regional selecionada' : 'Selecione uma Regional')}
-                readOnly
-              />
-              {pedTipo==='saida' ? (
-                <select
-                  className="px-3 py-2 rounded bg-card border border-border text-xs"
-                  value={pedDestinoUnidade}
-                  onChange={e => setPedDestinoUnidade(e.target.value)}
-                >
-                  <option value="">Unidade hospitalar destino</option>
-                  {unidadesFiltradas.map(u => (
-                    <option key={u.unidade} value={u.unidade}>{u.unidade}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  className="px-3 py-2 rounded bg-card border border-border text-xs"
-                  placeholder="Origem (ex.: CAHOSP)"
-                  value={pedOrigem}
-                  onChange={e => setPedOrigem(e.target.value)}
-                />
-              )}
-              <input
-                type="date"
-                className="px-3 py-2 rounded bg-card border border-border text-xs"
-                value={pedPrevisto}
-                onChange={e => setPedPrevisto(e.target.value)}
-              />
-              <input
-                className="px-3 py-2 rounded bg-card border border-border text-xs"
-                placeholder="Observação"
-                value={pedObs}
-                onChange={e => setPedObs(e.target.value)}
-              />
+              <input type="date" className="px-3 py-2 rounded bg-card border border-border" value={pedPrevisto} onChange={e=>setPedPrevisto(e.target.value)} />
+              <input className="px-3 py-2 rounded bg-card border border-border" placeholder="Observação" value={pedObs} onChange={e=>setPedObs(e.target.value)} />
             </div>
             <div className="mt-3">
               <div className="text-xs text-text mb-1">Itens do pedido</div>
@@ -720,7 +623,7 @@ useEffect(() => {
               </div>
             </div>
             <div className="mt-3 flex justify-end">
-              <button className="px-3 py-2 border rounded" onClick={criarPedido} disabled={!sesmtUnidadeNome || pedItens.length===0 || (pedTipo==='saida' && !pedDestinoUnidade)}>Criar pedido</button>
+              <button className="px-3 py-2 border rounded" onClick={criarPedido} disabled={!unidade || pedItens.length===0}>Criar pedido</button>
             </div>
           </div>
 

@@ -13,9 +13,7 @@ export async function POST(req: Request) {
     const nomeRaw = (body?.nome || '').toString().trim();
     const categoriaRaw = (body?.categoria || '').toString().trim() || 'EPI';
     const unidadeMedidaRaw = (body?.unidadeMedida || '').toString().trim() || 'UN';
-    const descricaoRaw = (body?.descricao || '').toString().trim();
     const unidadeKeyRaw = (body?.unidadeId || '').toString().trim();
-    const regionalNomeRaw = (body?.regional || '').toString().trim();
     const quantidadeInicialNum = Number(body?.quantidadeInicial ?? 0);
 
     if (!nomeRaw) {
@@ -25,7 +23,6 @@ export async function POST(req: Request) {
     const nome = nomeRaw;
     const categoria = categoriaRaw;
     const unidadeMedida = unidadeMedidaRaw;
-    const descricao = descricaoRaw || null;
     const quantidadeInicial = Number.isFinite(quantidadeInicialNum) && quantidadeInicialNum > 0
       ? Math.floor(quantidadeInicialNum)
       : 0;
@@ -41,7 +38,6 @@ export async function POST(req: Request) {
           nome,
           categoria,
           unidadeMedida,
-          descricao,
           ativo: true,
         },
       } as any);
@@ -57,41 +53,10 @@ export async function POST(req: Request) {
           LIMIT 1`,
         unidadeKeyRaw,
       );
-
-      let unidadeId: string | null = null;
-
-      if (unidadeRows && unidadeRows.length > 0) {
-        unidadeId = String(unidadeRows[0].id);
-      } else {
-        // Cria automaticamente a Unidade (estoque SESMT) vinculada à Regional, se informada
-        let regionalId: string | null = null;
-        if (regionalNomeRaw) {
-          const regRows: any[] = await prisma.$queryRawUnsafe(
-            `SELECT id FROM "Regional" WHERE UPPER(nome) = UPPER($1) LIMIT 1`,
-            regionalNomeRaw,
-          );
-          if (regRows && regRows.length > 0) {
-            regionalId = String(regRows[0].id);
-          } else {
-            const insReg: any[] = await prisma.$queryRawUnsafe(
-              `INSERT INTO "Regional"(nome,sigla) VALUES ($1, NULL) RETURNING id`,
-              regionalNomeRaw,
-            );
-            regionalId = insReg?.[0]?.id ? String(insReg[0].id) : null;
-          }
-        }
-
-        const insUn: any[] = await prisma.$queryRawUnsafe(
-          `INSERT INTO "Unidade"(nome,sigla,"regionalId") VALUES ($1, NULL, $2) RETURNING id`,
-          unidadeKeyRaw,
-          regionalId,
-        );
-        unidadeId = insUn?.[0]?.id ? String(insUn[0].id) : null;
-      }
-
-      if (!unidadeId) {
+      if (!unidadeRows || unidadeRows.length === 0) {
         return NextResponse.json({ ok: false, error: 'Unidade não encontrada' }, { status: 400 });
       }
+      const unidadeId = String(unidadeRows[0].id);
 
       // Garante um registro de estoque para essa unidade/item
       const existing: any[] = await prisma.$queryRawUnsafe(

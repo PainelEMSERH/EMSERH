@@ -1,8 +1,8 @@
 [
   {
-    "codigo_pa": "16722",
-    "descricao_cahosp": "ABAFADOR AURICULAR RUIDO TIPO PLUG",
-    "descricao_site": "Abafador Auricular  Tipo Plug",
+    "codigo_pa": "16653",
+    "descricao_cahosp": "ABAFADOR AURICULAR RUIDO TIPO CONCHA",
+    "descricao_site": "Abafador Auricular Tipo Concha",
     "categoria_site": "Proteção auditiva",
     "grupo_cahosp": "EPI",
     "unidade_site": "UN",
@@ -10,9 +10,9 @@
     "tamanho": "Único"
   },
   {
-    "codigo_pa": "16653",
-    "descricao_cahosp": "ABAFADOR AURICULAR RUIDO TIPO CONCHA",
-    "descricao_site": "Abafador Auricular Tipo Concha",
+    "codigo_pa": "16722",
+    "descricao_cahosp": "ABAFADOR AURICULAR RUIDO TIPO PLUG",
+    "descricao_site": "Abafador Auricular  Tipo Plug",
     "categoria_site": "Proteção auditiva",
     "grupo_cahosp": "EPI",
     "unidade_site": "UN",
@@ -610,6 +610,16 @@
     "tamanho": "P"
   },
   {
+    "codigo_pa": "17642",
+    "descricao_cahosp": "LUVA DE SEGURAÇA SS 1010 TAM ( 8 )",
+    "descricao_site": "Luva De Seguraça Ss 1010",
+    "categoria_site": "Luvas",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "PAR",
+    "tamanho_site": null,
+    "tamanho": null
+  },
+  {
     "codigo_pa": "17530",
     "descricao_cahosp": "LUVA DE SEGURANÇA NITRILICA G",
     "descricao_site": "Luva De Segurança Nitrilica",
@@ -648,16 +658,6 @@
     "unidade_site": "PAR",
     "tamanho_site": "8",
     "tamanho": "8"
-  },
-  {
-    "codigo_pa": "17642",
-    "descricao_cahosp": "LUVA DE SEGURAÇA SS 1010 TAM ( 8 )",
-    "descricao_site": "Luva De Seguraça Ss 1010",
-    "categoria_site": "Luvas",
-    "grupo_cahosp": "EPI",
-    "unidade_site": "PAR",
-    "tamanho_site": null,
-    "tamanho": null
   },
   {
     "codigo_pa": "17531",
@@ -800,6 +800,16 @@
     "tamanho": "Único"
   },
   {
+    "codigo_pa": "17575",
+    "descricao_cahosp": "ÓCULOS PLUMBÍFEROS - BLINDAGEM RADIOLOGICA",
+    "descricao_site": "Óculos Plumbíferos - Blindagem Radiologica",
+    "categoria_site": "Proteção ocular/facial",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
+  },
+  {
     "codigo_pa": "16652",
     "descricao_cahosp": "OCULOS SEGURANCA AMPLA VISAO",
     "descricao_site": "Oculos Seguranca Ampla Visao",
@@ -818,6 +828,16 @@
     "unidade_site": "UN",
     "tamanho_site": "15x20",
     "tamanho": "15x20"
+  },
+  {
+    "codigo_pa": "17438",
+    "descricao_cahosp": "PLACA DE SINALIZACAO (PORTA CORTA-FOGO, MANTENHA FECHADA)",
+    "descricao_site": "Placa De Sinalizacao (Porta Corta-Fogo, Mantenha Fechada)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "EPI",
+    "unidade_site": "UN",
+    "tamanho_site": "Único",
+    "tamanho": "Único"
   },
   {
     "codigo_pa": "17250",
@@ -880,6 +900,26 @@
     "tamanho": "14x14"
   },
   {
+    "codigo_pa": "17213",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 14 X 14 (SUBSOLO)",
+    "descricao_site": "Placa De Sinalizacao (Subsolo)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "14x14",
+    "tamanho": "14x14"
+  },
+  {
+    "codigo_pa": "17249",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 14 X 14 (TERREO)",
+    "descricao_site": "Placa De Sinalizacao (Terreo)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "14x14",
+    "tamanho": "14x14"
+  },
+  {
     "codigo_pa": "17246",
     "descricao_cahosp": "PLACA DE SINALIZACAO 15 X 20 (CHUVEIROS AUTOMATICOS)",
     "descricao_site": "Placa De Sinalizacao (Chuveiros Automaticos)",
@@ -888,36 +928,6 @@
     "unidade_site": "UN",
     "tamanho_site": "15x20",
     "tamanho": "15x20"
-  },
-  {
-    "codigo_pa": "17214",
-    "descricao_cahosp": "PLACA DE SINALIZACAO 23 X 18 (CUIDADO, TRAFEGO DE EMPILHADEIRAS, MANTENHA A AREA LIVRE)",
-    "descricao_site": "Placa De Sinalizacao (Cuidado, Trafego De Empilhadeiras, Mantenha A Area Livre)",
-    "categoria_site": "Sinalização",
-    "grupo_cahosp": "SINALIZAÇÃO",
-    "unidade_site": "UN",
-    "tamanho_site": "23x18",
-    "tamanho": "23x18"
-  },
-  {
-    "codigo_pa": "17238",
-    "descricao_cahosp": "PLACA DE SINALIZACAO 24 X 12 (EM CASO DE INCENDIO NAO USE ELEVADOR, USE AS ESCADAS)",
-    "descricao_site": "Placa De Sinalizacao (Em Caso De Incendio Nao Use Elevador, Use As Escadas)",
-    "categoria_site": "Sinalização",
-    "grupo_cahosp": "SINALIZAÇÃO",
-    "unidade_site": "UN",
-    "tamanho_site": "24x12",
-    "tamanho": "24x12"
-  },
-  {
-    "codigo_pa": "17224",
-    "descricao_cahosp": "PLACA DE SINALIZACAO 24 X 12 (ESCADA DESCE DIREITA)",
-    "descricao_site": "Placa De Sinalizacao (Escada Desce Direita)",
-    "categoria_site": "Sinalização",
-    "grupo_cahosp": "SINALIZAÇÃO",
-    "unidade_site": "UN",
-    "tamanho_site": "24x12",
-    "tamanho": "24x12"
   },
   {
     "codigo_pa": "17435",
@@ -960,6 +970,16 @@
     "tamanho": "15x20"
   },
   {
+    "codigo_pa": "17214",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 23 X 18 (CUIDADO, TRAFEGO DE EMPILHADEIRAS, MANTENHA A AREA LIVRE)",
+    "descricao_site": "Placa De Sinalizacao (Cuidado, Trafego De Empilhadeiras, Mantenha A Area Livre)",
+    "categoria_site": "Sinalização",
+    "grupo_cahosp": "SINALIZAÇÃO",
+    "unidade_site": "UN",
+    "tamanho_site": "23x18",
+    "tamanho": "23x18"
+  },
+  {
     "codigo_pa": "17227",
     "descricao_cahosp": "PLACA DE SINALIZACAO 23 x 18 (PERIGO 380 VOLTS)",
     "descricao_site": "Placa De Sinalizacao (Perigo 380 Volts)",
@@ -970,34 +990,24 @@
     "tamanho": "23x18"
   },
   {
-    "codigo_pa": "17438",
-    "descricao_cahosp": "PLACA DE SINALIZACAO (PORTA CORTA-FOGO, MANTENHA FECHADA)",
-    "descricao_site": "Placa De Sinalizacao (Porta Corta-Fogo, Mantenha Fechada)",
-    "categoria_site": "Sinalização",
-    "grupo_cahosp": "EPI",
-    "unidade_site": "UN",
-    "tamanho_site": "Único",
-    "tamanho": "Único"
-  },
-  {
-    "codigo_pa": "17213",
-    "descricao_cahosp": "PLACA DE SINALIZACAO 14 X 14 (SUBSOLO)",
-    "descricao_site": "Placa De Sinalizacao (Subsolo)",
+    "codigo_pa": "17238",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 24 X 12 (EM CASO DE INCENDIO NAO USE ELEVADOR, USE AS ESCADAS)",
+    "descricao_site": "Placa De Sinalizacao (Em Caso De Incendio Nao Use Elevador, Use As Escadas)",
     "categoria_site": "Sinalização",
     "grupo_cahosp": "SINALIZAÇÃO",
     "unidade_site": "UN",
-    "tamanho_site": "14x14",
-    "tamanho": "14x14"
+    "tamanho_site": "24x12",
+    "tamanho": "24x12"
   },
   {
-    "codigo_pa": "17249",
-    "descricao_cahosp": "PLACA DE SINALIZACAO 14 X 14 (TERREO)",
-    "descricao_site": "Placa De Sinalizacao (Terreo)",
+    "codigo_pa": "17224",
+    "descricao_cahosp": "PLACA DE SINALIZACAO 24 X 12 (ESCADA DESCE DIREITA)",
+    "descricao_site": "Placa De Sinalizacao (Escada Desce Direita)",
     "categoria_site": "Sinalização",
     "grupo_cahosp": "SINALIZAÇÃO",
     "unidade_site": "UN",
-    "tamanho_site": "14x14",
-    "tamanho": "14x14"
+    "tamanho_site": "24x12",
+    "tamanho": "24x12"
   },
   {
     "codigo_pa": "17276",
@@ -1084,16 +1094,6 @@
     "descricao_cahosp": "VISEIRA PROTECAO FACIAL",
     "descricao_site": "Viseira Protecao Facial",
     "categoria_site": "Outros",
-    "grupo_cahosp": "EPI",
-    "unidade_site": "UN",
-    "tamanho_site": "Único",
-    "tamanho": "Único"
-  },
-  {
-    "codigo_pa": "17575",
-    "descricao_cahosp": "ÓCULOS PLUMBÍFEROS - BLINDAGEM RADIOLOGICA",
-    "descricao_site": "Óculos Plumbíferos - Blindagem Radiologica",
-    "categoria_site": "Proteção ocular/facial",
     "grupo_cahosp": "EPI",
     "unidade_site": "UN",
     "tamanho_site": "Único",

@@ -2,7 +2,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import catalogo from '@/data/catalogo_sesmt.json';
 
 export async function GET() {
   try {
@@ -18,41 +17,8 @@ export async function GET() {
       return NextResponse.json({ items: [] });
     }
 
-    // Seed inicial do catálogo SESMT na tabela Item, se ainda não estiver completo
-    try {
-      const countRows = await prisma.$queryRawUnsafe<Array<{ c: number }>>(
-        `select count(*)::int as c from item`
-      );
-      const totalItens = Number(countRows?.[0]?.c ?? 0);
-      const cat: any[] = (catalogo as any[]) || [];
-      if (cat.length > 0 && totalItens < cat.length) {
-        for (const it of cat) {
-          const nome = String(it.descricao_site || it.descricao_cahosp || '').trim();
-          if (!nome) continue;
-          const categoria = String(it.categoria_site || it.grupo_cahosp || 'EPI').trim() || 'EPI';
-          const unidade = String(it.unidade_site || 'UN').trim() || 'UN';
-          const meta = JSON.stringify({
-            codigo_pa: it.codigo_pa ?? null,
-            grupo_cahosp: it.grupo_cahosp ?? null,
-            tamanho: it.tamanho_site ?? it.tamanho ?? null,
-          });
-          await prisma.$executeRawUnsafe(
-            `insert into item (nome, categoria, "unidadeMedida", descricao, ativo)
-             values ($1,$2,$3,$4,true)
-             on conflict (nome, categoria) do nothing`,
-            nome,
-            categoria,
-            unidade,
-            meta,
-          );
-        }
-      }
-    } catch (e) {
-      console.error('Falha ao sincronizar catálogo SESMT com tabela Item', e);
-    }
-
     const rows = await prisma.$queryRawUnsafe<any[]>(`
-      select id, nome, categoria, descricao
+      select id, nome
         from item
        where ativo = true
        order by nome
@@ -61,8 +27,6 @@ export async function GET() {
     const items = rows.map(r => ({
       id: String(r.id),
       nome: (r.nome ?? '').toString(),
-      categoria: (r.categoria ?? '').toString(),
-      descricao: r.descricao ? r.descricao.toString() : null,
     }));
 
     return NextResponse.json({ items });
