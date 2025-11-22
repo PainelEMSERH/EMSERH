@@ -1,16 +1,10 @@
-// file: app/api/estoque/options/route.ts
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-/**
- * Opções de Regionais e Unidades para a tela de Estoque.
- * Usa a mesma lógica de /api/entregas/options, que já está validada em produção,
- * apenas ampliando os nomes de coluna suportados (ex.: regional_responsavel, nmddepartamento).
- */
 export async function GET() {
   try {
-    // Descobre nomes de coluna da stg_unid_reg
+    // Discover column names dynamically
     const cols = await prisma.$queryRawUnsafe<Array<{ column_name: string }>>(`
       select column_name
       from information_schema.columns
@@ -20,23 +14,8 @@ export async function GET() {
     const names = new Set((cols || []).map(c => c.column_name.toLowerCase()));
 
     const pick = (cands: string[]) => cands.find(c => names.has(c));
-
-    const colRegional = pick([
-      'regional',
-      'regiao',
-      'regional_nome',
-      'regiao_nome',
-      'nome_regional',
-      'regional_responsavel'
-    ]);
-    const colUnidade = pick([
-      'unidade',
-      'unidade_nome',
-      'nome_unidade',
-      'unidade_hospitalar',
-      'nmddepartamento',
-      'nmedepartamento'
-    ]);
+    const colRegional = pick(['regional','regiao','regional_nome','regiao_nome','nome_regional']);
+    const colUnidade  = pick(['unidade','unidade_nome','nome_unidade']);
 
     let regionais: string[] = [];
     let unidades: { unidade: string; regional: string }[] = [];
@@ -56,32 +35,24 @@ export async function GET() {
       const rows = await prisma.$queryRawUnsafe<any[]>(
         `select distinct ${colUnidade} as unidade from stg_unid_reg`
       );
-      unidades = rows
-        .map(r => ({ unidade: (r.unidade ?? '').toString(), regional: '' }))
-        .filter(r => r.unidade);
-      regionais = ['Norte', 'Sul', 'Leste', 'Centro'];
+      unidades = rows.map(r => ({ unidade: (r.unidade ?? '').toString(), regional: '' })).filter(r => r.unidade);
+      regionais = ['Norte','Sul','Leste','Central'];
     } else {
       // Fallback total: Unidades do stg_alterdata; regionais padrão
       const rows = await prisma.$queryRawUnsafe<any[]>(
-        'select distinct unidade from stg_alterdata where unidade is not null'
+        `select distinct unidade from stg_alterdata where unidade is not null`
       );
-      unidades = rows
-        .map(r => ({ unidade: (r.unidade ?? '').toString(), regional: '' }))
-        .filter(r => r.unidade);
-      regionais = ['Norte', 'Sul', 'Leste', 'Centro'];
+      unidades = rows.map(r => ({ unidade: (r.unidade ?? '').toString(), regional: '' })).filter(r => r.unidade);
+      regionais = ['Norte','Sul','Leste','Central'];
     }
 
-    // Normaliza e ordena
-    regionais = Array.from(new Set(regionais.filter(Boolean))).sort((a, b) =>
-      a.localeCompare(b)
-    );
-    unidades.sort((a, b) => a.unidade.localeCompare(b.unidade));
-
+    // Normalize & sort
+    regionais = Array.from(new Set(regionais.filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+    unidades.sort((a,b)=>a.unidade.localeCompare(b.unidade));
     return NextResponse.json({ regionais, unidades });
   } catch (e: any) {
-    // Em caso de erro, devolve algo padrão pra não quebrar o build
-    console.error('Erro em /api/estoque/options', e);
-    const regionais = ['Norte', 'Sul', 'Leste', 'Centro'];
+    // Absolute fallback to avoid build breaks
+    const regionais = ['Norte','Sul','Leste','Central'];
     const unidades: { unidade: string; regional: string }[] = [];
     return NextResponse.json({ regionais, unidades });
   }
