@@ -2,9 +2,61 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import unidRegMap from '@/data/unid_reg.json';
+
+
+async function ensureStgUnidRegSeed() {
+  try {
+    // Verifica se a tabela stg_unid_reg existe
+    const tables = await prisma.$queryRawUnsafe<Array<{ table_name: string }>>(
+      `select table_name
+         from information_schema.tables
+        where table_schema = current_schema()
+          and table_name = 'stg_unid_reg'`
+    );
+    const exists = (tables || []).some(t => (t.table_name || '').toLowerCase() === 'stg_unid_reg');
+
+    if (!exists) {
+      // Cria tabela mínima com colunas compatíveis com o fallback existente
+      await prisma.$executeRawUnsafe(`
+        create table if not exists stg_unid_reg (
+          id bigserial primary key,
+          regional text,
+          unidade text
+        )
+      `);
+    }
+
+    // Verifica se já existe algum dado
+    const cntRows = await prisma.$queryRawUnsafe<Array<{ count: any }>>(
+      'select count(*) as count from stg_unid_reg'
+    );
+    const count = cntRows && cntRows[0] ? Number(cntRows[0].count) : 0;
+    if (count > 0) return;
+
+    // Seed inicial a partir do JSON local
+    const entries = Object.entries(unidRegMap as Record<string, string>);
+    if (!entries.length) return;
+
+    for (const [unidade, regional] of entries) {
+      const unidadeVal = (unidade || '').toString().trim();
+      const regionalVal = (regional || '').toString().trim();
+      if (!unidadeVal) continue;
+      await prisma.$executeRawUnsafe(
+        'insert into stg_unid_reg (regional, unidade) values ($1, $2)',
+        regionalVal,
+        unidadeVal
+      );
+    }
+  } catch (e) {
+    console.error('Erro ao garantir seed de stg_unid_reg', e);
+  }
+}
+
 
 export async function GET() {
   try {
+    await ensureStgUnidRegSeed();
     const regionais: string[] = [];
     const unidades: { unidade: string; regional: string }[] = [];
 

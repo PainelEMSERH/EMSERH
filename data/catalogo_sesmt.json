@@ -656,8 +656,8 @@
     "categoria_site": "Luvas",
     "grupo_cahosp": "EPI",
     "unidade_site": "PAR",
-    "tamanho_site": "nan",
-    "tamanho": "nan"
+    "tamanho_site": null,
+    "tamanho": null
   },
   {
     "codigo_pa": "17531",
