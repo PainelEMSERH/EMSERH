@@ -4,19 +4,27 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import catalogo from '@/data/catalogo_sesmt.json';
 
+async function ensureItemTable() {
+  // Garante que a tabela item exista, alinhada ao modelo Prisma básico usado no sistema
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS item (
+      id TEXT PRIMARY KEY,
+      nome TEXT NOT NULL,
+      categoria TEXT NOT NULL,
+      ca TEXT NULL,
+      descricao TEXT NULL,
+      "unidadeMedida" TEXT NOT NULL,
+      "validadeDias" INT NULL,
+      ativo BOOLEAN NOT NULL DEFAULT TRUE
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_item_nome_categoria ON item (nome, categoria);
+    CREATE INDEX IF NOT EXISTS idx_item_categoria ON item (categoria);
+  `);
+}
+
 export async function GET() {
   try {
-    // Verifica se tabela item existe
-    const tableExists = await prisma.$queryRawUnsafe<Array<{ exists: boolean }>>(
-      `select true as exists
-         from information_schema.tables
-        where table_schema = current_schema()
-          and table_name = 'item'
-        limit 1`
-    );
-    if (!tableExists || tableExists.length === 0) {
-      return NextResponse.json({ items: [] });
-    }
+    await ensureItemTable();
 
     // Sincroniza tabela Item com o catálogo SESMT (planilha)
     try {
@@ -48,17 +56,17 @@ export async function GET() {
         }
       }
     } catch (err) {
-      console.error('Falha ao sincronizar catálogo SESMT com tabela Item', err);
+      console.error('Falha ao sincronizar Itens com catálogo SESMT', err);
     }
 
-    const rows = await prisma.$queryRawUnsafe<any[]>(`
+    const rows: any[] = await prisma.$queryRawUnsafe(`
       select id, nome
         from item
        where ativo = true
        order by nome
     `);
 
-    const items = rows.map(r => ({
+    const items = rows.map((r) => ({
       id: String(r.id),
       nome: (r.nome ?? '').toString(),
     }));

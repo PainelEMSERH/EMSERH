@@ -466,7 +466,7 @@ export default function EstoqueSESMTPage() {
             {/* Linha 2: destino/justificativa + data + nº pedido + responsável */}
             <div className="grid grid-cols-1 gap-3 pt-3 md:grid-cols-4">
               <div className="flex flex-col gap-1 md:col-span-2">
-                <span className="font-medium">Destino / Justificativa</span>
+                <span className="font-medium">{tipo === 'entrada' ? 'Destino / Justificativa' : 'Unidade hospitalar destino'}</span>
                 {tipo === 'entrada' ? (
                   <input
                     readOnly
@@ -728,8 +728,9 @@ export default function EstoqueSESMTPage() {
                     type="button"
                     className="rounded border border-border px-3 py-2"
                     onClick={() => {
-                      setCatalogOpen(false);
-                      // Aqui o usuário pode ir para a tela de cadastro de EPI, se existir.
+                      if (typeof window !== 'undefined') {
+                        window.open('/admin', '_blank');
+                      }
                     }}
                   >
                     Cadastrar novo EPI
