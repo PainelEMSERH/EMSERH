@@ -1,33 +1,11 @@
 // file: app/(app)/estoque/page.tsx
 'use client';
-
 import React, { useEffect, useMemo, useState } from 'react';
-import { REGIONALS, canonUnidade } from '@/lib/unidReg';
 
-type Regional = (typeof REGIONALS)[number];
-
-type EstoqueOptions = {
-  regionais: string[];
-  unidades: { unidade: string; regional: string }[];
-};
-
-type ItemOption = { id: string; nome: string };
-
-type MovRow = {
-  id: string;
-  tipo: 'entrada' | 'saida';
-  quantidade: number;
-  destino: string | null;
-  observacao: string | null;
-  data: string;
-  unidadeId: string;
-  unidade: string;
-  regionalId: string;
-  regional: string;
-  itemId: string;
-  item: string;
-};
-
+type Row = { id:string; regionalId:string; regional:string; unidadeId:string; unidade:string; itemId:string; item:string; quantidade:number; minimo:number; maximo:number };
+type Mov = { id:string; tipo:'entrada'|'saida'; quantidade:number; destino?:string; observacao?:string; data:string; unidadeId:string; unidade:string; regionalId:string; regional:string; itemId:string; item:string };
+type Pedido = { id:string; status:'pendente'|'recebido'|'cancelado'; criadoEm:string; previstoEm?:string; recebidoEm?:string; observacao?:string; regionalId?:string; regional?:string; unidadeId?:string; unidade?:string; qtd_solicitada:number; qtd_recebida:number };
+type Opts = { regionais:string[]; unidades:{unidade:string, regional:string}[] };
 type CatalogItem = {
   codigo_pa: string | null;
   descricao_cahosp: string | null;
@@ -39,280 +17,192 @@ type CatalogItem = {
   tamanho: string | null;
 };
 
-const fetchJSON = async <T = any>(url: string, init?: RequestInit): Promise<T> => {
-  const r = await fetch(url, { cache: 'no-store', ...init });
-  const data = await r.json();
-  if (!r.ok) {
-    throw new Error((data && (data.error || data.message)) || 'Erro ao carregar dados');
-  }
-  return data as T;
-};
+async function fetchJSON<T>(u:string, init?:RequestInit){ const r = await fetch(u, { cache:'no-store', ...init }); if(!r.ok) throw new Error(await r.text()); return r.json() as Promise<T>; }
 
-const LS_REGIONAL_KEY = 'estoque_sesmt:regional';
+export default function Page(){
+  const [tab, setTab] = useState<'visao'|'mov'|'ped'>('visao');
 
-function formatDate(iso: string | null | undefined) {
-  if (!iso) return '-';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '-';
-  return d.toLocaleDateString('pt-BR');
-}
+  const [regional,setRegional] = useState('');
+  const [unidade,setUnidade] = useState('');
+  const [q,setQ] = useState('');
 
-export default function EstoqueSESMTPage() {
-  const [tab, setTab] = useState<'geral' | 'mov' | 'ped'>('mov');
+  const [rows,setRows] = useState<Row[]>([]); const [total,setTotal] = useState(0);
+  const [page,setPage] = useState(1); const [size,setSize] = useState(25);
+  const [opts,setOpts] = useState<Opts>({ regionais:[], unidades:[] });
 
-  // Regional selecionada
-  const [regional, setRegional] = useState<string>('');
+  const [movs,setMovs] = useState<Mov[]>([]); const [movTotal,setMovTotal] = useState(0); const [movPage,setMovPage] = useState(1);
 
-  // Opções de regionais/unidades vindas do backend
-  const [opts, setOpts] = useState<EstoqueOptions>({ regionais: [], unidades: [] });
-  const [optsLoading, setOptsLoading] = useState(false);
+  const [novoTipo,setNovoTipo] = useState<'entrada'|'saida'>('entrada');
+  const [novoItemId,setNovoItemId] = useState('');
+  const [novoUnidadeId,setNovoUnidadeId] = useState('');
+  const [novoQtd,setNovoQtd] = useState<number>(0);
+  const [novoDestino,setNovoDestino] = useState('');
+  const [novoObs,setNovoObs] = useState('');
+  const [novoData,setNovoData] = useState('');
+  const [novoNumeroPedido,setNovoNumeroPedido] = useState('');
+  const [novoResponsavel,setNovoResponsavel] = useState('');
+  const [catalogoAberto,setCatalogoAberto] = useState(false);
 
-  // Itens de estoque (select principal)
-  const [itemOptions, setItemOptions] = useState<ItemOption[]>([]);
-  const [itemsLoading, setItemsLoading] = useState(false);
+  const [peds,setPeds] = useState<Pedido[]>([]); const [pedTotal,setPedTotal] = useState(0); const [pedPage,setPedPage] = useState(1);
+  const [pedPrevisto,setPedPrevisto] = useState('');
+  const [pedObs,setPedObs] = useState('');
+const [pedItens,setPedItens] = useState<Array<{itemId:string, quantidade:number}>>([]);
 
-  // Formulário de nova movimentação
-  const [tipo, setTipo] = useState<'entrada' | 'saida'>('entrada');
-  const [itemId, setItemId] = useState<string>('');
-  const [quantidade, setQuantidade] = useState<string>('');
-  const [dataMov, setDataMov] = useState<string>('');
-  const [destinoUnidade, setDestinoUnidade] = useState<string>('');
-  const [numeroPedido, setNumeroPedido] = useState<string>('');
-  const [responsavel, setResponsavel] = useState<string>('');
-  const [observacao, setObservacao] = useState<string>('');
-  const [saving, setSaving] = useState(false);
+// Configuração de mínimo/máximo por item/unidade
+const [editRow, setEditRow] = useState<Row | null>(null);
+const [editMin, setEditMin] = useState<string>('');
+const [editMax, setEditMax] = useState<string>('');
+const [savingConfig, setSavingConfig] = useState(false);
 
-  // Movimentações (lista inferior)
-  const [movRows, setMovRows] = useState<MovRow[]>([]);
-  const [movTotal, setMovTotal] = useState(0);
-  const [movPage, setMovPage] = useState(1);
-  const movSize = 25;
-  const [movLoading, setMovLoading] = useState(false);
+// Cadastro rápido de novo item de estoque
+const [newItemNome, setNewItemNome] = useState('');
+const [newItemCategoria, setNewItemCategoria] = useState('EPI');
+const [newItemUnidadeMedida, setNewItemUnidadeMedida] = useState('UN');
+const [newItemUnidade, setNewItemUnidade] = useState('');
+const [newItemQtdInicial, setNewItemQtdInicial] = useState<number>(0);
+const [newItemSaving, setNewItemSaving] = useState(false);
 
-  // Catálogo SESMT (modal)
-  const [catalogOpen, setCatalogOpen] = useState(false);
-  const [catalogQuery, setCatalogQuery] = useState('');
-  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(false);
-  const [novoEpiAberto, setNovoEpiAberto] = useState(false);
-  const [novoCodigo, setNovoCodigo] = useState('');
-  const [novoDescricao, setNovoDescricao] = useState('');
-  const [novoCategoria, setNovoCategoria] = useState('');
-  const [novoGrupo, setNovoGrupo] = useState('');
-  const [novoUnidade, setNovoUnidade] = useState('');
-  const [novoTamanho, setNovoTamanho] = useState('');
-  const [novoSalvando, setNovoSalvando] = useState(false);
+// Busca no catálogo SESMT (planilha)
+const [catQuery, setCatQuery] = useState('');
+const [catOptions, setCatOptions] = useState<CatalogItem[]>([]);
+const [catLoading, setCatLoading] = useState(false);
+const [itemOptions, setItemOptions] = useState<Array<{id:string, nome:string}>>([]);
 
-  // Carrega regional do localStorage
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const stored = window.localStorage.getItem(LS_REGIONAL_KEY);
-    if (stored && REGIONALS.includes(stored as Regional)) {
-      setRegional(stored);
-    }
-  }, []);
-
-  // Salva regional no localStorage
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (regional) {
-      window.localStorage.setItem(LS_REGIONAL_KEY, regional);
-    }
-  }, [regional]);
-
-  // Carrega opções de estoque (regionais/unidades)
-  useEffect(() => {
-    setOptsLoading(true);
-    fetchJSON<EstoqueOptions>('/api/estoque/options')
-      .then((d) => setOpts(d))
-      .catch(() => setOpts({ regionais: [], unidades: [] }))
-      .finally(() => setOptsLoading(false));
-  }, []);
-
-  // Carrega itens para o select principal
-  useEffect(() => {
-    setItemsLoading(true);
-    fetchJSON<{ items: ItemOption[] }>('/api/estoque/items')
-      .then((d) => setItemOptions(d.items || []))
-      .catch(() => setItemOptions([]))
-      .finally(() => setItemsLoading(false));
-  }, []);
-
-  const unidadesDaRegional = useMemo(() => {
-    if (!regional) return [] as { unidade: string; regional: string }[];
-    return (opts.unidades || []).filter((u) => {
-      if (!u.regional) return true;
-      return u.regional.toUpperCase() === regional.toUpperCase();
+  useEffect(()=>{ fetchJSON<Opts>('/api/estoque/options').then(setOpts).catch(()=>{}); },[]);
+useEffect(() => {
+  let mounted = true;
+  fetchJSON<{ items: { id: string; nome: string }[] }>('/api/estoque/items')
+    .then((d) => {
+      if (!mounted) return;
+      setItemOptions(d.items || []);
+    })
+    .catch(() => {
+      if (!mounted) return;
+      setItemOptions([]);
     });
-  }, [opts.unidades, regional]);
+  return () => {
+    mounted = false;
+  };
+}, []);
 
-  const unidadeSESMTNome = useMemo(() => {
+
+  useEffect(()=>{
+    let mounted = true;
+    const url = `/api/estoque/list?regionalId=${encodeURIComponent(regional)}&unidadeId=${encodeURIComponent(unidade)}&q=${encodeURIComponent(q)}&page=${page}&size=${size}`;
+    fetchJSON<{ rows:Row[], total:number }>(url).then(d => { if(mounted){ setRows(d.rows||[]); setTotal(d.total||0); } }).catch(()=>{});
+    return () => { mounted = false };
+  }, [regional, unidade, q, page, size]);
+
+  useEffect(()=>{
+    if (tab !== 'mov') return;
+    let mounted = true;
+    const url = `/api/estoque/mov?regionalId=${encodeURIComponent(regional)}&unidadeId=${encodeURIComponent(unidade)}&page=${movPage}&size=25`;
+    fetchJSON<{ rows:Mov[], total:number }>(url).then(d => { if(mounted){ setMovs(d.rows||[]); setMovTotal(d.total||0); } }).catch(()=>{});
+    return () => { mounted = false };
+  }, [tab, regional, unidade, movPage]);
+
+  useEffect(()=>{
+    if (tab !== 'ped') return;
+    let mounted = true;
+    const url = `/api/estoque/pedidos?regionalId=${encodeURIComponent(regional)}&unidadeId=${encodeURIComponent(unidade)}&page=${pedPage}&size=25`;
+    fetchJSON<{ rows:Pedido[], total:number }>(url).then(d => { if(mounted){ setPeds(d.rows||[]); setPedTotal(d.total||0); } }).catch(()=>{});
+    return () => { mounted = false };
+  }, [tab, regional, unidade, pedPage]);
+
+  const unidadesFiltradas = useMemo(()=> opts.unidades.filter(u => !regional || u.regional===regional), [opts, regional]);
+
+  const sesmtUnidadeNome = useMemo(() => {
     if (!regional) return '';
-    const unidadesFiltradas = unidadesDaRegional;
-    const candidatos = unidadesFiltradas.filter((u) => {
+    const candidates = unidadesFiltradas.filter(u => {
       const nome = u.unidade.toUpperCase();
       return nome.includes('SESMT') || nome.includes('ESTOQUE SESMT');
     });
-    if (candidatos.length > 0) return candidatos[0].unidade;
+    if (candidates.length > 0) return candidates[0].unidade;
+    // fallback: nome padrão
     return `ESTOQUE SESMT - ${regional}`;
-  }, [unidadesDaRegional, regional]);
+  }, [unidadesFiltradas, regional]);
 
-  const unidadesDestino = useMemo(() => {
-    return unidadesDaRegional.filter((u) => {
+  const unidadesHospitalares = useMemo(
+    () => unidadesFiltradas.filter(u => {
       const nome = u.unidade.toUpperCase();
       return !(nome.includes('SESMT') || nome.includes('ESTOQUE SESMT'));
-    });
-  }, [unidadesDaRegional]);
+    }),
+    [unidadesFiltradas],
+  );
 
-  // Lista de movimentações para o estoque SESMT da regional selecionada
-  useEffect(() => {
-    if (!regional || !unidadeSESMTNome) {
-      setMovRows([]);
-      setMovTotal(0);
-      return;
+  const itensCat = useMemo(()=> itemOptions, [itemOptions]);
+
+  const resumo = useMemo(() => {
+    let totalItens = rows.length;
+    let baixo = 0;
+    let zerado = 0;
+    let semMinimo = 0;
+    for (const r of rows) {
+      if (r.quantidade <= 0) zerado++;
+      if (r.minimo > 0 && r.quantidade > 0 && r.quantidade <= r.minimo) baixo++;
+      if (r.minimo === 0) semMinimo++;
     }
-    setMovLoading(true);
-    const url = `/api/estoque/mov?regionalId=${encodeURIComponent(
-      regional,
-    )}&unidadeId=${encodeURIComponent(unidadeSESMTNome)}&page=${movPage}&size=${movSize}`;
-    fetchJSON<{ rows: MovRow[]; total: number }>(url)
-      .then((d) => {
-        setMovRows(d.rows || []);
-        setMovTotal(d.total || 0);
-      })
-      .catch(() => {
-        setMovRows([]);
-        setMovTotal(0);
-      })
-      .finally(() => setMovLoading(false));
-  }, [regional, unidadeSESMTNome, movPage]);
+    return { totalItens, baixo, zerado, semMinimo };
+  }, [rows]);
 
-  // Busca no catálogo SESMT (apenas consulta)
   useEffect(() => {
-    if (!catalogOpen) return;
-    if (!catalogQuery.trim()) {
-      setCatalogItems([]);
+    if (!catQuery.trim()) {
+      setCatOptions([]);
       return;
     }
     let active = true;
-    setCatalogLoading(true);
-    const url = `/api/estoque/catalogo?q=${encodeURIComponent(catalogQuery.trim())}`;
+    setCatLoading(true);
+    const url = `/api/estoque/catalogo?q=${encodeURIComponent(catQuery)}`;
     fetchJSON<{ items: CatalogItem[] }>(url)
-      .then((d) => {
+      .then(d => {
         if (!active) return;
-        setCatalogItems(d.items || []);
+        setCatOptions(d.items || []);
       })
       .catch(() => {
         if (!active) return;
-        setCatalogItems([]);
+        setCatOptions([]);
       })
       .finally(() => {
         if (!active) return;
-        setCatalogLoading(false);
+        setCatLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [catalogOpen, catalogQuery]);
+  }, [catQuery]);
 
-  const canSave = useMemo(() => {
-    if (!regional || !unidadeSESMTNome) return false;
-    if (!itemId || !quantidade) return false;
-    const qtd = Number(quantidade);
-    if (!Number.isFinite(qtd) || qtd <= 0) return false;
-    if (tipo === 'saida' && !destinoUnidade) return false;
-    return true;
-  }, [regional, unidadeSESMTNome, itemId, quantidade, tipo, destinoUnidade]);
 
-async function handleSalvarNovoEpi() {
-  if (novoSalvando) return;
-  const desc = (novoDescricao || '').trim();
-  if (!desc) {
-    alert('Informe ao menos a descrição do EPI.');
-    return;
-  }
-  try {
-    setNovoSalvando(true);
-    const body = {
-      codigo_pa: novoCodigo || null,
-      descricao_site: desc,
-      categoria_site: (novoCategoria || 'EPI').trim() || 'EPI',
-      grupo_cahosp: (novoGrupo || '').trim() || null,
-      unidade_site: (novoUnidade || 'UN').trim() || 'UN',
-      tamanho_site: (novoTamanho || '').trim() || null,
-    };
-    await fetchJSON('/api/estoque/catalogo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
 
-    // Atualiza listas locais (catálogo e select de itens)
-    const novoItemCatalogo: CatalogItem = {
-      codigo_pa: body.codigo_pa,
-      descricao_cahosp: null,
-      descricao_site: body.descricao_site,
-      categoria_site: body.categoria_site,
-      grupo_cahosp: body.grupo_cahosp,
-      unidade_site: body.unidade_site,
-      tamanho_site: body.tamanho_site,
-      tamanho: body.tamanho_site,
-    };
-    setCatalogItems((prev) => [novoItemCatalogo, ...prev]);
-    const optId = body.descricao_site;
-    setItemOptions((prev) => {
-      const exists = prev.some((o) => o.id === optId);
-      if (exists) return prev;
-      return [{ id: optId, nome: body.descricao_site }, ...prev];
-    });
-    setItemId(optId);
-
-    // Limpa formulário
-    setNovoCodigo('');
-    setNovoDescricao('');
-    setNovoCategoria('');
-    setNovoGrupo('');
-    setNovoUnidade('');
-    setNovoTamanho('');
-    setNovoEpiAberto(false);
-  } catch (e) {
-    console.error(e);
-    alert('Erro ao cadastrar novo EPI.');
-  } finally {
-    setNovoSalvando(false);
-  }
-}
-
-  async function handleSalvarMovimentacao() {
-    if (!canSave) return;
+  async function criarMov(){
     try {
-      setSaving(true);
+      const unidadeNome = sesmtUnidadeNome || novoUnidadeId || unidade || '';
+      if (!regional || !unidadeNome || !novoItemId || !novoQtd) {
+        return;
+      }
 
-      const qtd = Number(quantidade || 0);
-      const unidadeNome = unidadeSESMTNome;
       const destino =
-        tipo === 'entrada'
-          ? 'Entrada no estoque do SESMT (CAHOSP → SESMT)'
-          : destinoUnidade || null;
+        novoTipo === 'entrada'
+          ? 'CAHOSP → SESMT'
+          : (novoDestino || null);
 
       const partesObs: string[] = [];
-      if (tipo === 'entrada') {
-        if (numeroPedido) partesObs.push(`Pedido CAHOSP: ${numeroPedido}`);
-        if (responsavel) partesObs.push(`Recebido por: ${responsavel}`);
+      if (novoTipo === 'entrada') {
+        if (novoNumeroPedido) partesObs.push(`Pedido: ${novoNumeroPedido}`);
+        if (novoResponsavel) partesObs.push(`Recebido por: ${novoResponsavel}`);
       } else {
-        if (responsavel) partesObs.push(`Entregue por: ${responsavel}`);
+        if (novoResponsavel) partesObs.push(`Entregue por: ${novoResponsavel}`);
       }
-      if (observacao) partesObs.push(observacao);
-      const obsFinal = partesObs.join(' | ') || null;
+      if (novoObs) partesObs.push(novoObs);
+      const observacao = partesObs.length ? partesObs.join(' | ') : null;
 
       const body = {
         unidadeId: unidadeNome,
-        itemId,
-        tipo,
-        quantidade: qtd,
+        itemId: novoItemId,
+        tipo: novoTipo,
+        quantidade: Number(novoQtd || 0),
         destino,
-        observacao: obsFinal,
-        data: dataMov || null,
+        observacao,
+        data: novoData || null,
       };
 
       await fetchJSON('/api/estoque/mov', {
@@ -321,324 +211,535 @@ async function handleSalvarNovoEpi() {
         body: JSON.stringify(body),
       });
 
-      // Limpa campos específicos
-      setQuantidade('');
-      setDestinoUnidade('');
-      setNumeroPedido('');
-      setResponsavel('');
-      setObservacao('');
-      setDataMov('');
+      setNovoQtd(0);
+      setNovoDestino('');
+      setNovoObs('');
+      setNovoData('');
+      setNovoNumeroPedido('');
+      setNovoResponsavel('');
 
-      // Recarrega lista
       const url = `/api/estoque/mov?regionalId=${encodeURIComponent(
-        regional,
-      )}&unidadeId=${encodeURIComponent(unidadeNome)}&page=${movPage}&size=${movSize}`;
-      const d = await fetchJSON<{ rows: MovRow[]; total: number }>(url);
-      setMovRows(d.rows || []);
-      setMovTotal(d.total || 0);
-    } catch (e: any) {
-      console.error(e);
-      alert(e?.message || 'Erro ao salvar movimentação.');
-    } finally {
-      setSaving(false);
+        regional || ''
+      )}&unidadeId=${encodeURIComponent(unidade || '')}&page=${movPage}&size=25`;
+
+      fetchJSON<{ rows: Mov[]; total: number }>(url).then((d) => {
+        setMovs(d.rows || []);
+        setMovTotal(d.total || 0);
+      });
+
+      const urlSaldo = `/api/estoque/list?regionalId=${encodeURIComponent(
+        regional || ''
+      )}&unidadeId=${encodeURIComponent(unidade || '')}&q=${encodeURIComponent(
+        q
+      )}&page=${page}&size=${size}`;
+
+      fetchJSON<{ rows: Row[]; total: number }>(urlSaldo).then((d) => {
+        setRows(d.rows || []);
+        setTotal(d.total || 0);
+      });
+    } catch (e) {
+      console.error('Erro ao criar movimentação', e);
     }
   }
 
-  const movTotalPages = useMemo(() => {
-    return movTotal > 0 ? Math.ceil(movTotal / movSize) : 1;
-  }, [movTotal]);
+  async function criarPedido(){
+    const body:any = { regionalId: regional || null, unidadeId: unidade || null, previstoEm: pedPrevisto || null, observacao: pedObs || null, itens: pedItens };
+    await fetchJSON('/api/estoque/pedidos', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    setPedItens([]); setPedObs(''); setPedPrevisto('');
+    const url = `/api/estoque/pedidos?regionalId=${encodeURIComponent(regional)}&unidadeId=${encodeURIComponent(unidade)}&page=${pedPage}&size=25`;
+    fetchJSON<{ rows:Pedido[], total:number }>(url).then(d => { setPeds(d.rows||[]); setPedTotal(d.total||0); });
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="p-6 space-y-4">
+      <div className="rounded-xl border border-border bg-panel p-4">
+        <h1 className="text-xl font-semibold mb-1">Estoque</h1>
+        <p className="text-sm text-muted mb-3">Controle completo por Regional/Unidade: saldo, movimentações e pedidos de reposição.</p>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+          <input className="px-3 py-2 rounded bg-card border border-border" placeholder="Buscar item/unidade" value={q} onChange={e=>{setQ(e.target.value); setPage(1)}}/>
+          <select className="px-3 py-2 rounded bg-card border border-border" value={regional} onChange={e=>{setRegional(e.target.value); setPage(1)}}>
+            <option value="">Todas as Regionais</option>
+            {opts.regionais.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <select className="px-3 py-2 rounded bg-card border border-border" value={unidade} onChange={e=>{setUnidade(e.target.value); setPage(1)}}>
+            <option value="">Todas as Unidades</option>
+            {unidadesFiltradas.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
+          </select>
+        </div>
+        <div className="mt-4 flex gap-2 text-xs">
+          <button onClick={()=>setTab('visao')} className={`px-3 py-1 rounded border ${tab==='visao'?'bg-white/10':''}`}>Visão Geral</button>
+          <button onClick={()=>setTab('mov')} className={`px-3 py-1 rounded border ${tab==='mov'?'bg-white/10':''}`}>Movimentações</button>
+          <button onClick={()=>setTab('ped')} className={`px-3 py-1 rounded border ${tab==='ped'?'bg-white/10':''}`}>Pedidos de Reposição</button>
+        </div>
+      </div>
+
+      {tab==='visao' && (
+  <div className="rounded-xl border border-border bg-panel">
+    {/* Cards de resumo do estoque */}
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 p-4 border-b border-border text-xs">
+      <div className="rounded-lg bg-card px-3 py-2 flex flex-col gap-1">
+        <div className="text-muted">Itens em estoque</div>
+        <div className="text-lg font-semibold">{resumo.totalItens}</div>
+      </div>
+      <div className="rounded-lg bg-card px-3 py-2 flex flex-col gap-1">
+        <div className="text-muted">Abaixo do mínimo</div>
+        <div className="text-lg font-semibold">{resumo.baixo}</div>
+      </div>
+      <div className="rounded-lg bg-card px-3 py-2 flex flex-col gap-1">
+        <div className="text-muted">Zerados</div>
+        <div className="text-lg font-semibold">{resumo.zerado}</div>
+      </div>
+      <div className="rounded-lg bg-card px-3 py-2 flex flex-col gap-1">
+        <div className="text-muted">Sem mínimo configurado</div>
+        <div className="text-lg font-semibold">{resumo.semMinimo}</div>
+      </div>
+    </div>
+
+    {/* Tabela de saldo por item */}
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead className="bg-white/10">
+          <tr>
+            <th className="px-3 py-2 text-left">Regional</th>
+            <th className="px-3 py-2 text-left">Unidade</th>
+            <th className="px-3 py-2 text-left">Item</th>
+            <th className="px-3 py-2 text-right">Qtd</th>
+            <th className="px-3 py-2 text-right">Mín</th>
+            <th className="px-3 py-2 text-right">Máx</th>
+            <th className="px-3 py-2 text-left">Situação</th>
+            <th className="px-3 py-2 text-left">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => {
+            const zero = r.quantidade <= 0;
+            const baixo = r.minimo > 0 && r.quantidade > 0 && r.quantidade <= r.minimo;
+            const semMinimo = r.minimo === 0;
+            let badge = 'OK';
+            let badgeClass = 'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] bg-emerald-500/10 text-emerald-300';
+            if (zero) {
+              badge = 'Zerado';
+              badgeClass = 'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] bg-red-500/10 text-red-300';
+            } else if (baixo) {
+              badge = 'Abaixo do mínimo';
+              badgeClass = 'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] bg-amber-500/10 text-amber-300';
+            } else if (semMinimo) {
+              badge = 'Sem mínimo';
+              badgeClass = 'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] bg-slate-500/10 text-slate-200';
+            }
+            return (
+              <tr
+                key={r.id}
+                className={
+                  'border-t border-border hover:bg-white/5 ' +
+                  (zero ? 'bg-red-500/5' : baixo ? 'bg-amber-500/5' : '')
+                }
+              >
+                <td className="px-3 py-2">{r.regional}</td>
+                <td className="px-3 py-2">{r.unidade}</td>
+                <td className="px-3 py-2">{r.item}</td>
+                <td className="px-3 py-2 text-right">{r.quantidade}</td>
+                <td className="px-3 py-2 text-right">{r.minimo}</td>
+                <td className="px-3 py-2 text-right">{r.maximo}</td>
+                <td className="px-3 py-2">
+                  <span className={badgeClass}>{badge}</span>
+                </td>
+                <td className="px-3 py-2">
+                  <button
+                    className="px-2 py-1 text-[11px] rounded border border-border hover:bg-white/10"
+                    onClick={() => {
+                      setEditRow(r);
+                      setEditMin(String(r.minimo ?? 0));
+                      setEditMax(String(r.maximo ?? 0));
+                    }}
+                  >
+                    Configurar
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={8} className="px-3 py-6 text-center text-muted">
+                Nenhum registro
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+
+    {/* Edição rápida de mínimo/máximo */}
+    {editRow && (
+      <div className="border-t border-border px-4 py-3 text-xs bg-card/40 flex flex-wrap gap-3 items-end">
+        <div className="flex-1 min-w-[220px]">
+          <div className="text-muted mb-1">
+            Configurar mínimo/máximo para <strong>{editRow.item}</strong> ({editRow.unidade})
+          </div>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] text-muted">Mínimo</label>
+          <input
+            className="px-2 py-1 rounded bg-card border border-border text-xs w-24"
+            value={editMin}
+            onChange={e => setEditMin(e.target.value.replace(/[^0-9]/g, ''))}
+            inputMode="numeric"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] text-muted">Máximo (opcional)</label>
+          <input
+            className="px-2 py-1 rounded bg-card border border-border text-xs w-24"
+            value={editMax}
+            onChange={e => setEditMax(e.target.value.replace(/[^0-9]/g, ''))}
+            inputMode="numeric"
+          />
+        </div>
+        <div className="flex gap-2">
+          <button
+            className="px-3 py-2 rounded border border-border text-[11px] disabled:opacity-50"
+            disabled={savingConfig}
+            onClick={async () => {
+              if (!editRow) return;
+              const minimo = Number(editMin || '0');
+              const maximo = editMax ? Number(editMax) : null;
+              try {
+                setSavingConfig(true);
+                await fetchJSON('/api/estoque/config', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    unidadeId: editRow.unidadeId,
+                    itemId: editRow.itemId,
+                    minimo,
+                    maximo,
+                  }),
+                });
+                const urlSaldo = `/api/estoque/list?regionalId=${encodeURIComponent(
+                  regional
+                )}&unidadeId=${encodeURIComponent(unidade)}&q=${encodeURIComponent(q)}&page=${page}&size=${size}`;
+                const d = await fetchJSON<{ rows: Row[]; total: number }>(urlSaldo);
+                setRows(d.rows || []);
+                setTotal(d.total || 0);
+                setEditRow(null);
+              } catch (e) {
+                console.error(e);
+              } finally {
+                setSavingConfig(false);
+              }
+            }}
+          >
+            Salvar
+          </button>
+          <button
+            className="px-3 py-2 rounded border border-border text-[11px]"
+            onClick={() => setEditRow(null)}
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* Cadastro rápido de novo item vinculado à Unidade */}
+    <div className="border-t border-border px-4 py-4 text-xs bg-card/20 flex flex-col gap-3">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
         <div>
-          <h1 className="text-lg font-semibold">Estoque SESMT</h1>
-          <p className="text-xs text-muted">
-            Controle de estoque por Regional do SESMT. Selecione a Regional e registre as movimentações.
-          </p>
+          <div className="font-semibold text-sm">Cadastrar novo item</div>
+          <div className="text-muted">
+            Use o catálogo SESMT para buscar o item ou preencha manualmente. O estoque inicial será lançado para a unidade selecionada.
+          </div>
+        </div>
+        <div className="flex flex-col md:flex-row gap-2 items-center">
+          <input
+            className="px-3 py-2 rounded bg-card border border-border text-xs"
+            placeholder="Buscar no catálogo SESMT (código ou descrição)"
+            value={catQuery}
+            onChange={e => setCatQuery(e.target.value)}
+          />
+          {catLoading && <span className="text-[11px] text-muted">Buscando...</span>}
         </div>
       </div>
 
-      {/* Seleção de Aba */}
-      <div className="border-b border-border">
-        <nav className="-mb-px flex gap-4 text-xs">
-          <button
-            type="button"
-            onClick={() => setTab('geral')}
-            className={`border-b-2 px-3 py-2 ${
-              tab === 'geral'
-                ? 'border-emerald-500 text-emerald-500'
-                : 'border-transparent text-muted hover:text-text'
-            }`}
-          >
-            Visão geral
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('mov')}
-            className={`border-b-2 px-3 py-2 ${
-              tab === 'mov'
-                ? 'border-emerald-500 text-emerald-500'
-                : 'border-transparent text-muted hover:text-text'
-            }`}
-          >
-            Movimentações
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('ped')}
-            className={`border-b-2 px-3 py-2 ${
-              tab === 'ped'
-                ? 'border-emerald-500 text-emerald-500'
-                : 'border-transparent text-muted hover:text-text'
-            }`}
-          >
-            Pedidos
-          </button>
-        </nav>
+      {catOptions.length > 0 && (
+        <div className="max-h-40 overflow-y-auto rounded border border-border bg-card text-[11px] mt-2">
+          {catOptions.map((c, idx) => (
+            <button
+              key={idx}
+              type="button"
+              className="w-full text-left px-3 py-1.5 hover:bg-white/10 border-b border-border last:border-b-0"
+              onClick={() => {
+                setNewItemNome(c.descricao_site || c.descricao_cahosp || '');
+                setNewItemCategoria(c.categoria_site || 'EPI');
+                setNewItemUnidadeMedida(c.unidade_site || 'UN');
+              }}
+            >
+              <div className="font-medium">
+                {c.descricao_site || c.descricao_cahosp || 'Sem descrição'}
+              </div>
+              <div className="text-muted">
+                {c.codigo_pa ? `Código: ${c.codigo_pa}` : ''}
+                {c.grupo_cahosp ? ` · Grupo: ${c.grupo_cahosp}` : ''}
+                {c.tamanho_site ? ` · Tam.: ${c.tamanho_site}` : ''}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mt-3">
+        <input
+          className="px-3 py-2 rounded bg-card border border-border text-xs md:col-span-2"
+          placeholder="Nome do item"
+          value={newItemNome}
+          onChange={e => setNewItemNome(e.target.value)}
+        />
+        <input
+          className="px-3 py-2 rounded bg-card border border-border text-xs"
+          placeholder="Categoria"
+          value={newItemCategoria}
+          onChange={e => setNewItemCategoria(e.target.value)}
+        />
+        <input
+          className="px-3 py-2 rounded bg-card border border-border text-xs"
+          placeholder="Unidade de medida (ex.: UN, PAR)"
+          value={newItemUnidadeMedida}
+          onChange={e => setNewItemUnidadeMedida(e.target.value)}
+        />
+        <select
+          className="px-3 py-2 rounded bg-card border border-border text-xs"
+          value={newItemUnidade || unidade}
+          onChange={e => setNewItemUnidade(e.target.value)}
+        >
+          <option value="">Unidade para o estoque</option>
+          {unidadesFiltradas.map(u => (
+            <option key={u.unidade} value={u.unidade}>
+              {u.unidade}
+            </option>
+          ))}
+        </select>
+        <input
+          className="px-3 py-2 rounded bg-card border border-border text-xs w-full"
+          placeholder="Qtd inicial"
+          value={newItemQtdInicial ? String(newItemQtdInicial) : ''}
+          onChange={e => {
+            const v = e.target.value.replace(/[^0-9]/g, '');
+            setNewItemQtdInicial(v ? Number(v) : 0);
+          }}
+          inputMode="numeric"
+        />
       </div>
+      <div className="flex justify-end mt-2">
+        <button
+          className="px-3 py-2 rounded border border-border text-[11px] disabled:opacity-50"
+          disabled={
+            newItemSaving ||
+            !newItemNome ||
+            !(newItemUnidade || unidade)
+          }
+          onClick={async () => {
+            try {
+              setNewItemSaving(true);
+              const unidadeKey = newItemUnidade || unidade;
+              await fetchJSON('/api/estoque/item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  nome: newItemNome,
+                  categoria: newItemCategoria || 'EPI',
+                  unidadeMedida: newItemUnidadeMedida || 'UN',
+                  unidadeId: unidadeKey,
+                  quantidadeInicial: newItemQtdInicial || 0,
+                }),
+              });
+                    const itemsResp = await fetchJSON<{ items: { id: string; nome: string }[] }>('/api/estoque/items');
+                    setItemOptions(itemsResp.items || []);
 
-      {tab === 'geral' && (
-        <div className="rounded-xl border border-border bg-panel p-4 text-xs text-muted">
-          Visão geral do estoque SESMT ainda não implementada.
-        </div>
-      )}
+              setNewItemNome('');
+              setNewItemCategoria('EPI');
+              setNewItemUnidadeMedida('UN');
+              setNewItemUnidade('');
+              setNewItemQtdInicial(0);
+              setCatQuery('');
+              setCatOptions([]);
+              const urlSaldo = `/api/estoque/list?regionalId=${encodeURIComponent(
+                regional
+              )}&unidadeId=${encodeURIComponent(unidade)}&q=${encodeURIComponent(q)}&page=${page}&size=${size}`;
+              const d = await fetchJSON<{ rows: Row[]; total: number }>(urlSaldo);
+              setRows(d.rows || []);
+              setTotal(d.total || 0);
+            } catch (e) {
+              console.error(e);
+            } finally {
+              setNewItemSaving(false);
+            }
+          }}
+        >
+          Salvar novo item
+        </button>
+      </div>
+    </div>
 
-      {tab === 'ped' && (
-        <div className="rounded-xl border border-border bg-panel p-4 text-xs text-muted">
-          Aba de pedidos ainda não implementada.
-        </div>
-      )}
-
-      {tab === 'mov' && (
+    <div className="flex items-center justify-between p-3 text-xs text-muted">
+      <div>Total: {total}</div>
+      <div className="flex items-center gap-2">
+        <button
+          className="px-2 py-1 border border-border rounded disabled:opacity-40"
+          onClick={() => setPage(p => Math.max(1, p - 1))}
+          disabled={page === 1}
+        >
+          Anterior
+        </button>
+        <div>Página {page}</div>
+        <button
+          className="px-2 py-1 border border-border rounded disabled:opacity-40"
+          onClick={() => setPage(p => p + 1)}
+          disabled={rows.length < size}
+        >
+          Próxima
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+      
+{tab==='mov' && (
         <div className="space-y-4">
-          {/* Filtro de Regional */}
-          <div className="rounded-xl border border-border bg-panel p-4 flex flex-wrap items-center gap-3 text-xs">
-            <div className="flex flex-col gap-1">
-              <span className="font-medium">Regional</span>
+          <div className="rounded-xl border border-border bg-panel p-4">
+            <h2 className="font-semibold mb-2">Nova movimentação</h2>
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+              {/* Tipo da movimentação */}
               <select
-                className="w-52 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                value={regional}
-                onChange={(e) => {
-                  setRegional(e.target.value || '');
-                  setMovPage(1);
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={novoTipo}
+                onChange={e => {
+                  const t = e.target.value as 'entrada' | 'saida';
+                  setNovoTipo(t);
+                  if (t === 'entrada') {
+                    setNovoDestino('CAHOSP → SESMT');
+                  } else {
+                    setNovoDestino('');
+                    setNovoNumeroPedido('');
+                  }
                 }}
               >
-                <option value="">Selecione a Regional...</option>
-                {REGIONALS.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
+                <option value="entrada">Entrada</option>
+                <option value="saida">Saída</option>
+              </select>
+
+              {/* Unidade (estoque SESMT da regional) */}
+              <input
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={sesmtUnidadeNome || (regional ? `ESTOQUE SESMT - ${regional}` : 'Selecione uma Regional')}
+                readOnly
+              />
+
+              {/* Item */}
+              <select
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={novoItemId}
+                onChange={e => setNovoItemId(e.target.value)}
+              >
+                <option value="">Item</option>
+                {itensCat.map(i => (
+                  <option key={i.id} value={i.id}>
+                    {i.nome}
                   </option>
                 ))}
               </select>
-              {optsLoading && <span className="text-[11px] text-muted">Carregando unidades...</span>}
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="font-medium">Unidade (Estoque SESMT)</span>
+
+              {/* Quantidade */}
               <input
-                readOnly
-                value={regional ? unidadeSESMTNome || '' : ''}
-                placeholder="Selecione a Regional para ver o estoque do SESMT"
-                className="w-80 rounded border border-border bg-card px-3 py-2 text-xs text-muted"
+                type="number"
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={novoQtd || 0}
+                min={0}
+                onChange={e => setNovoQtd(parseInt(e.target.value || '0', 10))}
               />
-            </div>
-          </div>
 
-          {/* Nova Movimentação */}
-          <div className="rounded-xl border border-border bg-panel p-4 text-xs space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="font-semibold text-sm">Nova movimentação</h2>
-                <p className="text-[11px] text-muted">
-                  Registre entradas e saídas do estoque SESMT da Regional selecionada.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="rounded-lg border border-border px-3 py-1.5 text-[11px] hover:bg-card"
-                onClick={() => setCatalogOpen(true)}
-              >
-                Catálogo SESMT
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-4 border-b border-border pb-3">
-              {/* Tipo */}
-              <div className="flex flex-col gap-1">
-                <span className="font-medium">Tipo</span>
-                <div className="inline-flex rounded-lg border border-border bg-card p-0.5 text-[11px]">
-                  <button
-                    type="button"
-                    className={`px-3 py-1 rounded-md ${
-                      tipo === 'entrada' ? 'bg-emerald-600 text-white' : 'text-text'
-                    }`}
-                    onClick={() => setTipo('entrada')}
-                  >
-                    Entrada
-                  </button>
-                  <button
-                    type="button"
-                    className={`px-3 py-1 rounded-md ${
-                      tipo === 'saida' ? 'bg-emerald-600 text-white' : 'text-text'
-                    }`}
-                    onClick={() => setTipo('saida')}
-                  >
-                    Saída
-                  </button>
-                </div>
-              </div>
-
-              {/* Unidade (somente leitura) */}
-              <div className="flex flex-col gap-1">
-                <span className="font-medium">Unidade</span>
+              {/* Destino / Justificativa */}
+              {novoTipo === 'entrada' ? (
                 <input
-                  readOnly
-                  value={regional ? unidadeSESMTNome || '' : ''}
-                  placeholder="ESTOQUE SESMT – [Regional]"
-                  className="w-64 rounded border border-border bg-card px-3 py-2 text-xs text-muted"
+                  className="px-3 py-2 rounded bg-card border border-border text-xs text-muted"
+                  value="Entrada no estoque do SESMT (CAHOSP → SESMT)"
+                  disabled
                 />
-              </div>
-
-              {/* Item */}
-              <div className="flex flex-col gap-1">
-                <span className="font-medium">Item</span>
+              ) : (
                 <select
-                  className="w-64 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                  value={itemId}
-                  onChange={(e) => setItemId(e.target.value)}
-                  disabled={itemsLoading}
+                  className="px-3 py-2 rounded bg-card border border-border text-xs"
+                  value={novoDestino}
+                  onChange={e => setNovoDestino(e.target.value)}
                 >
-                  <option value="">{itemsLoading ? 'Carregando itens...' : 'Selecione o item...'}</option>
-                  {itemOptions.map((it) => (
-                    <option key={it.id} value={it.id}>
-                      {it.nome}
+                  <option value="">Unidade hospitalar destino</option>
+                  {unidadesHospitalares.map(u => (
+                    <option key={u.unidade} value={u.unidade}>
+                      {u.unidade}
                     </option>
                   ))}
                 </select>
-              </div>
+              )}
 
-              {/* Quantidade */}
-              <div className="flex flex-col gap-1">
-                <span className="font-medium">Quantidade</span>
-                <input
-                  type="number"
-                  min={1}
-                  className="w-28 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                  value={quantidade}
-                  onChange={(e) => setQuantidade(e.target.value)}
-                />
+              {/* Data */}
+              <input
+                type="date"
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={novoData}
+                onChange={e => setNovoData(e.target.value)}
+              />
+            </div>
+
+            {/* Linha Número do pedido / Responsável */}
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
+              <input
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                placeholder="Nº do pedido (CAHOSP)"
+                value={novoNumeroPedido}
+                onChange={e => setNovoNumeroPedido(e.target.value)}
+                disabled={novoTipo === 'saida'}
+              />
+              <input
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                placeholder={novoTipo === 'entrada' ? 'Responsável pelo recebimento' : 'Responsável pela entrega'}
+                value={novoResponsavel}
+                onChange={e => setNovoResponsavel(e.target.value)}
+              />
+              <div className="flex items-center justify-end">
+                <button
+                  type="button"
+                  className="px-3 py-2 border border-border rounded text-xs"
+                  onClick={() => setCatalogoAberto(true)}
+                >
+                  Catálogo SESMT
+                </button>
               </div>
             </div>
 
-            {/* Linha 2: destino/justificativa + data + nº pedido + responsável */}
-            <div className="grid grid-cols-1 gap-3 pt-3 md:grid-cols-4">
-              <div className="flex flex-col gap-1 md:col-span-2">
-                <span className="font-medium">{tipo === 'entrada' ? 'Destino / Justificativa' : 'Unidade hospitalar destino'}</span>
-                {tipo === 'entrada' ? (
-                  <input
-                    readOnly
-                    value="Entrada no estoque do SESMT (CAHOSP → SESMT)"
-                    className="rounded border border-border bg-card px-3 py-2 text-xs text-muted"
-                  />
-                ) : (
-                  <select
-                    className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                    value={destinoUnidade}
-                    onChange={(e) => setDestinoUnidade(e.target.value)}
-                  >
-                    <option value="">Selecione a Unidade destino...</option>
-                    {unidadesDestino.map((u) => (
-                      <option key={u.unidade} value={u.unidade}>
-                        {u.unidade}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <span className="font-medium">
-                  {tipo === 'entrada' ? 'Data de recebimento' : 'Data da entrega'}
-                </span>
-                <input
-                  type="date"
-                  className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                  value={dataMov}
-                  onChange={(e) => setDataMov(e.target.value)}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <span className="font-medium">
-                  {tipo === 'entrada' ? 'Nº do pedido (CAHOSP)' : 'Nº do pedido'}
-                </span>
-                <input
-                  className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-muted/40"
-                  placeholder={tipo === 'entrada' ? 'Informe o número do pedido' : 'Não aplicável para saída'}
-                  value={numeroPedido}
-                  onChange={(e) => setNumeroPedido(e.target.value)}
-                  disabled={tipo === 'saida'}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <span className="font-medium">Responsável</span>
-                <input
-                  className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                  placeholder={tipo === 'entrada' ? 'Responsável pelo recebimento' : 'Responsável pela entrega'}
-                  value={responsavel}
-                  onChange={(e) => setResponsavel(e.target.value)}
-                />
-              </div>
+            {/* Observação */}
+            <div className="mt-2">
+              <input
+                className="w-full px-3 py-2 rounded bg-card border border-border text-xs"
+                placeholder="Observação"
+                value={novoObs}
+                onChange={e => setNovoObs(e.target.value)}
+              />
             </div>
 
-            {/* Observação + salvar */}
-            <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
-              <div className="flex flex-1 flex-col gap-1">
-                <span className="font-medium">Observação</span>
-                <input
-                  className="w-full rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                  placeholder="Comentário breve (opcional)"
-                  maxLength={120}
-                  value={observacao}
-                  onChange={(e) => setObservacao(e.target.value)}
-                />
-                <span className="text-[10px] text-muted">
-                  Máx. 120 caracteres. Use para detalhes rápidos sobre a movimentação.
-                </span>
-              </div>
+            <div className="mt-3 flex justify-end">
               <button
-                type="button"
-                onClick={handleSalvarMovimentacao}
-                disabled={!canSave || saving}
-                className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
-                  !canSave || saving
-                    ? 'cursor-not-allowed bg-emerald-900/40 text-muted'
-                    : 'bg-emerald-600 text-white hover:bg-emerald-500'
-                }`}
+                className="px-3 py-2 border rounded text-xs disabled:opacity-50"
+                onClick={criarMov}
+                disabled={!novoItemId || !novoQtd || !regional || (novoTipo === 'saida' && !novoDestino)}
               >
-                {saving ? 'Salvando...' : 'Salvar movimentação'}
+                Salvar movimentação
               </button>
             </div>
           </div>
 
-          {/* Lista de movimentações */}
-          <div className="rounded-xl border border-border bg-panel p-4 text-xs space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-semibold">Movimentações do estoque SESMT</h2>
-                <p className="text-[11px] text-muted">
-                  Listagem das entradas e saídas registradas para o estoque SESMT da Regional selecionada.
-                </p>
-              </div>
-              <div className="text-[11px] text-muted">
-                Total: <span className="font-semibold">{movTotal}</span> movimentações
-              </div>
-            </div>
-
-            <div className="overflow-x-auto rounded-lg border border-border bg-card">
-              <table className="min-w-full text-[11px]">
-                <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
+          <div className="rounded-xl border border-border bg-panel">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-white/10">
                   <tr>
                     <th className="px-3 py-2 text-left">Data</th>
                     <th className="px-3 py-2 text-left">Tipo</th>
@@ -646,74 +747,46 @@ async function handleSalvarNovoEpi() {
                     <th className="px-3 py-2 text-left">Item</th>
                     <th className="px-3 py-2 text-right">Qtd</th>
                     <th className="px-3 py-2 text-left">Destino</th>
-                    <th className="px-3 py-2 text-left">Obs.</th>
+                    <th className="px-3 py-2 text-left">Obs</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {movLoading && (
+                  {movs.map(m => (
+                    <tr key={m.id} className="border-t border-border hover:bg-white/10">
+                      <td className="px-3 py-2">{new Date(m.data).toLocaleString()}</td>
+                      <td className="px-3 py-2 capitalize">{m.tipo}</td>
+                      <td className="px-3 py-2">{m.unidade}</td>
+                      <td className="px-3 py-2">{m.item}</td>
+                      <td className="px-3 py-2 text-right">{m.quantidade}</td>
+                      <td className="px-3 py-2">{m.destino || '-'}</td>
+                      <td className="px-3 py-2">{m.observacao || '-'}</td>
+                    </tr>
+                  ))}
+                  {movs.length === 0 && (
                     <tr>
                       <td colSpan={7} className="px-3 py-6 text-center text-muted">
-                        Carregando movimentações...
+                        Sem movimentações
                       </td>
                     </tr>
                   )}
-                  {!movLoading && movRows.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="px-3 py-6 text-center text-muted">
-                        Nenhuma movimentação registrada para este estoque.
-                      </td>
-                    </tr>
-                  )}
-                  {!movLoading &&
-                    movRows.map((m) => (
-                      <tr key={m.id} className="border-t border-border/60">
-                        <td className="px-3 py-2 align-top">{formatDate(m.data)}</td>
-                        <td className="px-3 py-2 align-top">
-                          <span
-                            className={
-                              m.tipo === 'entrada'
-                                ? 'rounded-full bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-300'
-                                : 'rounded-full bg-red-900/30 px-2 py-0.5 text-[10px] text-red-200'
-                            }
-                          >
-                            {m.tipo === 'entrada' ? 'Entrada' : 'Saída'}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 align-top">{m.unidade}</td>
-                        <td className="px-3 py-2 align-top">{m.item}</td>
-                        <td className="px-3 py-2 text-right align-top">{m.quantidade}</td>
-                        <td className="px-3 py-2 align-top">{m.destino || '-'}</td>
-                        <td className="px-3 py-2 align-top max-w-xs break-words">
-                          {m.observacao || '-'}
-                        </td>
-                      </tr>
-                    ))}
                 </tbody>
               </table>
             </div>
-
-            {/* Paginação */}
-            <div className="flex items-center justify-between gap-2 text-[11px]">
-              <div>
-                Página{' '}
-                <span className="font-semibold">
-                  {movPage} / {movTotalPages}
-                </span>
-              </div>
-              <div className="inline-flex items-center gap-1">
+            <div className="flex items-center justify-between p-3 text-xs text-muted">
+              <div>Total: {movTotal}</div>
+              <div className="flex items-center gap-2">
                 <button
-                  type="button"
-                  className="rounded border border-border px-2 py-1 disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => setMovPage((p) => Math.max(1, p - 1))}
-                  disabled={movPage <= 1}
+                  className="px-2 py-1 border border-border rounded disabled:opacity-50"
+                  onClick={() => setMovPage(p => Math.max(1, p - 1))}
+                  disabled={movPage === 1}
                 >
                   Anterior
                 </button>
+                <div>Página {movPage}</div>
                 <button
-                  type="button"
-                  className="rounded border border-border px-2 py-1 disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => setMovPage((p) => (p < movTotalPages ? p + 1 : p))}
-                  disabled={movPage >= movTotalPages}
+                  className="px-2 py-1 border border-border rounded disabled:opacity-50"
+                  onClick={() => setMovPage(p => p + 1)}
+                  disabled={movs.length < 25}
                 >
                   Próxima
                 </button>
@@ -722,69 +795,66 @@ async function handleSalvarNovoEpi() {
           </div>
 
           {/* Modal Catálogo SESMT */}
-          {catalogOpen && (
+          {catalogoAberto && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-              <div className="flex max-h-[80vh] w-full max-w-5xl flex-col rounded-xl border border-border bg-panel text-xs">
-                <div className="flex items-center justify-between border-b border-border px-4 py-3 text-[11px]">
+              <div className="bg-panel rounded-xl border border-border w-full max-w-5xl max-h-[80vh] flex flex-col">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border text-xs">
                   <div>
                     <div className="font-semibold">Catálogo SESMT</div>
                     <div className="text-muted">
-                      Consulte os itens da planilha oficial (código, descrição, categoria, grupo, unidade, tamanho).
+                      Busque itens da planilha oficial. Se não encontrar, use a opção &quot;Novo item&quot;.
                     </div>
                   </div>
                   <button
                     type="button"
-                    className="rounded border border-border px-2 py-1"
-                    onClick={() => setCatalogOpen(false)}
+                    className="px-2 py-1 border border-border rounded"
+                    onClick={() => setCatalogoAberto(false)}
                   >
                     Fechar
                   </button>
                 </div>
-                <div className="flex items-center gap-2 border-b border-border px-4 py-2">
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-border text-xs">
                   <input
-                    className="flex-1 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+                    className="flex-1 px-3 py-2 rounded bg-card border border-border text-xs"
                     placeholder="Buscar por código, descrição ou grupo..."
-                    value={catalogQuery}
-                    onChange={(e) => setCatalogQuery(e.target.value)}
+                    value={catQuery}
+                    onChange={e => setCatQuery(e.target.value)}
                   />
-                  {catalogLoading && <span className="text-[11px] text-muted">Buscando...</span>}
+                  {catLoading && <span className="text-[11px] text-muted">Buscando...</span>}
                 </div>
-                <div className="flex-1 overflow-y-auto">
-                  <table className="min-w-full border-separate border-spacing-0 text-[11px]">
-                    <thead className="sticky top-0 border-b border-border bg-card/90 text-[10px] uppercase tracking-wide text-muted backdrop-blur">
+                <div className="flex-1 overflow-y-auto text-xs">
+                  <table className="min-w-full text-[11px]">
+                    <thead className="bg-white/10">
                       <tr>
-                        <th className="px-3 py-2 text-left">Código</th>
-                        <th className="px-3 py-2 text-left">Descrição</th>
-                        <th className="px-3 py-2 text-left">Categoria</th>
-                        <th className="px-3 py-2 text-left">Grupo</th>
-                        <th className="px-3 py-2 text-left">Und.</th>
-                        <th className="px-3 py-2 text-left">Tamanho</th>
+                        <th className="px-2 py-1 text-left">Código</th>
+                        <th className="px-2 py-1 text-left">Descrição</th>
+                        <th className="px-2 py-1 text-left">Categoria</th>
+                        <th className="px-2 py-1 text-left">Grupo</th>
+                        <th className="px-2 py-1 text-left">Und.</th>
+                        <th className="px-2 py-1 text-left">Tamanho</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border/60">
-                      {catalogItems.map((it, idx) => (
+                    <tbody>
+                      {catOptions.map((it, idx) => (
                         <tr
                           key={`${it.codigo_pa || ''}-${idx}`}
-                          className="transition-colors hover:bg-white/5"
+                          className="border-t border-border hover:bg-white/10 cursor-pointer"
+                          onClick={() => {
+                            // Quando clicar no item do catálogo, apenas preenche o nome no select (se existir) e fecha o modal
+                            setCatQuery(it.descricao_site || it.descricao_cahosp || '');
+                          }}
                         >
-                          <td className="px-3 py-2 align-top">{it.codigo_pa || '-'}</td>
-                          <td className="px-3 py-2 align-top">
-                            {it.descricao_site || it.descricao_cahosp || '-'}
-                          </td>
-                          <td className="px-3 py-2 align-top">{it.categoria_site || '-'}</td>
-                          <td className="px-3 py-2 align-top">{it.grupo_cahosp || '-'}</td>
-                          <td className="px-3 py-2 align-top">{it.unidade_site || '-'}</td>
-                          <td className="px-3 py-2 align-top">
-                            {it.tamanho_site || it.tamanho || '-'}
-                          </td>
+                          <td className="px-2 py-1">{it.codigo_pa || '-'}</td>
+                          <td className="px-2 py-1">{it.descricao_site || it.descricao_cahosp || '-'}</td>
+                          <td className="px-2 py-1">{it.categoria_site || '-'}</td>
+                          <td className="px-2 py-1">{it.grupo_cahosp || '-'}</td>
+                          <td className="px-2 py-1">{it.unidade_site || '-'}</td>
+                          <td className="px-2 py-1">{it.tamanho_site || it.tamanho || '-'}</td>
                         </tr>
                       ))}
-                      {!catalogLoading && catalogItems.length === 0 && (
+                      {catOptions.length === 0 && (
                         <tr>
-                          <td
-                            colSpan={6}
-                            className="px-4 py-6 text-center text-[11px] text-muted"
-                          >
+                          <td colSpan={6} className="px-3 py-4 text-center text-muted">
                             Nenhum item encontrado no catálogo.
                           </td>
                         </tr>
@@ -792,87 +862,99 @@ async function handleSalvarNovoEpi() {
                     </tbody>
                   </table>
                 </div>
-{novoEpiAberto && (
-  <div className="border-t border-border px-4 py-3 text-[11px] space-y-2">
-    <div className="font-semibold">Cadastro rápido de novo EPI</div>
-    <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-      <input
-        className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-        placeholder="Código CAHOSP (opcional)"
-        value={novoCodigo}
-        onChange={(e) => setNovoCodigo(e.target.value)}
-      />
-      <input
-        className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-        placeholder="Descrição do EPI"
-        value={novoDescricao}
-        onChange={(e) => setNovoDescricao(e.target.value)}
-      />
-      <input
-        className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-        placeholder="Categoria (ex.: Proteção respiratória)"
-        value={novoCategoria}
-        onChange={(e) => setNovoCategoria(e.target.value)}
-      />
-      <input
-        className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-        placeholder="Grupo (ex.: EPI)"
-        value={novoGrupo}
-        onChange={(e) => setNovoGrupo(e.target.value)}
-      />
-      <input
-        className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-        placeholder="Unidade (ex.: UN, PAR, CX)"
-        value={novoUnidade}
-        onChange={(e) => setNovoUnidade(e.target.value)}
-      />
-      <input
-        className="rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-        placeholder="Tamanho (ex.: P, M, G, Único)"
-        value={novoTamanho}
-        onChange={(e) => setNovoTamanho(e.target.value)}
-      />
-    </div>
-    <div className="flex justify-end gap-2">
-      <button
-        type="button"
-        className="rounded border border-border px-3 py-2"
-        onClick={() => setNovoEpiAberto(false)}
-        disabled={novoSalvando}
-      >
-        Cancelar
-      </button>
-      <button
-        type="button"
-        className="rounded bg-emerald-600 px-3 py-2 font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
-        onClick={handleSalvarNovoEpi}
-        disabled={novoSalvando || !novoDescricao.trim()}
-      >
-        {novoSalvando ? 'Salvando...' : 'Salvar novo EPI'}
-      </button>
-    </div>
-  </div>
-)}
-<div className="flex items-center justify-between border-t border-border px-4 py-3 text-[11px]">
-  <div>
-    Itens exibidos: {catalogItems.length}
-    {novoEpiAberto && (
-      <span className="ml-2 text-[10px] text-muted">
-        O EPI salvo já poderá ser usado nas movimentações.
-      </span>
-    )}
-  </div>
-  <button
-    type="button"
-    className="rounded border border-border px-3 py-2"
-    onClick={() => setNovoEpiAberto((v) => !v)}
-  >
-    {novoEpiAberto ? 'Fechar cadastro rápido' : 'Cadastrar novo EPI'}
-  </button>
-</div>
+                <div className="flex items-center justify-between px-4 py-3 border-t border-border text-[11px]">
+                  <div>Itens exibidos: {catOptions.length}</div>
+                  <button
+                    type="button"
+                    className="px-3 py-2 border border-border rounded"
+                    onClick={() => {
+                      setCatalogoAberto(false);
+                      // Usuário vai cadastrar novo item na outra tela de administração, se necessário.
+                    }}
+                  >
+                    Novo item
+                  </button>
+                </div>
               </div>
             </div>
           )}
+        </div>
+      )}
+
+{tab==='ped' && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-border bg-panel p-4">
+            <h2 className="font-semibold mb-2">Novo pedido de reposição</h2>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+              <select className="px-3 py-2 rounded bg-card border border-border" value={unidade} onChange={e=>setUnidade(e.target.value)}>
+                <option value="">Selecione a Unidade</option>
+                {unidadesFiltradas.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
+              </select>
+              <input type="date" className="px-3 py-2 rounded bg-card border border-border" value={pedPrevisto} onChange={e=>setPedPrevisto(e.target.value)} />
+              <input className="px-3 py-2 rounded bg-card border border-border" placeholder="Observação" value={pedObs} onChange={e=>setPedObs(e.target.value)} />
+            </div>
+            <div className="mt-3">
+              <div className="text-xs text-text mb-1">Itens do pedido</div>
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-center">
+                <select className="px-3 py-2 rounded bg-card border border-border" onChange={e=>setPedItens(p=>[...p,{itemId:e.target.value, quantidade:1}])}>
+                  <option value="">Adicionar item...</option>
+                  {itensCat.map(i => <option key={i.id} value={i.id}>{i.nome}</option>)}
+                </select>
+                <div className="col-span-5 text-xs text-muted">
+                  {pedItens.map((it,idx)=> (
+                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 border border-border rounded mr-2 mb-2">
+                      <input type="number" className="w-16 bg-transparent text-right" value={it.quantidade} onChange={e=>{
+                        const v = parseInt(e.target.value||'0',10);
+                        setPedItens(arr => arr.map((x,i)=> i===idx ? {...x, quantidade: v}: x));
+                      }} />
+                      <button onClick={()=> setPedItens(arr => arr.filter((_,i)=>i!==idx))}>✕</button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 flex justify-end">
+              <button className="px-3 py-2 border rounded" onClick={criarPedido} disabled={!unidade || pedItens.length===0}>Criar pedido</button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-panel">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-white/10"><tr>
+                  <th className="px-3 py-2 text-left">Criado em</th>
+                  <th className="px-3 py-2 text-left">Unidade</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-right">Qtd Solicitada</th>
+                  <th className="px-3 py-2 text-right">Qtd Recebida</th>
+                  <th className="px-3 py-2 text-left">Previsto</th>
+                  <th className="px-3 py-2 text-left">Recebido</th>
+                </tr></thead>
+                <tbody>
+                  {peds.map(p => (
+                    <tr key={p.id} className="border-t border-border hover:bg-white/10">
+                      <td className="px-3 py-2">{new Date(p.criadoEm).toLocaleString()}</td>
+                      <td className="px-3 py-2">{p.unidade || p.regional || '-'}</td>
+                      <td className="px-3 py-2 capitalize">{p.status}</td>
+                      <td className="px-3 py-2 text-right">{p.qtd_solicitada}</td>
+                      <td className="px-3 py-2 text-right">{p.qtd_recebida}</td>
+                      <td className="px-3 py-2">{p.previstoEm ? new Date(p.previstoEm).toLocaleDateString() : '-'}</td>
+                      <td className="px-3 py-2">{p.recebidoEm ? new Date(p.recebidoEm).toLocaleDateString() : '-'}</td>
+                    </tr>
+                  ))}
+                  {peds.length===0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-muted">Nenhum pedido</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center justify-between p-3 text-xs text-muted">
+              <div>Total: {pedTotal}</div>
+              <div className="flex items-center gap-2">
+                <button className="px-2 py-1 border border-border rounded disabled:opacity-40" onClick={()=>setPedPage(p=>Math.max(1,p-1))} disabled={pedPage===1}>Anterior</button>
+                <div>Página {pedPage}</div>
+                <button className="px-2 py-1 border border-border rounded disabled:opacity-40" onClick={()=>setPedPage(p=>p+1)} disabled={peds.length<25}>Próxima</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
