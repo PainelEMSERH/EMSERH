@@ -81,6 +81,7 @@ export default function EstoqueSESMTPage() {
   const [responsavel, setResponsavel] = useState<string>('');
   const [observacao, setObservacao] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  const [editingMov, setEditingMov] = useState<MovRow | null>(null);
 
   // Movimentações (lista inferior)
   const [movRows, setMovRows] = useState<MovRow[]>([]);
@@ -283,70 +284,133 @@ async function handleSalvarNovoEpi() {
   }
 }
 
-  async function handleSalvarMovimentacao() {
-    if (!canSave) return;
+  function handleEditarEntrada(row: MovRow) {
+    if (!row || row.tipo !== 'entrada') return;
+
+    setEditingMov(row);
+    setTipo('entrada');
+    setItemId(row.itemId);
+    setQuantidade(String(row.quantidade || ''));
+
     try {
-      setSaving(true);
-
-      const qtd = Number(quantidade || 0);
-      const unidadeNome = unidadeSESMTNome;
-      const destino =
-        tipo === 'entrada'
-          ? 'Entrada no estoque do SESMT (CAHOSP → SESMT)'
-          : destinoUnidade || null;
-
-      const partesObs: string[] = [];
-      if (tipo === 'entrada') {
-        if (numeroPedido) partesObs.push(`Pedido CAHOSP: ${numeroPedido}`);
-        if (responsavel) partesObs.push(`Recebido por: ${responsavel}`);
+      const d = row.data ? new Date(row.data) : null;
+      if (d && !Number.isNaN(d.getTime())) {
+        const iso = d.toISOString().slice(0, 10);
+        setDataMov(iso);
       } else {
-        if (responsavel) partesObs.push(`Entregue por: ${responsavel}`);
+        setDataMov('');
       }
-      if (observacao) partesObs.push(observacao);
-      const obsFinal = partesObs.join(' | ') || null;
+    } catch {
+      setDataMov('');
+    }
 
+    let numero = '';
+    let resp = '';
+    const resto: string[] = [];
+
+    if (row.observacao) {
+      const partes = row.observacao
+        .split('|')
+        .map((p) => p.trim())
+        .filter(Boolean);
+
+      for (const parte of partes) {
+        if (parte.startsWith('Pedido CAHOSP:')) {
+          numero = parte.replace('Pedido CAHOSP:', '').trim();
+        } else if (parte.startsWith('Recebido por:')) {
+          resp = parte.replace('Recebido por:', '').trim();
+        } else {
+          resto.push(parte);
+        }
+      }
+    }
+
+    setNumeroPedido(numero);
+    setResponsavel(resp);
+    setObservacao(resto.join(' | '));
+    setDestinoUnidade('');
+  }
+
+  
+async function handleSalvarMovimentacao() {
+  if (!canSave) return;
+  try {
+    setSaving(true);
+
+    const qtd = Number(quantidade || 0);
+    const unidadeNome = unidadeSESMTNome;
+    const destino =
+      tipo === 'entrada'
+        ? 'Entrada no estoque do SESMT (CAHOSP → SESMT)'
+        : destinoUnidade || null;
+
+    const partesObs: string[] = [];
+    if (tipo === 'entrada') {
+      if (numeroPedido) partesObs.push(`Pedido CAHOSP: ${numeroPedido}`);
+      if (responsavel) partesObs.push(`Recebido por: ${responsavel}`);
+    } else {
+      if (responsavel) partesObs.push(`Entregue por: ${responsavel}`);
+    }
+    if (observacao) partesObs.push(observacao);
+    const obsFinal = partesObs.join(' | ') || null;
+
+    const baseBody = {
+      unidadeId: unidadeNome,
+      itemId,
+      tipo,
+      quantidade: qtd,
+      destino,
+      observacao: obsFinal,
+      data: dataMov || null,
+    };
+
+    if (editingMov && editingMov.tipo === 'entrada') {
       const body = {
-        unidadeId: unidadeNome,
-        itemId,
-        tipo,
+        id: editingMov.id,
         quantidade: qtd,
-        destino,
         observacao: obsFinal,
         data: dataMov || null,
       };
 
       await fetchJSON('/api/estoque/mov', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-
-      // Limpa campos específicos
-      setQuantidade('');
-      setDestinoUnidade('');
-      setNumeroPedido('');
-      setResponsavel('');
-      setObservacao('');
-      setDataMov('');
-
-      // Recarrega lista
-      const url = `/api/estoque/mov?regionalId=${encodeURIComponent(
-        regional,
-      )}&unidadeId=${encodeURIComponent(unidadeNome)}&page=${movPage}&size=${movSize}`;
-      const d = await fetchJSON<{ rows: MovRow[]; total: number }>(url);
-      setMovRows(d.rows || []);
-      setMovTotal(d.total || 0);
-    } catch (e: any) {
-      console.error(e);
-      alert(e?.message || 'Erro ao salvar movimentação.');
-    } finally {
-      setSaving(false);
+    } else {
+      await fetchJSON('/api/estoque/mov', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(baseBody),
+      });
     }
-  }
 
-  const movTotalPages = useMemo(() => {
-    return movTotal > 0 ? Math.ceil(movTotal / movSize) : 1;
-  }, [movTotal]);
+    // Limpa campos específicos
+    setQuantidade('');
+    setDestinoUnidade('');
+    setNumeroPedido('');
+    setResponsavel('');
+    setObservacao('');
+    setDataMov('');
+    setItemId('');
+    setEditingMov(null);
+    setTipo('entrada');
+
+    // Recarrega lista
+    const url = `/api/estoque/mov?regionalId=${encodeURIComponent(
+      regional,
+    )}&unidadeId=${encodeURIComponent(unidadeSESMTNome)}&page=${movPage}&size=${movSize}`;
+    const d = await fetchJSON<{ rows: MovRow[]; total: number }>(url);
+    setMovRows(d.rows || []);
+    setMovTotal(d.total || 0);
+  } catch (e: any) {
+    console.error(e);
+    alert(e?.message || 'Erro ao salvar movimentação.');
+  } finally {
+    setSaving(false);
+  }
+}
+;
 
   return (
     <div className="space-y-4">
@@ -448,7 +512,9 @@ async function handleSalvarNovoEpi() {
           <div className="rounded-xl border border-border bg-panel p-4 text-xs space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h2 className="font-semibold text-sm">Nova movimentação</h2>
+                <h2 className="font-semibold text-sm">
+                  {editingMov && editingMov.tipo === 'entrada' ? 'Editar entrada' : 'Nova movimentação'}
+                </h2>
                 <p className="text-[11px] text-muted">
                   Registre entradas e saídas do estoque SESMT da Regional selecionada.
                 </p>
@@ -472,7 +538,7 @@ async function handleSalvarNovoEpi() {
                     className={`px-3 py-1 rounded-md ${
                       tipo === 'entrada' ? 'bg-emerald-600 text-white' : 'text-text'
                     }`}
-                    onClick={() => setTipo('entrada')}
+                    onClick={() => { if (!editingMov) setTipo('entrada'); }}
                   >
                     Entrada
                   </button>
@@ -481,7 +547,7 @@ async function handleSalvarNovoEpi() {
                     className={`px-3 py-1 rounded-md ${
                       tipo === 'saida' ? 'bg-emerald-600 text-white' : 'text-text'
                     }`}
-                    onClick={() => setTipo('saida')}
+                    onClick={() => { if (!editingMov) setTipo('saida'); }}
                   >
                     Saída
                   </button>
@@ -607,18 +673,43 @@ async function handleSalvarNovoEpi() {
                   Máx. 120 caracteres. Use para detalhes rápidos sobre a movimentação.
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={handleSalvarMovimentacao}
-                disabled={!canSave || saving}
-                className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
-                  !canSave || saving
-                    ? 'cursor-not-allowed bg-emerald-900/40 text-muted'
-                    : 'bg-emerald-600 text-white hover:bg-emerald-500'
-                }`}
-              >
-                {saving ? 'Salvando...' : 'Salvar movimentação'}
-              </button>
+              <div className="flex items-center gap-2">
+                {editingMov && editingMov.tipo === 'entrada' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingMov(null);
+                      setTipo('entrada');
+                      setItemId('');
+                      setQuantidade('');
+                      setDataMov('');
+                      setDestinoUnidade('');
+                      setNumeroPedido('');
+                      setResponsavel('');
+                      setObservacao('');
+                    }}
+                    className="rounded-lg border border-border px-3 py-1.5 text-[11px] text-muted hover:bg-card"
+                  >
+                    Cancelar edição
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSalvarMovimentacao}
+                  disabled={!canSave || saving}
+                  className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
+                    !canSave || saving
+                      ? 'cursor-not-allowed bg-emerald-900/40 text-muted'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-500'
+                  }`}
+                >
+                  {saving
+                    ? 'Salvando...'
+                    : editingMov && editingMov.tipo === 'entrada'
+                    ? 'Salvar edição'
+                    : 'Salvar movimentação'}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -647,19 +738,20 @@ async function handleSalvarNovoEpi() {
                     <th className="px-3 py-2 text-right">Qtd</th>
                     <th className="px-3 py-2 text-left">Destino</th>
                     <th className="px-3 py-2 text-left">Obs.</th>
+                    <th className="px-3 py-2 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {movLoading && (
                     <tr>
-                      <td colSpan={7} className="px-3 py-6 text-center text-muted">
+                      <td colSpan={8} className="px-3 py-6 text-center text-muted">
                         Carregando movimentações...
                       </td>
                     </tr>
                   )}
                   {!movLoading && movRows.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-3 py-6 text-center text-muted">
+                      <td colSpan={8} className="px-3 py-6 text-center text-muted">
                         Nenhuma movimentação registrada para este estoque.
                       </td>
                     </tr>
@@ -685,6 +777,19 @@ async function handleSalvarNovoEpi() {
                         <td className="px-3 py-2 align-top">{m.destino || '-'}</td>
                         <td className="px-3 py-2 align-top max-w-xs break-words">
                           {m.observacao || '-'}
+                        </td>
+                        <td className="px-3 py-2 text-right align-top">
+                          {m.tipo === 'entrada' ? (
+                            <button
+                              type="button"
+                              className="rounded border border-border px-2 py-1 text-[10px] hover:bg-panel"
+                              onClick={() => handleEditarEntrada(m)}
+                            >
+                              Editar
+                            </button>
+                          ) : (
+                            <span className="text-muted">-</span>
+                          )}
                         </td>
                       </tr>
                     ))}
