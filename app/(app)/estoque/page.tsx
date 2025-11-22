@@ -172,7 +172,7 @@ useEffect(() => {
     <div className="p-6 space-y-4">
       <div className="rounded-xl border border-border bg-panel p-4">
         <h1 className="text-xl font-semibold mb-1">Estoque</h1>
-        <p className="text-sm text-muted mb-3">Controle completo por Regional/Unidade: saldo, movimentações e pedidos de reposição.</p>
+        <p className="text-sm text-muted mb-3">Estoque do SESMT por Regional: registre entradas recebidas do CAHOSP e saídas para as unidades hospitalares da sua Regional.</p>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
           <input className="px-3 py-2 rounded bg-card border border-border" placeholder="Buscar item/unidade" value={q} onChange={e=>{setQ(e.target.value); setPage(1)}}/>
           <select className="px-3 py-2 rounded bg-card border border-border" value={regional} onChange={e=>{setRegional(e.target.value); setPage(1)}}>
@@ -366,16 +366,19 @@ useEffect(() => {
         <div>
           <div className="font-semibold text-sm">Cadastrar novo item</div>
           <div className="text-muted">
-            Use o catálogo SESMT para buscar o item ou preencha manualmente. O estoque inicial será lançado para a unidade selecionada.
+            1) Escolha sua Regional no topo. 2) Use o catálogo SESMT para buscar o item recebido do CAHOSP ou preencha manualmente. 3) Selecione a unidade onde o SESMT está guardando esse item. O estoque inicial será lançado para essa unidade.
           </div>
         </div>
         <div className="flex flex-col md:flex-row gap-2 items-center">
           <input
             className="px-3 py-2 rounded bg-card border border-border text-xs"
-            placeholder="Buscar no catálogo SESMT (código ou descrição)"
+            placeholder="Digite para buscar no catálogo SESMT (código ou descrição)"
             value={catQuery}
             onChange={e => setCatQuery(e.target.value)}
           />
+          <span className="block text-[11px] text-muted mt-1">
+            Comece a digitar o nome ou o código do EPI para listar as opções do catálogo.
+          </span>
           {catLoading && <span className="text-[11px] text-muted">Buscando...</span>}
         </div>
       </div>
