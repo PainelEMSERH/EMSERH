@@ -161,7 +161,7 @@ export async function POST(req: Request){
   );
   const atual = Number(cur?.[0]?.q ?? 0);
   if (atual + diff < 0){
-    return NextResponse.json({ ok:false, error:\`Saldo insuficiente (atual \${atual})\` }, { status:400 });
+    return NextResponse.json({ ok:false, error:`Saldo insuficiente (atual ${atual})` }, { status:400 });
   }
 
   await prisma.$executeRawUnsafe(
