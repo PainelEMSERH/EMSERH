@@ -169,7 +169,20 @@ useEffect(() => {
 
 
   async function criarMov(){
-    const body = { unidadeId: sesmtUnidadeNome, itemId: novoItemId, tipo: novoTipo, quantidade: novoQtd, destino: novoDestino||null, observacao: novoObs||null, data: novoData||null };
+    const destinoEfetivo =
+      novoTipo === 'entrada'
+        ? 'CAHOSP → SESMT'
+        : (novoDestino || null);
+
+    const body = {
+      unidadeId: sesmtUnidadeNome,
+      itemId: novoItemId,
+      tipo: novoTipo,
+      quantidade: novoQtd,
+      destino: destinoEfetivo,
+      observacao: novoObs || null,
+      data: novoData || null,
+    };
     await fetchJSON('/api/estoque/mov', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     setNovoQtd(0); setNovoDestino(''); setNovoObs(''); setNovoData('');
     const url = `/api/estoque/mov?regionalId=${encodeURIComponent(regional)}&unidadeId=${encodeURIComponent(unidade)}&page=${movPage}&size=25`;
@@ -561,7 +574,15 @@ useEffect(() => {
           <div className="rounded-xl border border-border bg-panel p-4">
             <h2 className="font-semibold mb-2">Nova movimentação</h2>
             <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
-              <select className="px-3 py-2 rounded bg-card border border-border" value={novoTipo} onChange={e=>setNovoTipo(e.target.value as any)}>
+              <select
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={novoTipo}
+                onChange={e => {
+                  const v = e.target.value as 'entrada' | 'saida';
+                  setNovoTipo(v);
+                  if (v === 'entrada') setNovoDestino('');
+                }}
+              >
                 <option value="entrada">Entrada</option>
                 <option value="saida">Saída</option>
               </select>
@@ -575,14 +596,31 @@ useEffect(() => {
                 {itensCat.map(i => <option key={i.id} value={i.id}>{i.nome}</option>)}
               </select>
               <input type="number" className="px-3 py-2 rounded bg-card border border-border" placeholder="Quantidade" value={novoQtd} onChange={e=>setNovoQtd(parseInt(e.target.value||'0',10))}/>
-              <input className="px-3 py-2 rounded bg-card border border-border" placeholder="Destino/Justificativa" value={novoDestino} onChange={e=>setNovoDestino(e.target.value)}/>
+              {novoTipo === 'entrada' ? (
+                <input
+                  className="px-3 py-2 rounded bg-card border border-border text-xs text-muted"
+                  value="Entrada no estoque do SESMT"
+                  disabled
+                />
+              ) : (
+                <select
+                  className="px-3 py-2 rounded bg-card border border-border text-xs"
+                  value={novoDestino}
+                  onChange={e => setNovoDestino(e.target.value)}
+                >
+                  <option value="">Unidade hospitalar destino</option>
+                  {unidadesFiltradas.map(u => (
+                    <option key={u.unidade} value={u.unidade}>{u.unidade}</option>
+                  ))}
+                </select>
+              )}
               <input type="date" className="px-3 py-2 rounded bg-card border border-border" value={novoData} onChange={e=>setNovoData(e.target.value)}/>
             </div>
             <div className="mt-2">
               <input className="w-full px-3 py-2 rounded bg-card border border-border" placeholder="Observação" value={novoObs} onChange={e=>setNovoObs(e.target.value)}/>
             </div>
             <div className="mt-3 flex justify-end">
-              <button className="px-3 py-2 border rounded" onClick={criarMov} disabled={!sesmtUnidadeNome || !novoItemId || !novoQtd || (novoTipo==='saida' && !novoUnidadeId)}>Salvar movimentação</button>
+              <button className="px-3 py-2 border rounded" onClick={criarMov} disabled={!sesmtUnidadeNome || !novoItemId || !novoQtd || (novoTipo==='saida' && !novoDestino)}>Salvar movimentação</button>
             </div>
           </div>
 
