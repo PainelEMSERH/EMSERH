@@ -13,6 +13,7 @@ export async function POST(req: Request) {
     const nomeRaw = (body?.nome || '').toString().trim();
     const categoriaRaw = (body?.categoria || '').toString().trim() || 'EPI';
     const unidadeMedidaRaw = (body?.unidadeMedida || '').toString().trim() || 'UN';
+    const descricaoRaw = (body?.descricao || '').toString().trim();
     const unidadeKeyRaw = (body?.unidadeId || '').toString().trim();
     const regionalNomeRaw = (body?.regional || '').toString().trim();
     const quantidadeInicialNum = Number(body?.quantidadeInicial ?? 0);
@@ -24,6 +25,7 @@ export async function POST(req: Request) {
     const nome = nomeRaw;
     const categoria = categoriaRaw;
     const unidadeMedida = unidadeMedidaRaw;
+    const descricao = descricaoRaw || null;
     const quantidadeInicial = Number.isFinite(quantidadeInicialNum) && quantidadeInicialNum > 0
       ? Math.floor(quantidadeInicialNum)
       : 0;
@@ -39,6 +41,7 @@ export async function POST(req: Request) {
           nome,
           categoria,
           unidadeMedida,
+          descricao,
           ativo: true,
         },
       } as any);

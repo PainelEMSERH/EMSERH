@@ -148,7 +148,7 @@ useEffect(() => {
     }
     let active = true;
     setCatLoading(true);
-    const url = `/api/estoque/catalog?q=${encodeURIComponent(q)}`;
+    const url = `/api/estoque/catalogo?q=${encodeURIComponent(q)}`;
     fetchJSON<{ items: CatalogItem[] }>(url)
       .then(d => {
         if (!active) return;
@@ -414,140 +414,7 @@ useEffect(() => {
       </div>
     )}
 
-    {/* Cadastro rápido de novo item vinculado à Unidade */}
-    <div className="border-t border-border px-4 py-4 text-xs bg-card/20 flex flex-col gap-3">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-        <div>
-          <div className="font-semibold text-sm">Cadastrar novo item</div>
-          <div className="text-muted">
-            Use o catálogo SESMT para buscar o item ou preencha manualmente. O estoque inicial será lançado para a unidade selecionada.
-          </div>
-        </div>
-        <div className="flex flex-col md:flex-row gap-2 items-center">
-          <input
-            className="px-3 py-2 rounded bg-card border border-border text-xs"
-            placeholder="Buscar no catálogo SESMT (código ou descrição)"
-            value={catQuery}
-            onChange={e => setCatQuery(e.target.value)}
-          />
-          {catLoading && <span className="text-[11px] text-muted">Buscando...</span>}
-        </div>
-      </div>
-
-      {catOptions.length > 0 && (
-        <div className="max-h-40 overflow-y-auto rounded border border-border bg-card text-[11px] mt-2">
-          {catOptions.map((c, idx) => (
-            <button
-              key={idx}
-              type="button"
-              className="w-full text-left px-3 py-1.5 hover:bg-white/10 border-b border-border last:border-b-0"
-              onClick={() => {
-                setNewItemNome(c.descricao_site || c.descricao_cahosp || '');
-                setNewItemCategoria(c.categoria_site || 'EPI');
-                setNewItemUnidadeMedida(c.unidade_site || 'UN');
-              }}
-            >
-              <div className="font-medium">
-                {c.descricao_site || c.descricao_cahosp || 'Sem descrição'}
-              </div>
-              <div className="text-muted">
-                {c.codigo_pa ? `Código: ${c.codigo_pa}` : ''}
-                {c.grupo_cahosp ? ` · Grupo: ${c.grupo_cahosp}` : ''}
-                {c.tamanho_site ? ` · Tam.: ${c.tamanho_site}` : ''}
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mt-3">
-        <input
-          className="px-3 py-2 rounded bg-card border border-border text-xs md:col-span-2"
-          placeholder="Nome do item"
-          value={newItemNome}
-          onChange={e => setNewItemNome(e.target.value)}
-        />
-        <input
-          className="px-3 py-2 rounded bg-card border border-border text-xs"
-          placeholder="Categoria"
-          value={newItemCategoria}
-          onChange={e => setNewItemCategoria(e.target.value)}
-        />
-        <input
-          className="px-3 py-2 rounded bg-card border border-border text-xs"
-          placeholder="Unidade de medida (ex.: UN, PAR)"
-          value={newItemUnidadeMedida}
-          onChange={e => setNewItemUnidadeMedida(e.target.value)}
-        />
-        <input
-          className="px-3 py-2 rounded bg-card border border-border text-xs"
-          value={sesmtUnidadeNome || (regional ? 'Defina o estoque do SESMT' : 'Selecione uma Regional')}
-          readOnly
-        />
-        <input
-          className="px-3 py-2 rounded bg-card border border-border text-xs w-full"
-          placeholder="Qtd inicial"
-          value={newItemQtdInicial ? String(newItemQtdInicial) : ''}
-          onChange={e => {
-            const v = e.target.value.replace(/[^0-9]/g, '');
-            setNewItemQtdInicial(v ? Number(v) : 0);
-          }}
-          inputMode="numeric"
-        />
-      </div>
-      <div className="flex justify-end mt-2">
-        <button
-          className="px-3 py-2 rounded border border-border text-[11px] disabled:opacity-50"
-          disabled={
-            newItemSaving ||
-            !newItemNome ||
-            !sesmtUnidadeNome
-          }
-          onClick={async () => {
-            try {
-              setNewItemSaving(true);
-              const unidadeKey = sesmtUnidadeNome;
-              await fetchJSON('/api/estoque/item', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  nome: newItemNome,
-                  categoria: newItemCategoria || 'EPI',
-                  unidadeMedida: newItemUnidadeMedida || 'UN',
-                  unidadeId: unidadeKey,
-                  regional: regional || null,
-                  quantidadeInicial: newItemQtdInicial || 0,
-                }),
-              });
-                    const itemsResp = await fetchJSON<{ items: { id: string; nome: string }[] }>('/api/estoque/items');
-                    setItemOptions(itemsResp.items || []);
-
-              setNewItemNome('');
-              setNewItemCategoria('EPI');
-              setNewItemUnidadeMedida('UN');
-              setNewItemUnidade('');
-              setNewItemQtdInicial(0);
-              setCatQuery('');
-              setCatOptions([]);
-              const urlSaldo = `/api/estoque/list?regionalId=${encodeURIComponent(
-                regional
-              )}&unidadeId=${encodeURIComponent(unidade)}&q=${encodeURIComponent(q)}&page=${page}&size=${size}`;
-              const d = await fetchJSON<{ rows: Row[]; total: number }>(urlSaldo);
-              setRows(d.rows || []);
-              setTotal(d.total || 0);
-            } catch (e) {
-              console.error(e);
-            } finally {
-              setNewItemSaving(false);
-            }
-          }}
-        >
-          Salvar novo item
-        </button>
-      </div>
-    </div>
-
-    <div className="flex items-center justify-between p-3 text-xs text-muted">
+        <div className="flex items-center justify-between p-3 text-xs text-muted">
       <div>Total: {total}</div>
       <div className="flex items-center gap-2">
         <button
@@ -623,6 +490,124 @@ useEffect(() => {
               <button className="px-3 py-2 border rounded" onClick={criarMov} disabled={!sesmtUnidadeNome || !novoItemId || !novoQtd || (novoTipo==='saida' && !novoDestino)}>Salvar movimentação</button>
             </div>
           </div>
+
+
+          {/* Catálogo e cadastro de itens do SESMT */}
+          <div className="rounded-xl border border-border bg-panel">
+            <div className="px-4 py-3 border-b border-border flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-xs">
+              <div>
+                <div className="font-semibold text-sm">Catálogo de itens do SESMT</div>
+                <div className="text-muted">
+                  Itens disponíveis para movimentação. Use a busca para localizar o item
+                  ou cadastre um novo apenas se ele ainda não existir.
+                </div>
+              </div>
+              <div className="flex flex-col md:flex-row gap-2 items-center">
+                <input
+                  className="px-3 py-2 rounded bg-card border border-border text-xs"
+                  placeholder="Buscar no catálogo SESMT (código ou descrição)"
+                  value={catQuery}
+                  onChange={e => setCatQuery(e.target.value)}
+                />
+                {catLoading && <span className="text-[11px] text-muted">Buscando...</span>}
+              </div>
+            </div>
+
+            {catOptions.length > 0 && (
+              <div className="px-4 pt-2">
+                <div className="max-h-40 overflow-y-auto rounded border border-border bg-card text-[11px]">
+                  {catOptions.map((c, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      className="w-full text-left px-3 py-1.5 hover:bg-white/10 border-b border-border last:border-b-0"
+                      onClick={() => {
+                        setNewItemNome(c.descricao_site || c.descricao_cahosp || '');
+                        setNewItemCategoria(c.categoria_site || 'EPI');
+                        setNewItemUnidadeMedida(c.unidade_site || 'UN');
+                      }}
+                    >
+                      <div className="font-medium">
+                        {c.descricao_site || c.descricao_cahosp || 'Sem descrição'}
+                      </div>
+                      <div className="text-muted">
+                        {c.codigo_pa ? `Código: ${c.codigo_pa}` : ''}
+                        {c.grupo_cahosp ? ` · Grupo: ${c.grupo_cahosp}` : ''}
+                        {c.tamanho_site ? ` · Tam.: ${c.tamanho_site}` : ''}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="px-4 py-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                <input
+                  className="px-3 py-2 rounded bg-card border border-border text-xs md:col-span-2"
+                  placeholder="Nome do item"
+                  value={newItemNome}
+                  onChange={e => setNewItemNome(e.target.value)}
+                />
+                <input
+                  className="px-3 py-2 rounded bg-card border border-border text-xs"
+                  placeholder="Categoria (ex.: EPI, Sinalização)"
+                  value={newItemCategoria}
+                  onChange={e => setNewItemCategoria(e.target.value)}
+                />
+                <input
+                  className="px-3 py-2 rounded bg-card border border-border text-xs"
+                  placeholder="Unidade de medida (ex.: UN, PAR)"
+                  value={newItemUnidadeMedida}
+                  onChange={e => setNewItemUnidadeMedida(e.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                <input
+                  className="px-3 py-2 rounded bg-card border border-border text-xs"
+                  placeholder="Código / tamanho / outras informações"
+                  value={newItemUnidade}
+                  onChange={e => setNewItemUnidade(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end mt-3">
+                <button
+                  className="px-3 py-2 rounded border border-border text-[11px] disabled:opacity-50"
+                  disabled={newItemSaving || !newItemNome}
+                  onClick={async () => {
+                    try {
+                      setNewItemSaving(true);
+                      await fetchJSON('/api/estoque/item', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          nome: newItemNome,
+                          categoria: newItemCategoria || 'EPI',
+                          unidadeMedida: newItemUnidadeMedida || 'UN',
+                          descricao: newItemUnidade || '',
+                        }),
+                      });
+                      const itemsResp = await fetchJSON<{ items: { id: string; nome: string }[] }>('/api/estoque/items');
+                      setItemOptions(itemsResp.items || []);
+                      setNewItemNome('');
+                      setNewItemCategoria('EPI');
+                      setNewItemUnidadeMedida('UN');
+                      setNewItemUnidade('');
+                      setCatQuery('');
+                      setCatOptions([]);
+                    } catch (e) {
+                      console.error(e);
+                    } finally {
+                      setNewItemSaving(false);
+                    }
+                  }}
+                >
+                  Salvar item
+                </button>
+              </div>
+            </div>
+          </div>
+
 
           <div className="rounded-xl border border-border bg-panel">
             <div className="overflow-x-auto">
