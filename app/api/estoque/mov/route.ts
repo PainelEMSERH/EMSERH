@@ -4,12 +4,16 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 async function ensureTables(){
+  // Garante tipo e tabela de movimentações
   await prisma.$executeRawUnsafe(`
     DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'estoque_mov_tipo') THEN
         CREATE TYPE estoque_mov_tipo AS ENUM ('entrada','saida');
       END IF;
     END $$;
+  `);
+
+  await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS estoque_mov (
       id TEXT PRIMARY KEY DEFAULT substr(md5(random()::text || clock_timestamp()::text), 1, 24),
       unidadeId TEXT NOT NULL,
@@ -21,31 +25,47 @@ async function ensureTables(){
       data TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       criadoEm TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `);
+
+  await prisma.$executeRawUnsafe(`
     CREATE INDEX IF NOT EXISTS idx_emov_unid_item ON estoque_mov(unidadeId, itemId, data DESC);
+  `);
+  await prisma.$executeRawUnsafe(`
     CREATE INDEX IF NOT EXISTS idx_emov_tipo_data ON estoque_mov(tipo, data DESC);
-  
-CREATE TABLE IF NOT EXISTS item (
-  id TEXT PRIMARY KEY,
-  nome TEXT NOT NULL,
-  categoria TEXT NOT NULL,
-  ca TEXT NULL,
-  descricao TEXT NULL,
-  "unidadeMedida" TEXT NOT NULL,
-  "validadeDias" INT NULL,
-  ativo BOOLEAN NOT NULL DEFAULT TRUE
-);
-CREATE TABLE IF NOT EXISTS estoque (
-  id TEXT PRIMARY KEY DEFAULT substr(md5(random()::text || clock_timestamp()::text), 1, 24),
-  "unidadeId" TEXT NOT NULL,
-  "itemId" TEXT NOT NULL,
-  quantidade INT NOT NULL DEFAULT 0,
-  minimo INT NOT NULL DEFAULT 0,
-  maximo INT NULL,
-  CONSTRAINT uq_estoque_unidade_item UNIQUE("unidadeId","itemId")
-);
-CREATE INDEX IF NOT EXISTS idx_estoque_unid_item ON estoque("unidadeId","itemId");
-`);
+  `);
+
+  // Garante tabela de itens
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS item (
+      id TEXT PRIMARY KEY,
+      nome TEXT NOT NULL,
+      categoria TEXT NOT NULL,
+      ca TEXT NULL,
+      descricao TEXT NULL,
+      "unidadeMedida" TEXT NOT NULL,
+      "validadeDias" INT NULL,
+      ativo BOOLEAN NOT NULL DEFAULT TRUE
+    );
+  `);
+
+  // Garante tabela de estoque
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS estoque (
+      id TEXT PRIMARY KEY DEFAULT substr(md5(random()::text || clock_timestamp()::text), 1, 24),
+      "unidadeId" TEXT NOT NULL,
+      "itemId" TEXT NOT NULL,
+      quantidade INT NOT NULL DEFAULT 0,
+      minimo INT NOT NULL DEFAULT 0,
+      maximo INT NULL,
+      CONSTRAINT uq_estoque_unidade_item UNIQUE("unidadeId","itemId")
+    );
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS idx_estoque_unid_item ON estoque("unidadeId","itemId");
+  `);
 }
+
 
 export async function GET(req: Request){
   const { searchParams } = new URL(req.url);
