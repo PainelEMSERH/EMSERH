@@ -2,7 +2,7 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
 
-type Row = { id:string; regionalId:string; regional:string; unidadeId:string; unidade:string; itemId:string; item:string; quantidade:number; minimo:number; maximo:number };
+type Row = { id:string; regionalId:string; regional:string; unidadeId:string; unidade:string; itemId:string; item:string; categoria?:string | null; quantidade:number; minimo:number; maximo:number };
 type Mov = { id:string; tipo:'entrada'|'saida'; quantidade:number; destino?:string; observacao?:string; data:string; unidadeId:string; unidade:string; regionalId:string; regional:string; itemId:string; item:string };
 type Pedido = { id:string; status:'pendente'|'recebido'|'cancelado'; criadoEm:string; previstoEm?:string; recebidoEm?:string; observacao?:string; regionalId?:string; regional?:string; unidadeId?:string; unidade?:string; qtd_solicitada:number; qtd_recebida:number };
 type Opts = { regionais:string[]; unidades:{unidade:string, regional:string}[] };
@@ -44,6 +44,10 @@ export default function Page(){
   const [pedPrevisto,setPedPrevisto] = useState('');
   const [pedObs,setPedObs] = useState('');
 const [pedItens,setPedItens] = useState<Array<{itemId:string, quantidade:number}>>([]);
+
+  const [pedTipo, setPedTipo] = useState<'entrada' | 'saida'>('entrada');
+  const [pedDestinoUnidade, setPedDestinoUnidade] = useState('');
+  const [pedOrigem, setPedOrigem] = useState('');
 
 // Configuração de mínimo/máximo por item/unidade
 const [editRow, setEditRow] = useState<Row | null>(null);
@@ -122,22 +126,18 @@ useEffect(() => {
     let baixo = 0;
     let zerado = 0;
     let semMinimo = 0;
+    const porCategoria: Record<string, { itens:number; quantidade:number }> = {};
     for (const r of rows) {
       if (r.quantidade <= 0) zerado++;
       if (r.minimo > 0 && r.quantidade > 0 && r.quantidade <= r.minimo) baixo++;
       if (r.minimo === 0) semMinimo++;
+      const cat = (r.categoria || 'Sem categoria').toString();
+      if (!porCategoria[cat]) porCategoria[cat] = { itens: 0, quantidade: 0 };
+      porCategoria[cat].itens += 1;
+      porCategoria[cat].quantidade += r.quantidade ?? 0;
     }
-    return { totalItens, baixo, zerado, semMinimo };
-  }, [rows]);
-
-  useEffect(() => {
-    if (!catQuery.trim()) {
-      setCatOptions([]);
-      return;
-    }
-    let active = true;
-    setCatLoading(true);
-    const url = `/api/estoque/catalogo?q=${encodeURIComponent(catQuery)}`;
+    return { totalItens, baixo, zerado, semMinimo, porCategoria };
+  }, [rows]);;
     fetchJSON<{ items: CatalogItem[] }>(url)
       .then(d => {
         if (!active) return;
@@ -158,7 +158,7 @@ useEffect(() => {
 
 
   async function criarMov(){
-    const body = { unidadeId: novoUnidadeId, itemId: novoItemId, tipo: novoTipo, quantidade: Number(novoQtd||0), destino: novoDestino||null, observacao: novoObs||null, data: novoData||null };
+    const body = { unidadeId: sesmtUnidadeNome, itemId: novoItemId, tipo: novoTipo, quantidade: novoQtd, destino: novoDestino||null, observacao: novoObs||null, data: novoData||null };
     await fetchJSON('/api/estoque/mov', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     setNovoQtd(0); setNovoDestino(''); setNovoObs(''); setNovoData('');
     const url = `/api/estoque/mov?regionalId=${encodeURIComponent(regional)}&unidadeId=${encodeURIComponent(unidade)}&page=${movPage}&size=25`;
@@ -170,6 +170,29 @@ useEffect(() => {
   async function criarPedido(){
     const body:any = { regionalId: regional || null, unidadeId: unidade || null, previstoEm: pedPrevisto || null, observacao: pedObs || null, itens: pedItens };
     await fetchJSON('/api/estoque/pedidos', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+
+    // Também gera movimentações no estoque SESMT com base nos itens do pedido
+    const unidadeEstoque = sesmtUnidadeNome;
+    if (unidadeEstoque && pedItens.length > 0) {
+      for (const it of pedItens) {
+        if (!it.itemId || !it.quantidade) continue;
+        const movBody = {
+          unidadeId: unidadeEstoque,
+          itemId: it.itemId,
+          tipo: pedTipo,
+          quantidade: it.quantidade,
+          destino: pedTipo === 'saida' ? (pedDestinoUnidade || null) : (pedOrigem || null),
+          observacao: pedObs || null,
+          data: pedPrevisto || null,
+        };
+        await fetchJSON('/api/estoque/mov', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(movBody),
+        });
+      }
+    }
+
     setPedItens([]); setPedObs(''); setPedPrevisto('');
     const url = `/api/estoque/pedidos?regionalId=${encodeURIComponent(regional)}&unidadeId=${encodeURIComponent(unidade)}&page=${pedPage}&size=25`;
     fetchJSON<{ rows:Pedido[], total:number }>(url).then(d => { setPeds(d.rows||[]); setPedTotal(d.total||0); });
@@ -531,10 +554,11 @@ useEffect(() => {
                 <option value="entrada">Entrada</option>
                 <option value="saida">Saída</option>
               </select>
-              <select className="px-3 py-2 rounded bg-card border border-border" value={novoUnidadeId} onChange={e=>setNovoUnidadeId(e.target.value)}>
-                <option value="">Unidade</option>
-                {unidadesFiltradas.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
-              </select>
+              <input
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={sesmtUnidadeNome || (regional ? 'Estoque do SESMT da Regional selecionada' : 'Selecione uma Regional')}
+                readOnly
+              />
               <select className="px-3 py-2 rounded bg-card border border-border" value={novoItemId} onChange={e=>setNovoItemId(e.target.value)}>
                 <option value="">Item</option>
                 {itensCat.map(i => <option key={i.id} value={i.id}>{i.nome}</option>)}
@@ -547,7 +571,7 @@ useEffect(() => {
               <input className="w-full px-3 py-2 rounded bg-card border border-border" placeholder="Observação" value={novoObs} onChange={e=>setNovoObs(e.target.value)}/>
             </div>
             <div className="mt-3 flex justify-end">
-              <button className="px-3 py-2 border rounded" onClick={criarMov} disabled={!novoUnidadeId || !novoItemId || !novoQtd}>Salvar movimentação</button>
+              <button className="px-3 py-2 border rounded" onClick={criarMov} disabled={!sesmtUnidadeNome || !novoItemId || !novoQtd || (novoTipo==='saida' && !novoUnidadeId)}>Salvar movimentação</button>
             </div>
           </div>
 
@@ -596,12 +620,50 @@ useEffect(() => {
           <div className="rounded-xl border border-border bg-panel p-4">
             <h2 className="font-semibold mb-2">Novo pedido de reposição</h2>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-              <select className="px-3 py-2 rounded bg-card border border-border" value={unidade} onChange={e=>setUnidade(e.target.value)}>
-                <option value="">Selecione a Unidade</option>
-                {unidadesFiltradas.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
+              <select
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={pedTipo}
+                onChange={e => setPedTipo(e.target.value as 'entrada' | 'saida')}
+              >
+                <option value="entrada">Entrada (chegada no SESMT)</option>
+                <option value="saida">Saída (para unidade)</option>
               </select>
-              <input type="date" className="px-3 py-2 rounded bg-card border border-border" value={pedPrevisto} onChange={e=>setPedPrevisto(e.target.value)} />
-              <input className="px-3 py-2 rounded bg-card border border-border" placeholder="Observação" value={pedObs} onChange={e=>setPedObs(e.target.value)} />
+              <input
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={sesmtUnidadeNome || (regional ? 'Estoque do SESMT da Regional selecionada' : 'Selecione uma Regional')}
+                readOnly
+              />
+              {pedTipo==='saida' ? (
+                <select
+                  className="px-3 py-2 rounded bg-card border border-border text-xs"
+                  value={pedDestinoUnidade}
+                  onChange={e => setPedDestinoUnidade(e.target.value)}
+                >
+                  <option value="">Unidade hospitalar destino</option>
+                  {unidadesFiltradas.map(u => (
+                    <option key={u.unidade} value={u.unidade}>{u.unidade}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className="px-3 py-2 rounded bg-card border border-border text-xs"
+                  placeholder="Origem (ex.: CAHOSP)"
+                  value={pedOrigem}
+                  onChange={e => setPedOrigem(e.target.value)}
+                />
+              )}
+              <input
+                type="date"
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={pedPrevisto}
+                onChange={e => setPedPrevisto(e.target.value)}
+              />
+              <input
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                placeholder="Observação"
+                value={pedObs}
+                onChange={e => setPedObs(e.target.value)}
+              />
             </div>
             <div className="mt-3">
               <div className="text-xs text-text mb-1">Itens do pedido</div>
@@ -624,7 +686,7 @@ useEffect(() => {
               </div>
             </div>
             <div className="mt-3 flex justify-end">
-              <button className="px-3 py-2 border rounded" onClick={criarPedido} disabled={!unidade || pedItens.length===0}>Criar pedido</button>
+              <button className="px-3 py-2 border rounded" onClick={criarPedido} disabled={!sesmtUnidadeNome || pedItens.length===0 || (pedTipo==='saida' && !pedDestinoUnidade)}>Criar pedido</button>
             </div>
           </div>
 
