@@ -61,35 +61,77 @@ async function getExtras(): Promise<CatalogItem[]> {
   }
 }
 
+async function ensureItemTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS item (
+      id TEXT PRIMARY KEY,
+      nome TEXT NOT NULL,
+      categoria TEXT NOT NULL,
+      ca TEXT NULL,
+      descricao TEXT NULL,
+      "unidadeMedida" TEXT NOT NULL,
+      "validadeDias" INT NULL,
+      ativo BOOLEAN NOT NULL DEFAULT TRUE
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_item_nome_categoria ON item (nome, categoria);
+    CREATE INDEX IF NOT EXISTS idx_item_categoria ON item (categoria);
+  `);
+}
+
+async function seedItensFromCatalog() {
+  const base = (catalogo as CatalogItem[]) || [];
+  const extras = await getExtras();
+  const all: CatalogItem[] = [...base, ...extras];
+
+  for (const it of all) {
+    const nome =
+      (it.descricao_site && it.descricao_site.trim()) ||
+      (it.descricao_cahosp && it.descricao_cahosp.trim()) ||
+      (it.codigo_pa && `Item ${it.codigo_pa.trim()}`) ||
+      null;
+
+    if (!nome) continue;
+
+    const categoria =
+      (it.categoria_site && it.categoria_site.trim()) || 'EPI';
+    const unidade =
+      (it.unidade_site && it.unidade_site.trim()) || 'UN';
+
+    const meta = JSON.stringify({
+      codigo_pa: it.codigo_pa ?? null,
+      grupo_cahosp: it.grupo_cahosp ?? null,
+      tamanho: it.tamanho_site ?? it.tamanho ?? null,
+    });
+
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO item (id, nome, categoria, ca, descricao, "unidadeMedida", "validadeDias", ativo)
+         VALUES (substr(md5(random()::text || clock_timestamp()::text), 1, 24), $1, $2, NULL, $3, $4, NULL, true)
+         ON CONFLICT (nome, categoria) DO NOTHING`,
+        nome,
+        categoria,
+        meta,
+        unidade,
+      );
+    } catch (e) {
+      console.error('Erro ao inserir item a partir do catálogo SESMT', e);
+    }
+  }
+}
+
 export async function GET() {
   try {
-    const base = (catalogo as CatalogItem[]) || [];
-    const extras = await getExtras();
-    const all: CatalogItem[] = [...base, ...extras];
+    await ensureItemTable();
+    await seedItensFromCatalog();
 
-    const itemsRaw = all.map((it, idx) => {
-      const nome =
-        (it.descricao_site && it.descricao_site.trim()) ||
-        (it.descricao_cahosp && it.descricao_cahosp.trim()) ||
-        (it.codigo_pa && `Item ${it.codigo_pa.trim()}`) ||
-        `Item ${idx + 1}`;
+    const rows: any[] = await prisma.$queryRawUnsafe(
+      `SELECT id, nome FROM item WHERE ativo = true ORDER BY nome`,
+    );
 
-      const id =
-        (it.descricao_site && it.descricao_site.trim()) ||
-        (it.descricao_cahosp && it.descricao_cahosp.trim()) ||
-        (it.codigo_pa && it.codigo_pa.trim()) ||
-        nome;
-
-      return { id, nome };
-    });
-
-    // Remove duplicados por id
-    const seen = new Set<string>();
-    const items = itemsRaw.filter((it) => {
-      if (seen.has(it.id)) return false;
-      seen.add(it.id);
-      return true;
-    });
+    const items = (rows || []).map((r) => ({
+      id: String(r.id),
+      nome: (r.nome ?? '').toString(),
+    }));
 
     return NextResponse.json({ items });
   } catch (e: any) {

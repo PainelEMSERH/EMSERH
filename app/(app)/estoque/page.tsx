@@ -750,28 +750,31 @@ async function handleSalvarNovoEpi() {
                   {catalogLoading && <span className="text-[11px] text-muted">Buscando...</span>}
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                  <table className="min-w-full text-[11px]">
-                    <thead className="bg-white/10">
+                  <table className="min-w-full border-separate border-spacing-0 text-[11px]">
+                    <thead className="sticky top-0 border-b border-border bg-card/90 text-[10px] uppercase tracking-wide text-muted backdrop-blur">
                       <tr>
-                        <th className="px-2 py-1 text-left">Código</th>
-                        <th className="px-2 py-1 text-left">Descrição</th>
-                        <th className="px-2 py-1 text-left">Categoria</th>
-                        <th className="px-2 py-1 text-left">Grupo</th>
-                        <th className="px-2 py-1 text-left">Und.</th>
-                        <th className="px-2 py-1 text-left">Tamanho</th>
+                        <th className="px-3 py-2 text-left">Código</th>
+                        <th className="px-3 py-2 text-left">Descrição</th>
+                        <th className="px-3 py-2 text-left">Categoria</th>
+                        <th className="px-3 py-2 text-left">Grupo</th>
+                        <th className="px-3 py-2 text-left">Und.</th>
+                        <th className="px-3 py-2 text-left">Tamanho</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-border/60">
                       {catalogItems.map((it, idx) => (
-                        <tr key={`${it.codigo_pa || ''}-${idx}`} className="border-t border-border">
-                          <td className="px-2 py-1">{it.codigo_pa || '-'}</td>
-                          <td className="px-2 py-1">
+                        <tr
+                          key={`${it.codigo_pa || ''}-${idx}`}
+                          className="transition-colors hover:bg-white/5"
+                        >
+                          <td className="px-3 py-2 align-top">{it.codigo_pa || '-'}</td>
+                          <td className="px-3 py-2 align-top">
                             {it.descricao_site || it.descricao_cahosp || '-'}
                           </td>
-                          <td className="px-2 py-1">{it.categoria_site || '-'}</td>
-                          <td className="px-2 py-1">{it.grupo_cahosp || '-'}</td>
-                          <td className="px-2 py-1">{it.unidade_site || '-'}</td>
-                          <td className="px-2 py-1">
+                          <td className="px-3 py-2 align-top">{it.categoria_site || '-'}</td>
+                          <td className="px-3 py-2 align-top">{it.grupo_cahosp || '-'}</td>
+                          <td className="px-3 py-2 align-top">{it.unidade_site || '-'}</td>
+                          <td className="px-3 py-2 align-top">
                             {it.tamanho_site || it.tamanho || '-'}
                           </td>
                         </tr>
@@ -780,7 +783,7 @@ async function handleSalvarNovoEpi() {
                         <tr>
                           <td
                             colSpan={6}
-                            className="px-3 py-4 text-center text-[11px] text-muted"
+                            className="px-4 py-6 text-center text-[11px] text-muted"
                           >
                             Nenhum item encontrado no catálogo.
                           </td>
