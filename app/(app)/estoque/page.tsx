@@ -108,6 +108,13 @@ useEffect(() => {
 
   const unidadesFiltradas = useMemo(()=> opts.unidades.filter(u => !regional || u.regional===regional), [opts, regional]);
 
+  const sesmtUnidadeNome = React.useMemo(() => {
+    if (!regional) return '';
+    const reg = regional.toUpperCase();
+    return `ESTOQUE SESMT - ${reg}`;
+  }, [regional]);
+
+
   const itensCat = useMemo(()=> itemOptions, [itemOptions]);
 
   const resumo = useMemo(() => {
@@ -425,18 +432,11 @@ useEffect(() => {
           value={newItemUnidadeMedida}
           onChange={e => setNewItemUnidadeMedida(e.target.value)}
         />
-        <select
+        <input
           className="px-3 py-2 rounded bg-card border border-border text-xs"
-          value={newItemUnidade || unidade}
-          onChange={e => setNewItemUnidade(e.target.value)}
-        >
-          <option value="">Unidade para o estoque</option>
-          {unidadesFiltradas.map(u => (
-            <option key={u.unidade} value={u.unidade}>
-              {u.unidade}
-            </option>
-          ))}
-        </select>
+          value={sesmtUnidadeNome || (regional ? 'Defina o estoque do SESMT' : 'Selecione uma Regional')}
+          readOnly
+        />
         <input
           className="px-3 py-2 rounded bg-card border border-border text-xs w-full"
           placeholder="Qtd inicial"
@@ -454,12 +454,12 @@ useEffect(() => {
           disabled={
             newItemSaving ||
             !newItemNome ||
-            !(newItemUnidade || unidade)
+            !sesmtUnidadeNome
           }
           onClick={async () => {
             try {
               setNewItemSaving(true);
-              const unidadeKey = newItemUnidade || unidade;
+              const unidadeKey = sesmtUnidadeNome;
               await fetchJSON('/api/estoque/item', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -468,6 +468,7 @@ useEffect(() => {
                   categoria: newItemCategoria || 'EPI',
                   unidadeMedida: newItemUnidadeMedida || 'UN',
                   unidadeId: unidadeKey,
+                  regional: regional || null,
                   quantidadeInicial: newItemQtdInicial || 0,
                 }),
               });
