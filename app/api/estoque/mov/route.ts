@@ -68,67 +68,88 @@ async function ensureTables(){
 
 
 export async function GET(req: Request){
-  const { searchParams } = new URL(req.url);
-  const regionalId = (searchParams.get('regionalId')||'').trim();
-  const unidadeId  = (searchParams.get('unidadeId') ||'').trim();
-  const itemId     = (searchParams.get('itemId')    ||'').trim();
-  const tipo       = (searchParams.get('tipo')      ||'').trim();
-  const de         = (searchParams.get('de')        ||'').trim();
-  const ate        = (searchParams.get('ate')       ||'').trim();
-  const q          = (searchParams.get('q')         ||'').trim();
-  const page       = Math.max(1, Number(searchParams.get('page')||'1'));
-  const size       = Math.min(100, Math.max(10, Number(searchParams.get('size')||'25')));
-  const offset     = (page-1)*size;
+  try {
+    const { searchParams } = new URL(req.url);
+    const regionalId = (searchParams.get('regionalId')||'').trim();
+    const unidadeId  = (searchParams.get('unidadeId') ||'').trim();
+    const itemId     = (searchParams.get('itemId')    ||'').trim();
+    const tipo       = (searchParams.get('tipo')      ||'').trim();
+    const de         = (searchParams.get('de')        ||'').trim();
+    const ate        = (searchParams.get('ate')       ||'').trim();
+    const q          = (searchParams.get('q')         ||'').trim();
+    const page       = Math.max(1, Number(searchParams.get('page')||'1'));
+    const size       = Math.min(100, Math.max(10, Number(searchParams.get('size')||'25')));
+    const offset     = (page-1)*size;
 
-  await ensureTables();
+    await ensureTables();
 
-  const where:string[] = [];
-  const params:any[] = [];
+    const where:string[] = [];
+    const params:any[] = [];
 
-  if (unidadeId){
-    params.push(unidadeId);
-    where.push(`m.unidadeid = $${params.length}`);
-  } else if (regionalId){
-    params.push(regionalId);
-    where.push(`m.unidadeid IN (SELECT id FROM unidade WHERE "regionalId" = $${params.length})`);
+    if (unidadeId){
+      params.push(unidadeId);
+      where.push(`m.unidadeid = $${params.length}`);
+    } else if (regionalId){
+      params.push(regionalId);
+      where.push(`u."regionalId" = $${params.length}`);
+    }
+
+    if (itemId){
+      params.push(itemId);
+      where.push(`m.itemid = $${params.length}`);
+    }
+    if (tipo){
+      params.push(tipo);
+      where.push(`m.tipo = $${params.length}::estoque_mov_tipo`);
+    }
+    if (de){
+      params.push(de);
+      where.push(`m.data >= $${params.length}::timestamptz`);
+    }
+    if (ate){
+      params.push(ate);
+      where.push(`m.data <= $${params.length}::timestamptz`);
+    }
+    if (q){
+      params.push(`%${q.toLowerCase()}%`);
+      where.push(`(lower(i.nome) LIKE $${params.length} OR lower(u.nome) LIKE $${params.length})`);
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const rows:any[] = await prisma.$queryRawUnsafe(
+      `SELECT 
+         m.id, m.tipo, m.quantidade, m.destino, m.observacao, m.data,
+         u.id AS "unidadeId",  u.nome AS unidade,
+         r.id AS "regionalId", r.nome AS regional,
+         i.id AS "itemId",     i.nome AS item
+       FROM estoque_mov m
+       JOIN unidade  u ON u.id = m.unidadeid
+       JOIN regional r ON r.id = u."regionalId"
+       JOIN item     i ON i.id = m.itemid
+       ${whereSql}
+       ORDER BY m.data DESC
+       LIMIT ${size} OFFSET ${offset}`,
+      ...params,
+    );
+
+    const total:any[] = await prisma.$queryRawUnsafe(
+      `SELECT COUNT(*)::int AS c
+         FROM estoque_mov m
+         JOIN unidade  u ON u.id = m.unidadeid
+         JOIN regional r ON r.id = u."regionalId"
+         JOIN item     i ON i.id = m.itemid
+         ${whereSql}`,
+      ...params,
+    );
+
+    return NextResponse.json({ total: (total?.[0]?.c ?? 0), rows });
+  } catch (e:any) {
+    console.error('Erro em /api/estoque/mov GET', e);
+    const msg = e?.message || 'Erro interno ao listar movimentações';
+    return NextResponse.json({ total: 0, rows: [], error: msg }, { status: 500 });
   }
-  if (itemId){ params.push(itemId); where.push(`m."itemId" = $${params.length}`); }
-  if (tipo){ params.push(tipo); where.push(`m.tipo = $${params.length}`); }
-  if (de){ params.push(de); where.push(`m.data >= $${params.length}::timestamptz`); }
-  if (ate){ params.push(ate); where.push(`m.data <= $${params.length}::timestamptz`); }
-  if (q){
-    const like = `%${q.toUpperCase()}%`;
-    params.push(like);
-    where.push(`(UPPER(i.nome) LIKE $${params.length} OR UPPER(u.nome) LIKE $${params.length} OR UPPER(m.destino) LIKE $${params.length})`);
-  }
-  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-
-  const rows:any[] = await prisma.$queryRawUnsafe(`
-    SELECT m.id, m.tipo, m.quantidade, m.destino, m.observacao, m.data,
-           u.id AS "unidadeId",  u.nome AS unidade,
-           r.id AS "regionalId", r.nome AS regional,
-           i.id AS "itemId",     i.nome AS item
-    FROM estoque_mov m
-    JOIN unidade  u ON u.id = m.unidadeid
-    JOIN regional r ON r.id = u."regionalId"
-    JOIN item     i ON i.id = m.itemid
-    ${whereSql}
-    ORDER BY m.data DESC
-    LIMIT ${size} OFFSET ${offset}
-  `, ...params);
-
-  const total:any[] = await prisma.$queryRawUnsafe(`
-    SELECT COUNT(*)::int AS c
-    FROM estoque_mov m
-    JOIN unidade  u ON u.id = m.unidadeid
-    JOIN regional r ON r.id = u."regionalId"
-    JOIN item     i ON i.id = m.itemid
-    ${whereSql}
-  `, ...params);
-
-  return NextResponse.json({ total: (total?.[0]?.c ?? 0), rows });
 }
-
 export async function POST(req: Request){
   
 try {
