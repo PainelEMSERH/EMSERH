@@ -336,9 +336,9 @@ async function handleSalvarNovoEpi() {
       const d = await fetchJSON<{ rows: MovRow[]; total: number }>(url);
       setMovRows(d.rows || []);
       setMovTotal(d.total || 0);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert('Erro ao salvar movimentação.');
+      alert(e?.message || 'Erro ao salvar movimentação.');
     } finally {
       setSaving(false);
     }

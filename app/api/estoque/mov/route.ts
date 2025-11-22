@@ -23,7 +23,28 @@ async function ensureTables(){
     );
     CREATE INDEX IF NOT EXISTS idx_emov_unid_item ON estoque_mov(unidadeId, itemId, data DESC);
     CREATE INDEX IF NOT EXISTS idx_emov_tipo_data ON estoque_mov(tipo, data DESC);
-  `);
+  
+CREATE TABLE IF NOT EXISTS item (
+  id TEXT PRIMARY KEY,
+  nome TEXT NOT NULL,
+  categoria TEXT NOT NULL,
+  ca TEXT NULL,
+  descricao TEXT NULL,
+  "unidadeMedida" TEXT NOT NULL,
+  "validadeDias" INT NULL,
+  ativo BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE IF NOT EXISTS estoque (
+  id TEXT PRIMARY KEY DEFAULT substr(md5(random()::text || clock_timestamp()::text), 1, 24),
+  "unidadeId" TEXT NOT NULL,
+  "itemId" TEXT NOT NULL,
+  quantidade INT NOT NULL DEFAULT 0,
+  minimo INT NOT NULL DEFAULT 0,
+  maximo INT NULL,
+  CONSTRAINT uq_estoque_unidade_item UNIQUE("unidadeId","itemId")
+);
+CREATE INDEX IF NOT EXISTS idx_estoque_unid_item ON estoque("unidadeId","itemId");
+`);
 }
 
 export async function GET(req: Request){
@@ -89,101 +110,109 @@ export async function GET(req: Request){
 }
 
 export async function POST(req: Request){
+  
+try {
   await ensureTables();
-  const body = await req.json();
+    const body = await req.json();
 
-  let unidadeKey = (body?.unidadeId || '').toString().trim();
-  let itemKey    = (body?.itemId || '').toString().trim();
-  const tipo      = (body?.tipo || '').toString();
-  const quantidade = Number(body?.quantidade || 0);
-  const destino   = (body?.destino || null) as string | null;
-  const observacao= (body?.observacao || null) as string | null;
-  const dataIso   = (body?.data || null) as string | null;
+    let unidadeKey = (body?.unidadeId || '').toString().trim();
+    let itemKey    = (body?.itemId || '').toString().trim();
+    const tipo      = (body?.tipo || '').toString();
+    const quantidade = Number(body?.quantidade || 0);
+    const destino   = (body?.destino || null) as string | null;
+    const observacao= (body?.observacao || null) as string | null;
+    const dataIso   = (body?.data || null) as string | null;
 
-  if (!unidadeKey || !itemKey || !['entrada','saida'].includes(tipo) || quantidade <= 0){
-    return NextResponse.json({ ok:false, error:'Dados inválidos' }, { status:400 });
-  }
-
-  // Resolve unidadeId: aceita tanto id quanto nome
-  let unidadeId = unidadeKey;
-  try {
-    const rows:any[] = await prisma.$queryRawUnsafe(
-      `SELECT id FROM unidade WHERE id = $1 OR nome = $1 LIMIT 1`,
-      unidadeKey,
-    );
-    if (rows && rows.length > 0 && rows[0].id) {
-      unidadeId = String(rows[0].id);
+    if (!unidadeKey || !itemKey || !['entrada','saida'].includes(tipo) || quantidade <= 0){
+      return NextResponse.json({ ok:false, error:'Dados inválidos' }, { status:400 });
     }
-  } catch (e) {
-    console.error('Aviso: falha ao resolver unidadeId em /api/estoque/mov', e);
-  }
 
-  // Resolve itemId: aceita id ou nome; cria Item básico se não existir
-  let itemId = itemKey;
-  try {
-    const found:any[] = await prisma.$queryRawUnsafe(
-      `SELECT id FROM item WHERE id = $1 OR nome = $1 LIMIT 1`,
-      itemKey,
-    );
-    if (found && found.length > 0 && found[0].id) {
-      itemId = String(found[0].id);
-    } else {
-      const insItem:any[] = await prisma.$queryRawUnsafe(
-        `INSERT INTO item (id, nome, categoria, ca, descricao, "unidadeMedida", "validadeDias", ativo)
-         VALUES (substr(md5(random()::text || clock_timestamp()::text), 1, 24), $1, 'EPI', NULL, NULL, 'UN', NULL, true)
-         RETURNING id`,
+    // Resolve unidadeId: aceita tanto id quanto nome
+    let unidadeId = unidadeKey;
+    try {
+      const rows:any[] = await prisma.$queryRawUnsafe(
+        `SELECT id FROM unidade WHERE id = $1 OR nome = $1 LIMIT 1`,
+        unidadeKey,
+      );
+      if (rows && rows.length > 0 && rows[0].id) {
+        unidadeId = String(rows[0].id);
+      }
+    } catch (e) {
+      console.error('Aviso: falha ao resolver unidadeId em /api/estoque/mov', e);
+    }
+
+    // Resolve itemId: aceita id ou nome; cria Item básico se não existir
+    let itemId = itemKey;
+    try {
+      const found:any[] = await prisma.$queryRawUnsafe(
+        `SELECT id FROM item WHERE id = $1 OR nome = $1 LIMIT 1`,
         itemKey,
       );
-      if (insItem && insItem[0]?.id) {
-        itemId = String(insItem[0].id);
+      if (found && found.length > 0 && found[0].id) {
+        itemId = String(found[0].id);
+      } else {
+        const insItem:any[] = await prisma.$queryRawUnsafe(
+          `INSERT INTO item (id, nome, categoria, ca, descricao, "unidadeMedida", "validadeDias", ativo)
+           VALUES (substr(md5(random()::text || clock_timestamp()::text), 1, 24), $1, 'EPI', NULL, NULL, 'UN', NULL, true)
+           RETURNING id`,
+          itemKey,
+        );
+        if (insItem && insItem[0]?.id) {
+          itemId = String(insItem[0].id);
+        }
       }
+    } catch (e) {
+      console.error('Aviso: falha ao resolver/criar itemId em /api/estoque/mov', e);
     }
-  } catch (e) {
-    console.error('Aviso: falha ao resolver/criar itemId em /api/estoque/mov', e);
-  }
 
-  // Garante registro de estoque para unidade + item
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO estoque ("unidadeId","itemId",quantidade,minimo,maximo)
-     VALUES ($1,$2,0,0,NULL)
-     ON CONFLICT ("unidadeId","itemId") DO NOTHING`,
-    unidadeId,
-    itemId,
-  );
+    // Garante registro de estoque para unidade + item
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO estoque ("unidadeId","itemId",quantidade,minimo,maximo)
+       VALUES ($1,$2,0,0,NULL)
+       ON CONFLICT ("unidadeId","itemId") DO NOTHING`,
+      unidadeId,
+      itemId,
+    );
 
-  const sign = tipo === 'entrada' ? 1 : -1;
-  const diff = sign * quantidade;
+    const sign = tipo === 'entrada' ? 1 : -1;
+    const diff = sign * quantidade;
 
-  const cur:any[] = await prisma.$queryRawUnsafe(
-    `SELECT quantidade AS q FROM estoque WHERE "unidadeId"=$1 AND "itemId"=$2`,
-    unidadeId,
-    itemId,
-  );
-  const atual = Number(cur?.[0]?.q ?? 0);
-  if (atual + diff < 0){
-    return NextResponse.json({ ok:false, error:`Saldo insuficiente (atual ${atual})` }, { status:400 });
-  }
+    const cur:any[] = await prisma.$queryRawUnsafe(
+      `SELECT quantidade AS q FROM estoque WHERE "unidadeId"=$1 AND "itemId"=$2`,
+      unidadeId,
+      itemId,
+    );
+    const atual = Number(cur?.[0]?.q ?? 0);
+    if (atual + diff < 0){
+      return NextResponse.json({ ok:false, error:`Saldo insuficiente (atual ${atual})` }, { status:400 });
+    }
 
-  await prisma.$executeRawUnsafe(
-    `UPDATE estoque SET quantidade = quantidade + $3 WHERE "unidadeId"=$1 AND "itemId"=$2`,
-    unidadeId,
-    itemId,
-    diff,
-  );
+    await prisma.$executeRawUnsafe(
+      `UPDATE estoque SET quantidade = quantidade + $3 WHERE "unidadeId"=$1 AND "itemId"=$2`,
+      unidadeId,
+      itemId,
+      diff,
+    );
 
-  const ins:any[] = await prisma.$queryRawUnsafe(
-    `INSERT INTO estoque_mov ("unidadeId","itemId",tipo,quantidade,destino,observacao,data)
-     VALUES ($1,$2,$3,$4,$5,$6, COALESCE($7::timestamptz, NOW()))
-     RETURNING id`,
-    unidadeId,
-    itemId,
-    tipo,
-    quantidade,
-    destino,
-    observacao,
-    dataIso,
-  );
+    const ins:any[] = await prisma.$queryRawUnsafe(
+      `INSERT INTO estoque_mov ("unidadeId","itemId",tipo,quantidade,destino,observacao,data)
+       VALUES ($1,$2,$3,$4,$5,$6, COALESCE($7::timestamptz, NOW()))
+       RETURNING id`,
+      unidadeId,
+      itemId,
+      tipo,
+      quantidade,
+      destino,
+      observacao,
+      dataIso,
+    );
 
-  return NextResponse.json({ ok:true, id: ins?.[0]?.id || null });
+    return NextResponse.json({ ok:true, id: ins?.[0]?.id || null });
+
+} catch (e: any) {
+  console.error('Erro em /api/estoque/mov POST', e);
+  const msg = e?.message || 'Erro interno ao registrar movimentação';
+  return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+}
 }
 
