@@ -100,10 +100,10 @@ export async function GET() {
       const pick = (cands: string[]) => cands.find(c => names.has(c));
 
       const colRegional =
-        pick(['regional', 'nome_regional', 'regiao']) ||
+        pick(['regional', 'nome_regional', 'regiao', 'regional_responsavel']) ||
         pick(['regional_nome', 'regiao_nome']);
       const colUnidade =
-        pick(['unidade', 'nome_unidade', 'unidade_hospitalar']) ||
+        pick(['unidade', 'nome_unidade', 'unidade_hospitalar', 'nmddepartamento', 'nmedepartamento']) ||
         pick(['unidade_nome']);
 
       if (colRegional && colUnidade) {
