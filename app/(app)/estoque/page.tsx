@@ -137,7 +137,18 @@ useEffect(() => {
       porCategoria[cat].quantidade += r.quantidade ?? 0;
     }
     return { totalItens, baixo, zerado, semMinimo, porCategoria };
-  }, [rows]);;
+  }, [rows]);
+
+  useEffect(() => {
+    const q = catQuery.trim();
+    if (!q) {
+      setCatOptions([]);
+      setCatLoading(false);
+      return;
+    }
+    let active = true;
+    setCatLoading(true);
+    const url = `/api/estoque/catalog?q=${encodeURIComponent(q)}`;
     fetchJSON<{ items: CatalogItem[] }>(url)
       .then(d => {
         if (!active) return;
