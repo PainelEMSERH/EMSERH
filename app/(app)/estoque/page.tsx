@@ -39,6 +39,9 @@ export default function Page(){
   const [novoDestino,setNovoDestino] = useState('');
   const [novoObs,setNovoObs] = useState('');
   const [novoData,setNovoData] = useState('');
+  const [novoNumeroPedido,setNovoNumeroPedido] = useState('');
+  const [novoResponsavel,setNovoResponsavel] = useState('');
+  const [catalogoAberto,setCatalogoAberto] = useState(false);
 
   const [peds,setPeds] = useState<Pedido[]>([]); const [pedTotal,setPedTotal] = useState(0); const [pedPage,setPedPage] = useState(1);
   const [pedPrevisto,setPedPrevisto] = useState('');
@@ -108,6 +111,25 @@ useEffect(() => {
 
   const unidadesFiltradas = useMemo(()=> opts.unidades.filter(u => !regional || u.regional===regional), [opts, regional]);
 
+  const sesmtUnidadeNome = useMemo(() => {
+    if (!regional) return '';
+    const candidates = unidadesFiltradas.filter(u => {
+      const nome = u.unidade.toUpperCase();
+      return nome.includes('SESMT') || nome.includes('ESTOQUE SESMT');
+    });
+    if (candidates.length > 0) return candidates[0].unidade;
+    // fallback: nome padrão
+    return `ESTOQUE SESMT - ${regional}`;
+  }, [unidadesFiltradas, regional]);
+
+  const unidadesHospitalares = useMemo(
+    () => unidadesFiltradas.filter(u => {
+      const nome = u.unidade.toUpperCase();
+      return !(nome.includes('SESMT') || nome.includes('ESTOQUE SESMT'));
+    }),
+    [unidadesFiltradas],
+  );
+
   const itensCat = useMemo(()=> itemOptions, [itemOptions]);
 
   const resumo = useMemo(() => {
@@ -150,14 +172,74 @@ useEffect(() => {
   }, [catQuery]);
 
 
+
   async function criarMov(){
-    const body = { unidadeId: novoUnidadeId, itemId: novoItemId, tipo: novoTipo, quantidade: Number(novoQtd||0), destino: novoDestino||null, observacao: novoObs||null, data: novoData||null };
-    await fetchJSON('/api/estoque/mov', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-    setNovoQtd(0); setNovoDestino(''); setNovoObs(''); setNovoData('');
-    const url = `/api/estoque/mov?regionalId=${encodeURIComponent(regional)}&unidadeId=${encodeURIComponent(unidade)}&page=${movPage}&size=25`;
-    fetchJSON<{ rows:Mov[], total:number }>(url).then(d => { setMovs(d.rows||[]); setMovTotal(d.total||0); });
-    const urlSaldo = `/api/estoque/list?regionalId=${encodeURIComponent(regional)}&unidadeId=${encodeURIComponent(unidade)}&q=${encodeURIComponent(q)}&page=${page}&size=${size}`;
-    fetchJSON<{ rows:Row[], total:number }>(urlSaldo).then(d => { setRows(d.rows||[]); setTotal(d.total||0); });
+    try {
+      const unidadeNome = sesmtUnidadeNome || novoUnidadeId || unidade || '';
+      if (!regional || !unidadeNome || !novoItemId || !novoQtd) {
+        return;
+      }
+
+      const destino =
+        novoTipo === 'entrada'
+          ? 'CAHOSP → SESMT'
+          : (novoDestino || null);
+
+      const partesObs: string[] = [];
+      if (novoTipo === 'entrada') {
+        if (novoNumeroPedido) partesObs.push(`Pedido: ${novoNumeroPedido}`);
+        if (novoResponsavel) partesObs.push(`Recebido por: ${novoResponsavel}`);
+      } else {
+        if (novoResponsavel) partesObs.push(`Entregue por: ${novoResponsavel}`);
+      }
+      if (novoObs) partesObs.push(novoObs);
+      const observacao = partesObs.length ? partesObs.join(' | ') : null;
+
+      const body = {
+        unidadeId: unidadeNome,
+        itemId: novoItemId,
+        tipo: novoTipo,
+        quantidade: Number(novoQtd || 0),
+        destino,
+        observacao,
+        data: novoData || null,
+      };
+
+      await fetchJSON('/api/estoque/mov', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      setNovoQtd(0);
+      setNovoDestino('');
+      setNovoObs('');
+      setNovoData('');
+      setNovoNumeroPedido('');
+      setNovoResponsavel('');
+
+      const url = `/api/estoque/mov?regionalId=${encodeURIComponent(
+        regional || ''
+      )}&unidadeId=${encodeURIComponent(unidade || '')}&page=${movPage}&size=25`;
+
+      fetchJSON<{ rows: Mov[]; total: number }>(url).then((d) => {
+        setMovs(d.rows || []);
+        setMovTotal(d.total || 0);
+      });
+
+      const urlSaldo = `/api/estoque/list?regionalId=${encodeURIComponent(
+        regional || ''
+      )}&unidadeId=${encodeURIComponent(unidade || '')}&q=${encodeURIComponent(
+        q
+      )}&page=${page}&size=${size}`;
+
+      fetchJSON<{ rows: Row[]; total: number }>(urlSaldo).then((d) => {
+        setRows(d.rows || []);
+        setTotal(d.total || 0);
+      });
+    } catch (e) {
+      console.error('Erro ao criar movimentação', e);
+    }
   }
 
   async function criarPedido(){
@@ -521,47 +603,153 @@ useEffect(() => {
     </div>
   </div>
 )}
-      {tab==='mov' && (
+      
+{tab==='mov' && (
         <div className="space-y-4">
           <div className="rounded-xl border border-border bg-panel p-4">
             <h2 className="font-semibold mb-2">Nova movimentação</h2>
             <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
-              <select className="px-3 py-2 rounded bg-card border border-border" value={novoTipo} onChange={e=>setNovoTipo(e.target.value as any)}>
+              {/* Tipo da movimentação */}
+              <select
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={novoTipo}
+                onChange={e => {
+                  const t = e.target.value as 'entrada' | 'saida';
+                  setNovoTipo(t);
+                  if (t === 'entrada') {
+                    setNovoDestino('CAHOSP → SESMT');
+                  } else {
+                    setNovoDestino('');
+                    setNovoNumeroPedido('');
+                  }
+                }}
+              >
                 <option value="entrada">Entrada</option>
                 <option value="saida">Saída</option>
               </select>
-              <select className="px-3 py-2 rounded bg-card border border-border" value={novoUnidadeId} onChange={e=>setNovoUnidadeId(e.target.value)}>
-                <option value="">Unidade</option>
-                {unidadesFiltradas.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
-              </select>
-              <select className="px-3 py-2 rounded bg-card border border-border" value={novoItemId} onChange={e=>setNovoItemId(e.target.value)}>
+
+              {/* Unidade (estoque SESMT da regional) */}
+              <input
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={sesmtUnidadeNome || (regional ? `ESTOQUE SESMT - ${regional}` : 'Selecione uma Regional')}
+                readOnly
+              />
+
+              {/* Item */}
+              <select
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={novoItemId}
+                onChange={e => setNovoItemId(e.target.value)}
+              >
                 <option value="">Item</option>
-                {itensCat.map(i => <option key={i.id} value={i.id}>{i.nome}</option>)}
+                {itensCat.map(i => (
+                  <option key={i.id} value={i.id}>
+                    {i.nome}
+                  </option>
+                ))}
               </select>
-              <input type="number" className="px-3 py-2 rounded bg-card border border-border" placeholder="Quantidade" value={novoQtd} onChange={e=>setNovoQtd(parseInt(e.target.value||'0',10))}/>
-              <input className="px-3 py-2 rounded bg-card border border-border" placeholder="Destino/Justificativa" value={novoDestino} onChange={e=>setNovoDestino(e.target.value)}/>
-              <input type="date" className="px-3 py-2 rounded bg-card border border-border" value={novoData} onChange={e=>setNovoData(e.target.value)}/>
+
+              {/* Quantidade */}
+              <input
+                type="number"
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={novoQtd || 0}
+                min={0}
+                onChange={e => setNovoQtd(parseInt(e.target.value || '0', 10))}
+              />
+
+              {/* Destino / Justificativa */}
+              {novoTipo === 'entrada' ? (
+                <input
+                  className="px-3 py-2 rounded bg-card border border-border text-xs text-muted"
+                  value="Entrada no estoque do SESMT (CAHOSP → SESMT)"
+                  disabled
+                />
+              ) : (
+                <select
+                  className="px-3 py-2 rounded bg-card border border-border text-xs"
+                  value={novoDestino}
+                  onChange={e => setNovoDestino(e.target.value)}
+                >
+                  <option value="">Unidade hospitalar destino</option>
+                  {unidadesHospitalares.map(u => (
+                    <option key={u.unidade} value={u.unidade}>
+                      {u.unidade}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* Data */}
+              <input
+                type="date"
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                value={novoData}
+                onChange={e => setNovoData(e.target.value)}
+              />
             </div>
+
+            {/* Linha Número do pedido / Responsável */}
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
+              <input
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                placeholder="Nº do pedido (CAHOSP)"
+                value={novoNumeroPedido}
+                onChange={e => setNovoNumeroPedido(e.target.value)}
+                disabled={novoTipo === 'saida'}
+              />
+              <input
+                className="px-3 py-2 rounded bg-card border border-border text-xs"
+                placeholder={novoTipo === 'entrada' ? 'Responsável pelo recebimento' : 'Responsável pela entrega'}
+                value={novoResponsavel}
+                onChange={e => setNovoResponsavel(e.target.value)}
+              />
+              <div className="flex items-center justify-end">
+                <button
+                  type="button"
+                  className="px-3 py-2 border border-border rounded text-xs"
+                  onClick={() => setCatalogoAberto(true)}
+                >
+                  Catálogo SESMT
+                </button>
+              </div>
+            </div>
+
+            {/* Observação */}
             <div className="mt-2">
-              <input className="w-full px-3 py-2 rounded bg-card border border-border" placeholder="Observação" value={novoObs} onChange={e=>setNovoObs(e.target.value)}/>
+              <input
+                className="w-full px-3 py-2 rounded bg-card border border-border text-xs"
+                placeholder="Observação"
+                value={novoObs}
+                onChange={e => setNovoObs(e.target.value)}
+              />
             </div>
+
             <div className="mt-3 flex justify-end">
-              <button className="px-3 py-2 border rounded" onClick={criarMov} disabled={!novoUnidadeId || !novoItemId || !novoQtd}>Salvar movimentação</button>
+              <button
+                className="px-3 py-2 border rounded text-xs disabled:opacity-50"
+                onClick={criarMov}
+                disabled={!novoItemId || !novoQtd || !regional || (novoTipo === 'saida' && !novoDestino)}
+              >
+                Salvar movimentação
+              </button>
             </div>
           </div>
 
           <div className="rounded-xl border border-border bg-panel">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-white/10"><tr>
-                  <th className="px-3 py-2 text-left">Data</th>
-                  <th className="px-3 py-2 text-left">Tipo</th>
-                  <th className="px-3 py-2 text-left">Unidade</th>
-                  <th className="px-3 py-2 text-left">Item</th>
-                  <th className="px-3 py-2 text-right">Qtd</th>
-                  <th className="px-3 py-2 text-left">Destino</th>
-                  <th className="px-3 py-2 text-left">Obs</th>
-                </tr></thead>
+                <thead className="bg-white/10">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Data</th>
+                    <th className="px-3 py-2 text-left">Tipo</th>
+                    <th className="px-3 py-2 text-left">Unidade</th>
+                    <th className="px-3 py-2 text-left">Item</th>
+                    <th className="px-3 py-2 text-right">Qtd</th>
+                    <th className="px-3 py-2 text-left">Destino</th>
+                    <th className="px-3 py-2 text-left">Obs</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {movs.map(m => (
                     <tr key={m.id} className="border-t border-border hover:bg-white/10">
@@ -574,23 +762,126 @@ useEffect(() => {
                       <td className="px-3 py-2">{m.observacao || '-'}</td>
                     </tr>
                   ))}
-                  {movs.length===0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-muted">Sem movimentações</td></tr>}
+                  {movs.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-3 py-6 text-center text-muted">
+                        Sem movimentações
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
             <div className="flex items-center justify-between p-3 text-xs text-muted">
               <div>Total: {movTotal}</div>
               <div className="flex items-center gap-2">
-                <button className="px-2 py-1 border border-border rounded disabled:opacity-40" onClick={()=>setMovPage(p=>Math.max(1,p-1))} disabled={movPage===1}>Anterior</button>
+                <button
+                  className="px-2 py-1 border border-border rounded disabled:opacity-50"
+                  onClick={() => setMovPage(p => Math.max(1, p - 1))}
+                  disabled={movPage === 1}
+                >
+                  Anterior
+                </button>
                 <div>Página {movPage}</div>
-                <button className="px-2 py-1 border border-border rounded disabled:opacity-40" onClick={()=>setMovPage(p=>p+1)} disabled={movs.length<25}>Próxima</button>
+                <button
+                  className="px-2 py-1 border border-border rounded disabled:opacity-50"
+                  onClick={() => setMovPage(p => p + 1)}
+                  disabled={movs.length < 25}
+                >
+                  Próxima
+                </button>
               </div>
             </div>
           </div>
+
+          {/* Modal Catálogo SESMT */}
+          {catalogoAberto && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+              <div className="bg-panel rounded-xl border border-border w-full max-w-5xl max-h-[80vh] flex flex-col">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border text-xs">
+                  <div>
+                    <div className="font-semibold">Catálogo SESMT</div>
+                    <div className="text-muted">
+                      Busque itens da planilha oficial. Se não encontrar, use a opção &quot;Novo item&quot;.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="px-2 py-1 border border-border rounded"
+                    onClick={() => setCatalogoAberto(false)}
+                  >
+                    Fechar
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-border text-xs">
+                  <input
+                    className="flex-1 px-3 py-2 rounded bg-card border border-border text-xs"
+                    placeholder="Buscar por código, descrição ou grupo..."
+                    value={catQuery}
+                    onChange={e => setCatQuery(e.target.value)}
+                  />
+                  {catLoading && <span className="text-[11px] text-muted">Buscando...</span>}
+                </div>
+                <div className="flex-1 overflow-y-auto text-xs">
+                  <table className="min-w-full text-[11px]">
+                    <thead className="bg-white/10">
+                      <tr>
+                        <th className="px-2 py-1 text-left">Código</th>
+                        <th className="px-2 py-1 text-left">Descrição</th>
+                        <th className="px-2 py-1 text-left">Categoria</th>
+                        <th className="px-2 py-1 text-left">Grupo</th>
+                        <th className="px-2 py-1 text-left">Und.</th>
+                        <th className="px-2 py-1 text-left">Tamanho</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {catOptions.map((it, idx) => (
+                        <tr
+                          key={`${it.codigo_pa || ''}-${idx}`}
+                          className="border-t border-border hover:bg-white/10 cursor-pointer"
+                          onClick={() => {
+                            // Quando clicar no item do catálogo, apenas preenche o nome no select (se existir) e fecha o modal
+                            setCatQuery(it.descricao_site || it.descricao_cahosp || '');
+                          }}
+                        >
+                          <td className="px-2 py-1">{it.codigo_pa || '-'}</td>
+                          <td className="px-2 py-1">{it.descricao_site || it.descricao_cahosp || '-'}</td>
+                          <td className="px-2 py-1">{it.categoria_site || '-'}</td>
+                          <td className="px-2 py-1">{it.grupo_cahosp || '-'}</td>
+                          <td className="px-2 py-1">{it.unidade_site || '-'}</td>
+                          <td className="px-2 py-1">{it.tamanho_site || it.tamanho || '-'}</td>
+                        </tr>
+                      ))}
+                      {catOptions.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-4 text-center text-muted">
+                            Nenhum item encontrado no catálogo.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3 border-t border-border text-[11px]">
+                  <div>Itens exibidos: {catOptions.length}</div>
+                  <button
+                    type="button"
+                    className="px-3 py-2 border border-border rounded"
+                    onClick={() => {
+                      setCatalogoAberto(false);
+                      // Usuário vai cadastrar novo item na outra tela de administração, se necessário.
+                    }}
+                  >
+                    Novo item
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {tab==='ped' && (
+{tab==='ped' && (
         <div className="space-y-4">
           <div className="rounded-xl border border-border bg-panel p-4">
             <h2 className="font-semibold mb-2">Novo pedido de reposição</h2>
