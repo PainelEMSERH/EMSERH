@@ -216,7 +216,7 @@ try {
 
     const ins:any[] = await prisma.$queryRawUnsafe(
       `INSERT INTO estoque_mov (unidadeid,itemid,tipo,quantidade,destino,observacao,data)
-       VALUES ($1,$2,$3,$4,$5,$6, COALESCE($7::timestamptz, NOW()))
+       VALUES ($1,$2,$3::estoque_mov_tipo,$4,$5,$6, COALESCE($7::timestamptz, NOW()))
        RETURNING id`,
       unidadeId,
       itemId,
