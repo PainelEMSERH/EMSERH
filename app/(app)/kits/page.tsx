@@ -166,7 +166,7 @@ export default function KitsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto flex max-w-6xl flex-col space-y-4">
       {/* Cabeçalho */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -235,7 +235,7 @@ export default function KitsPage() {
       </div>
 
       {/* Tabela de funções com kit */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
         <div className="rounded-xl border border-border bg-panel text-xs">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div>
