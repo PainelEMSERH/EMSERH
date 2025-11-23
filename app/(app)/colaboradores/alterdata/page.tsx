@@ -362,13 +362,13 @@ useEffect(() => {
   const paged = pageData;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       
-<div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
   <div>
     <p className="text-[11px] font-medium tracking-wide text-muted uppercase">Alterdata • Colaboradores</p>
-    <h1 className="mt-1 text-2xl font-semibold tracking-tight">Colaboradores · Alterdata (Completa)</h1>
-    <p className="mt-1 text-sm text-muted">
+    <h1 className="mt-1 text-lg font-semibold">Colaboradores · Alterdata (Completa)</h1>
+    <p className="mt-1 text-xs text-muted">
       Visual completo da base Alterdata com regionalização automática, filtros rápidos e paginação em memória.
     </p>
   </div>
@@ -379,7 +379,7 @@ useEffect(() => {
 </div>
 
       
-<div className="rounded-2xl border border-border bg-card shadow-sm px-4 py-4 space-y-3">
+<div className="rounded-xl border border-border bg-panel p-4 space-y-3 text-xs">
   <div className="flex flex-col gap-2 md:flex-row md:items-center">
     <div className="flex-1">
       <input
@@ -456,7 +456,7 @@ useEffect(() => {
 </div>
 
       {columns.length > 0 && (
-        <div className="rounded-2xl border border-border bg-card shadow-sm">
+        <div className="rounded-xl border border-border bg-panel p-0">
           {/* Barra de rolagem horizontal no topo, sincronizada com a tabela */}
           <div
             ref={topScrollRef}
