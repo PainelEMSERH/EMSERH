@@ -166,7 +166,7 @@ export default function KitsPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col space-y-4">
+    <div className="space-y-4">
       {/* Cabeçalho */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -235,8 +235,8 @@ export default function KitsPage() {
       </div>
 
       {/* Tabela de funções com kit */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
-        <div className="rounded-xl border border-border bg-panel text-xs">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
+        <div className="rounded-xl border border-border bg-panel text-xs lg:w-7/12">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div>
               <div className="text-sm font-semibold">Funções com kit cadastrado</div>
@@ -335,7 +335,7 @@ export default function KitsPage() {
         </div>
 
         {/* Detalhes do kit da função selecionada */}
-        <div className="rounded-xl border border-border bg-panel text-xs">
+        <div className="rounded-xl border border-border bg-panel text-xs lg:w-5/12">
           <div className="border-b border-border px-4 py-3">
             <div className="text-sm font-semibold">
               {funcaoSelecionada ? funcaoSelecionada.funcao : 'Detalhamento do kit'}
