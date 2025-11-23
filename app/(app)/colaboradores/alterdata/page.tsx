@@ -488,7 +488,7 @@ useEffect(() => {
                     .map((c,i) => (
                     <th
                       key={i}
-                      className="px-3 py-2 text-center border-b border-border whitespace-nowrap text-xs font-medium uppercase tracking-wide"
+                      className="px-4 py-2 text-center border-b border-border whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide"
                     >
                       {headerLabel(c)}
                     </th>
@@ -500,11 +500,22 @@ useEffect(() => {
                   <tr key={idx} className="odd:bg-panel/40 hover:bg-panel/80 transition-colors">
                     {columns
                       .filter(c => !__shouldHide(c))
-                      .map((c,i) => (
-                      <td key={i} className="px-3 py-2 border-b border-border whitespace-nowrap">
-                        {renderValue(c, r[c])}
-                      </td>
-                    ))}
+                      .map((c,i) => {
+                        const n = __norm(c);
+                        const isText = n.includes('colab') || n.includes('nome') || n.includes('unidade') || n.includes('hospital');
+                        const align = isText ? 'text-left' : 'text-center';
+                        const value = renderValue(c, r[c]);
+                        return (
+                          <td
+                            key={i}
+                            className={`px-4 py-2 border-b border-border whitespace-nowrap text-[11px] ${align}`}
+                            title={value}
+                          >
+                            {value}
+                          </td>
+                        );
+                      })}
+
                   </tr>
                 ))}
               </tbody>
@@ -514,7 +525,7 @@ useEffect(() => {
       )}
 
       <div className="text-xs text-muted">
-        Exibindo {start+1}–{Math.min(end, filtered.length)} de {filtered.length} registros (lista completa em cache, paginação no cliente)
+        Exibindo {start+1}–{Math.min(end, filtered.length)} de {filtered.length.toLocaleString()} registros (lista completa em cache, paginação no cliente)
       </div>
     </div>
   );
