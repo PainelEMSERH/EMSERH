@@ -1000,7 +1000,7 @@ function handleAdicionarItensDoCatalogo() {
                   <div>
                     <div className="text-sm font-semibold">Selecionar itens para o pedido</div>
                     <div className="text-[11px] text-muted">
-                      Busque pelo grupo, descrição ou tamanho. Informe a quantidade para cada item a ser incluído.
+                      Busque principalmente pelo nome do EPI (por exemplo: máscara, luva, avental). Os campos de grupo, tamanho e código servem apenas para conferência. Informe a quantidade para cada item a ser incluído.
                     </div>
                   </div>
                   <button
@@ -1017,7 +1017,7 @@ function handleAdicionarItensDoCatalogo() {
                     <input
                       type="text"
                       className="w-full flex-1 rounded border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                      placeholder="Digite parte do grupo, item ou tamanho..."
+                      placeholder="Digite parte do nome do EPI (ex.: máscara, luva, avental...)"
                       value={pedidoCatalogQuery}
                       onChange={(e) => setPedidoCatalogQuery(e.target.value)}
                     />
@@ -1025,6 +1025,10 @@ function handleAdicionarItensDoCatalogo() {
                       Resultados: {pedidoCatalogItems.length}
                     </span>
                   </div>
+                  <p className="text-[11px] text-muted">
+                    Informe quantidades em quantos itens precisar e depois clique em
+                    &quot;Adicionar itens selecionados&quot; para incluir tudo de uma vez.
+                  </p>
 
                   <div className="max-h-[50vh] overflow-auto rounded-lg border border-border bg-card">
                     <table className="min-w-full text-[11px]">
