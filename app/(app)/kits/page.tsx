@@ -1,4 +1,3 @@
-// file: app/(app)/kits/page.tsx
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -170,250 +169,253 @@ export default function KitsPage() {
       {/* Linha de separação para manter o mesmo alinhamento visual do Estoque */}
       <div className="border-b border-border" />
 
-      {/* Filtros principais */}
-      <div className="rounded-xl border border-border bg-panel p-4 flex flex-wrap items-center gap-3 text-xs">
-        <div className="flex flex-col gap-1">
-          <span className="font-medium">Buscar função ou EPI</span>
-          <input
-            type="text"
-            className="w-80 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-            placeholder="Digite parte da função (ex.: ENFERMEIRO) ou do EPI (ex.: MÁSCARA)..."
-            value={q}
-            onChange={(e) => {
-              setPage(1);
-              setQ(e.target.value);
-            }}
-          />
-        </div>
+      {/* Bloco principal: filtros, funções e kit selecionado */}
+      <div className="space-y-4">
+        {/* Filtros principais */}
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-panel p-4 text-xs">
+          <div className="flex flex-col gap-1">
+            <span className="font-medium">Buscar função ou EPI</span>
+            <input
+              type="text"
+              className="w-80 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+              placeholder="Digite parte da função (ex.: ENFERMEIRO) ou do EPI (ex.: MÁSCARA)..."
+              value={q}
+              onChange={(e) => {
+                setPage(1);
+                setQ(e.target.value);
+              }}
+            />
+          </div>
 
-        <div className="flex flex-col gap-1">
-          <span className="font-medium">Filtrar por unidade (opcional)</span>
-          <input
-            type="text"
-            className="w-80 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-            placeholder="Nome da unidade (ex.: HOSPITAL REGIONAL...)"
-            value={unidade}
-            onChange={(e) => {
-              setPage(1);
-              setUnidade(e.target.value);
-            }}
-          />
-        </div>
+          <div className="flex flex-col gap-1">
+            <span className="font-medium">Filtrar por unidade (opcional)</span>
+            <input
+              type="text"
+              className="w-80 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+              placeholder="Nome da unidade (ex.: HOSPITAL REGIONAL...)"
+              value={unidade}
+              onChange={(e) => {
+                setPage(1);
+                setUnidade(e.target.value);
+              }}
+            />
+          </div>
 
-        <div className="ml-auto flex flex-col items-end gap-0.5 text-[11px] text-muted">
-          <span>
-            Funções com kit definido:{' '}
-            <span className="font-semibold text-text">{funcoesResumo.comKit}</span>
-          </span>
-          <span>
-            Funções sem kit (apenas &quot;SEM EPI&quot;):{' '}
-            <span className="font-semibold text-text">{funcoesResumo.apenasSemEpi}</span>
-          </span>
-          <span>
-            Página{' '}
-            <span className="font-semibold text-text">
-              {page} / {totalPages}
+          <div className="ml-auto flex flex-col items-end gap-0.5 text-[11px] text-muted">
+            <span>
+              Funções com kit definido:{' '}
+              <span className="font-semibold text-text">{funcoesResumo.comKit}</span>
             </span>
-          </span>
-        </div>
-      </div>
-
-      {/* Conteúdo principal: lista de funções e detalhes do kit */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-4">
-        {/* Funções com kit */}
-        <div className="rounded-xl border border-border bg-panel text-xs lg:basis-7/12">
-          <div className="border-b border-border px-4 py-3">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <h2 className="text-xs font-semibold">Funções com kit cadastrado</h2>
-                <p className="text-[11px] text-muted">
-                  Selecione uma função para ver o detalhamento do kit ao lado.
-                </p>
-              </div>
-              <div className="text-[11px] text-muted">
-                <span className="font-semibold text-text">{funcoesResumo.funcoesTotal}</span>{' '}
-                funções encontradas
-              </div>
-            </div>
+            <span>
+              Funções sem kit (apenas &quot;SEM EPI&quot;):{' '}
+              <span className="font-semibold text-text">{funcoesResumo.apenasSemEpi}</span>
+            </span>
+            <span>
+              Página{' '}
+              <span className="font-semibold text-text">
+                {page} / {totalPages}
+              </span>
+            </span>
           </div>
-
-          <div className="max-h-[440px] overflow-auto">
-            <table className="min-w-full border-separate border-spacing-0">
-              <thead className="bg-muted/40 text-[11px] uppercase text-muted">
-                <tr>
-                  <th className="sticky left-0 z-10 border-b border-border bg-muted/40 px-3 py-2 text-left">
-                    Função
-                  </th>
-                  <th className="border-b border-border px-3 py-2 text-left">Unidades</th>
-                  <th className="border-b border-border px-3 py-2 text-center">Itens</th>
-                  <th className="border-b border-border px-3 py-2 text-center">Qtd total</th>
-                  <th className="border-b border-border px-3 py-2 text-center">Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {funcoesLista.map((linha) => {
-                  const selecionada = linha.funcao === selectedFuncao;
-                  return (
-                    <tr
-                      key={linha.funcao}
-                      className={`cursor-pointer border-b border-border/60 text-[11px] ${
-                        selecionada ? 'bg-emerald-50/70 dark:bg-emerald-500/10' : 'hover:bg-muted/40'
-                      }`}
-                      onClick={() => setSelectedFuncao(linha.funcao)}
-                    >
-                      <td className="sticky left-0 z-10 bg-panel px-3 py-2 text-left">
-                        <div className="max-w-xs truncate font-medium">{linha.funcao}</div>
-                      </td>
-                      <td className="px-3 py-2 text-left">
-                        <div className="max-w-xs truncate">
-                          {linha.unidades.length === 0
-                            ? '—'
-                            : linha.unidades.length === 1
-                            ? linha.unidades[0]
-                            : `${linha.unidades[0]} + ${linha.unidades.length - 1} outras`}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-center font-medium">{linha.qtdItens}</td>
-                      <td className="px-3 py-2 text-center font-medium">{linha.qtdTotal}</td>
-                      <td className="px-3 py-2 text-center">
-                        <button
-                          type="button"
-                          className={`rounded-full px-3 py-1 text-[11px] ${
-                            selecionada
-                              ? 'bg-emerald-500 text-white'
-                              : 'border border-border bg-card hover:bg-muted/60'
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedFuncao(linha.funcao);
-                          }}
-                        >
-                          {selecionada ? 'Selecionada' : 'Ver kit'}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {funcoesLista.length === 0 && !loading && (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="px-4 py-8 text-center text-[11px] text-muted"
-                    >
-                      Nenhuma função encontrada para os filtros informados.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Paginação simples */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-border px-4 py-2 text-[11px] text-muted">
-              <div>
-                Mostrando{' '}
-                <span className="font-semibold text-text">
-                  {rows.length}
-                </span>{' '}
-                registros na página atual.
-              </div>
-              <div className="inline-flex items-center gap-1">
-                <button
-                  type="button"
-                  className="rounded border border-border px-2 py-1 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  Anterior
-                </button>
-                <span className="px-1">
-                  Página{' '}
-                  <span className="font-semibold text-text">
-                    {page} / {totalPages}
-                  </span>
-                </span>
-                <button
-                  type="button"
-                  className="rounded border border-border px-2 py-1 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                >
-                  Próxima
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Detalhes do kit da função selecionada */}
-        <div className="rounded-xl border border-border bg-panel text-xs lg:basis-5/12">
-          <div className="border-b border-border px-4 py-3">
-            <h2 className="text-xs font-semibold">
-              {selectedFuncao || 'Nenhuma função selecionada'}
-            </h2>
-            <p className="text-[11px] text-muted">
-              Lista completa de EPIs previstos para a função selecionada.
-            </p>
-          </div>
-
-          <div className="max-h-[440px] overflow-auto">
-            {loading && (
-              <div className="px-4 py-8 text-center text-[11px] text-muted">
-                Carregando kit da função selecionada...
+        {/* Conteúdo principal: lista de funções e detalhes do kit */}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-4">
+          {/* Funções com kit */}
+          <div className="rounded-xl border border-border bg-panel text-xs lg:basis-7/12">
+            <div className="border-b border-border px-4 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-xs font-semibold">Funções com kit cadastrado</h2>
+                  <p className="text-[11px] text-muted">
+                    Selecione uma função para ver o detalhamento do kit ao lado.
+                  </p>
+                </div>
+                <div className="text-[11px] text-muted">
+                  <span className="font-semibold text-text">{funcoesResumo.funcoesTotal}</span>{' '}
+                  funções encontradas
+                </div>
               </div>
-            )}
+            </div>
 
-            {!loading && !funcaoSelecionada && (
-              <div className="px-4 py-8 text-center text-[11px] text-muted">
-                Selecione uma função na tabela ao lado para ver o kit detalhado.
-              </div>
-            )}
-
-            {!loading && funcaoSelecionada && (
+            <div className="max-h-[440px] overflow-auto">
               <table className="min-w-full border-separate border-spacing-0">
                 <thead className="bg-muted/40 text-[11px] uppercase text-muted">
                   <tr>
-                    <th className="border-b border-border px-3 py-2 text-left">EPI</th>
-                    <th className="border-b border-border px-3 py-2 text-center">
-                      Quantidade
+                    <th className="sticky left-0 z-10 border-b border-border bg-muted/40 px-3 py-2 text-left">
+                      Função
                     </th>
-                    <th className="border-b border-border px-3 py-2 text-left">
-                      Unidade de entrega
-                    </th>
+                    <th className="border-b border-border px-3 py-2 text-left">Unidades</th>
+                    <th className="border-b border-border px-3 py-2 text-center">Itens</th>
+                    <th className="border-b border-border px-3 py-2 text-center">Qtd total</th>
+                    <th className="border-b border-border px-3 py-2 text-center">Ação</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {funcaoSelecionada.map((item, idx) => (
-                    <tr
-                      key={`${item.item}-${idx}`}
-                      className="border-b border-border/60 text-[11px]"
-                    >
-                      <td className="px-3 py-2 text-left">
-                        {item.item || 'SEM EPI'}
-                      </td>
-                      <td className="px-3 py-2 text-center font-medium">
-                        {item.quantidade ?? 0}
-                      </td>
-                      <td className="px-3 py-2 text-left">
-                        {item.unidade || '—'}
+                  {funcoesLista.map((linha) => {
+                    const selecionada = linha.funcao === selectedFuncao;
+                    return (
+                      <tr
+                        key={linha.funcao}
+                        className={`cursor-pointer border-b border-border/60 text-[11px] ${
+                          selecionada
+                            ? 'bg-emerald-50/70 dark:bg-emerald-500/10'
+                            : 'hover:bg-muted/40'
+                        }`}
+                        onClick={() => setSelectedFuncao(linha.funcao)}
+                      >
+                        <td className="sticky left-0 z-10 bg-panel px-3 py-2 text-left">
+                          <div className="max-w-xs truncate font-medium">{linha.funcao}</div>
+                        </td>
+                        <td className="px-3 py-2 text-left">
+                          <div className="max-w-xs truncate">
+                            {linha.unidades.length === 0
+                              ? '—'
+                              : linha.unidades.length === 1
+                              ? linha.unidades[0]
+                              : `${linha.unidades[0]} + ${linha.unidades.length - 1} outras`}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-center font-medium">{linha.qtdItens}</td>
+                        <td className="px-3 py-2 text-center font-medium">{linha.qtdTotal}</td>
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            type="button"
+                            className={`rounded-full px-3 py-1 text-[11px] ${
+                              selecionada
+                                ? 'bg-emerald-500 text-white'
+                                : 'border border-border bg-card hover:bg-muted/60'
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedFuncao(linha.funcao);
+                            }}
+                          >
+                            {selecionada ? 'Selecionada' : 'Ver kit'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {funcoesLista.length === 0 && !loading && (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-4 py-8 text-center text-[11px] text-muted"
+                      >
+                        Nenhuma função encontrada para os filtros informados.
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Paginação simples */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-border px-4 py-2 text-[11px] text-muted">
+                <div>
+                  Mostrando{' '}
+                  <span className="font-semibold text-text">{rows.length}</span>{' '}
+                  registros na página atual.
+                </div>
+                <div className="inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="rounded border border-border px-2 py-1 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    Anterior
+                  </button>
+                  <span className="px-1">
+                    Página{' '}
+                    <span className="font-semibold text-text">
+                      {page} / {totalPages}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded border border-border px-2 py-1 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    Próxima
+                  </button>
+                </div>
+              </div>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* Estado de erro global */}
-      {error && (
-        <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-xs text-red-800">
-          {error}
+          {/* Detalhes do kit da função selecionada */}
+          <div className="rounded-xl border border-border bg-panel text-xs lg:basis-5/12">
+            <div className="border-b border-border px-4 py-3">
+              <h2 className="text-xs font-semibold">
+                {selectedFuncao || 'Nenhuma função selecionada'}
+              </h2>
+              <p className="text-[11px] text-muted">
+                Lista completa de EPIs previstos para a função selecionada.
+              </p>
+            </div>
+
+            <div className="max-h-[440px] overflow-auto">
+              {loading && (
+                <div className="px-4 py-8 text-center text-[11px] text-muted">
+                  Carregando kit da função selecionada...
+                </div>
+              )}
+
+              {!loading && !funcaoSelecionada && (
+                <div className="px-4 py-8 text-center text-[11px] text-muted">
+                  Selecione uma função na tabela ao lado para ver o kit detalhado.
+                </div>
+              )}
+
+              {!loading && funcaoSelecionada && (
+                <table className="min-w-full border-separate border-spacing-0">
+                  <thead className="bg-muted/40 text-[11px] uppercase text-muted">
+                    <tr>
+                      <th className="border-b border-border px-3 py-2 text-left">EPI</th>
+                      <th className="border-b border-border px-3 py-2 text-center">
+                        Quantidade
+                      </th>
+                      <th className="border-b border-border px-3 py-2 text-left">
+                        Unidade de entrega
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {funcaoSelecionada.map((item, idx) => (
+                      <tr
+                        key={`${item.item}-${idx}`}
+                        className="border-b border-border/60 text-[11px]"
+                      >
+                        <td className="px-3 py-2 text-left">
+                          {item.item || 'SEM EPI'}
+                        </td>
+                        <td className="px-3 py-2 text-center font-medium">
+                          {item.quantidade ?? 0}
+                        </td>
+                        <td className="px-3 py-2 text-left">
+                          {item.unidade || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
         </div>
-      )}
+
+        {/* Estado de erro global */}
+        {error && (
+          <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-xs text-red-800">
+            {error}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
