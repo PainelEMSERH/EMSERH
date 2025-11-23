@@ -178,9 +178,6 @@ export default function Page() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
 
-  const [sortKey, setSortKey] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-
   const [q, setQ] = useState('');
   const [regional, setRegional] = useState<Regional | 'TODAS'>('TODAS');
   const [unidade, setUnidade] = useState<string | 'TODAS'>('TODAS');
@@ -349,36 +346,8 @@ useEffect(() => {
         return needles.every(n => blob.includes(n));
       });
     }
-    if (sortKey) {
-      const key = sortKey as string;
-      const dir = sortDir;
-      const sorted = [...list].sort((a, b) => {
-        const av = a[key];
-        const bv = b[key];
-        if (av == null && bv == null) return 0;
-        if (av == null) return 1;
-        if (bv == null) return -1;
-        const as = String(av);
-        const bs = String(bv);
-        const cmp = as.localeCompare(bs, 'pt-BR', { numeric: true, sensitivity: 'base' });
-        return dir === 'asc' ? cmp : -cmp;
-      });
-      return sorted;
-    }
     return list;
-  }, [rows, regional, unidade, q, unidKey, sortKey, sortDir]);
-
-  const handleSort = (col: string) => {
-    setPage(1);
-    setSortKey((prev) => {
-      if (prev === col) {
-        setSortDir((dir) => (dir === 'asc' ? 'desc' : 'asc'));
-        return prev;
-      }
-      setSortDir('asc');
-      return col;
-    });
-  };
+  }, [rows, regional, unidade, q, unidKey]);
 
   // Paginação (client-side) sobre os filtrados
   const [pageState, pageData] = useMemo(()=>{
@@ -410,29 +379,6 @@ useEffect(() => {
 </div>
 
       
-
-      <div className="grid gap-3 text-[11px] sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-xl border border-border bg-panel px-3 py-2">
-          <p className="text-muted">Registros carregados</p>
-          <p className="mt-1 text-base font-semibold text-text">
-            {rows.length.toLocaleString('pt-BR')}
-          </p>
-        </div>
-        <div className="rounded-xl border border-border bg-panel px-3 py-2">
-          <p className="text-muted">Após filtros</p>
-          <p className="mt-1 text-base font-semibold text-text">
-            {filtered.length.toLocaleString('pt-BR')}
-            <span className="ml-1 text-[10px] font-normal text-muted">registros visíveis</span>
-          </p>
-        </div>
-        {unidKey && (
-          <div className="rounded-xl border border-border bg-panel px-3 py-2">
-            <p className="text-muted">Chave detectada de unidade</p>
-            <p className="mt-1 text-xs font-mono text-text break-all">{unidKey}</p>
-          </div>
-        )}
-      </div>
-
 <div className="rounded-xl border border-border bg-panel p-4 space-y-3 text-xs">
   <div className="flex flex-col gap-2 md:flex-row md:items-center">
     <div className="flex-1">
@@ -477,67 +423,57 @@ useEffect(() => {
       {error && <span className="text-red-500">Erro: {error}</span>}
     </div>
 
-    <div className="flex flex-wrap items-center justify-between gap-3 text-[11px]">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-3 py-1">
-            <span className="text-muted">Página</span>
-            <span className="font-semibold text-text">{pageSafe}</span>
-            <span className="mx-1 text-muted">/</span>
-            <span className="text-text">{pageCount}</span>
-          </span>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-1 py-0.5">
-            <button
-              type="button"
-              aria-label="Página anterior"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] hover:bg-bg disabled:cursor-not-allowed disabled:opacity-40"
-              disabled={pageSafe<=1}
-              onClick={()=>setPage(p=>Math.max(1, p-1))}
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              aria-label="Próxima página"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] hover:bg-bg disabled:cursor-not-allowed disabled:opacity-40"
-              disabled={pageSafe>=pageCount}
-              onClick={()=>setPage(p=>Math.min(pageCount, p+1))}
-            >
-              ›
-            </button>
-          </div>
-
-          <select
-            value={pageSize}
-            onChange={e=>setPageSize(parseInt(e.target.value,10))}
-            className="px-2.5 py-1.5 rounded-full border border-border bg-bg text-xs md:text-sm text-text hover:bg-panel"
-          >
-            {[25,50,100,200,500].map(n=> <option key={n} value={n}>{n}/página</option>)}
-          </select>
-        </div>
+    <div className="flex flex-wrap items-center gap-3 md:justify-end">
+      <div className="flex items-center gap-1 rounded-full border border-border bg-panel px-1 py-0.5">
+        <button
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-text hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed"
+          disabled={pageSafe<=1}
+          onClick={()=>setPage(p=>Math.max(1, p-1))}
+        >
+          ‹
+        </button>
+        <span className="px-2 text-[11px] font-medium">
+          Página {pageSafe} / {pageCount}
+        </span>
+        <button
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-text hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed"
+          disabled={pageSafe>=pageCount}
+          onClick={()=>setPage(p=>Math.min(pageCount, p+1))}
+        >
+          ›
+        </button>
       </div>
+
+      <select
+        value={pageSize}
+        onChange={e=>setPageSize(parseInt(e.target.value,10))}
+        className="px-2.5 py-1.5 rounded-full border border-border bg-bg text-xs md:text-sm text-text hover:bg-panel"
+      >
+        {[25,50,100,200,500].map(n=> <option key={n} value={n}>{n}/página</option>)}
+      </select>
+    </div>
+  </div>
+</div>
 
       {columns.length > 0 && (
         <div className="rounded-xl border border-border bg-panel p-0">
           {/* Barra de rolagem horizontal no topo, sincronizada com a tabela */}
           <div
             ref={topScrollRef}
-            className="overflow-x-auto max-w-full border-b border-border bg-panel/60 px-3 py-1.5"
+            className="overflow-x-auto max-w-full border-b border-border bg-panel/40"
           >
             <div
               style={{ width: scrollWidth || '100%' }}
-              className="h-1.5 rounded-full bg-border/40"
+              className="h-1 rounded-full bg-border"
             />
           </div>
 
           {/* Tabela com rolagem vertical e horizontal dentro do card */}
           <div
             ref={bodyScrollRef}
-            className="max-h-[calc(100vh-280px)] overflow-y-auto overflow-x-hidden"
+            className="max-h-[calc(100vh-280px)] overflow-y-auto overflow-x-auto"
           >
-            <table className="min-w-full text-[11px] align-middle">
+            <table className="min-w-full text-sm align-middle">
               <thead className="sticky top-0 bg-panel">
                 <tr>
                   {columns
@@ -545,42 +481,23 @@ useEffect(() => {
                     .map((c,i) => (
                     <th
                       key={i}
-                      onClick={() => handleSort(c)}
-                      className="px-4 py-2 text-left border-b border-border whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide cursor-pointer select-none"
+                      className="px-3 py-2 text-center border-b border-border whitespace-nowrap text-xs font-medium uppercase tracking-wide"
                     >
-                      <div className="flex items-center gap-1">
-                        <span>{headerLabel(c)}</span>
-                        {sortKey === c && (
-                          <span className="text-[10px] opacity-70">
-                            {sortDir === 'asc' ? '↑' : '↓'}
-                          </span>
-                        )}
-                      </div>
+                      {headerLabel(c)}
                     </th>
                   ))}
                 </tr>
               </thead>
-<tbody>
+              <tbody>
                 {paged.map((r, idx) => (
                   <tr key={idx} className="odd:bg-panel/40 hover:bg-panel/80 transition-colors">
                     {columns
                       .filter(c => !__shouldHide(c))
-                      .map((c,i) => {
-                        const n = __norm(c);
-                        const isText = n.includes('colab') || n.includes('nome') || n.includes('unidade') || n.includes('hospital');
-                        const align = isText ? 'text-left' : 'text-center';
-                        const value = renderValue(c, r[c]);
-                        return (
-                          <td
-                            key={i}
-                            className={`px-4 py-2 border-b border-border whitespace-nowrap text-[11px] ${align}`}
-                            title={value}
-                          >
-                            {value}
-                          </td>
-                        );
-                      })}
-
+                      .map((c,i) => (
+                      <td key={i} className="px-3 py-2 border-b border-border whitespace-nowrap">
+                        {renderValue(c, r[c])}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -590,7 +507,7 @@ useEffect(() => {
       )}
 
       <div className="text-xs text-muted">
-        Exibindo {start+1}–{Math.min(end, filtered.length)} de {filtered.length.toLocaleString()} registros (lista completa em cache, paginação no cliente)
+        Exibindo {start+1}–{Math.min(end, filtered.length)} de {filtered.length} registros (lista completa em cache, paginação no cliente)
       </div>
     </div>
   );
