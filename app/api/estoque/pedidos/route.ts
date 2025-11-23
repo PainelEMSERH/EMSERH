@@ -68,28 +68,28 @@ export async function GET(req: Request) {
 
     if (regionalId) {
       params.push(regionalId);
-      where.push(\`p.regional = $\${params.length}\`);
+      where.push(\`p.regional = $${params.length}\`);
     }
 
     if (status) {
       params.push(status);
-      where.push(\`p.status = $\${params.length}\`);
+      where.push(\`p.status = $${params.length}\`);
     }
 
     if (qRaw) {
-      const q = \`%\${qRaw.toUpperCase()}%\`;
+      const q = \`%${qRaw.toUpperCase()}%\`;
       params.push(q);
       const idx = params.length;
       where.push(
         \`(
-          upper(coalesce(p.unidade_solicitante, '')) LIKE $\${idx}
-          OR upper(coalesce(p.responsavel, '')) LIKE $\${idx}
-          OR upper(coalesce(p.numero_cahosp, '')) LIKE $\${idx}
+          upper(coalesce(p.unidade_solicitante, '')) LIKE $${idx}
+          OR upper(coalesce(p.responsavel, '')) LIKE $${idx}
+          OR upper(coalesce(p.numero_cahosp, '')) LIKE $${idx}
         )\`,
       );
     }
 
-    const whereSql = where.length ? \`WHERE \${where.join(' AND ')}\` : '';
+    const whereSql = where.length ? \`WHERE ${where.join(' AND ')}\` : '';
 
     const listSql = \`
       SELECT
@@ -107,7 +107,7 @@ export async function GET(req: Request) {
       FROM estoque_sesmt_pedido p
       LEFT JOIN estoque_sesmt_pedido_item i
         ON i.pedido_id = p.id
-      \${whereSql}
+      ${whereSql}
       GROUP BY
         p.id,
         p.data_pedido,
@@ -119,13 +119,13 @@ export async function GET(req: Request) {
         p.status,
         p.observacao
       ORDER BY p.data_pedido DESC, p.id DESC
-      LIMIT \${size} OFFSET \${offset}
+      LIMIT ${size} OFFSET ${offset}
     \`;
 
     const countSql = \`
       SELECT COUNT(*)::int AS c
       FROM estoque_sesmt_pedido p
-      \${whereSql}
+      ${whereSql}
     \`;
 
     const rows = await prisma.$queryRawUnsafe<any[]>(listSql, ...params);
