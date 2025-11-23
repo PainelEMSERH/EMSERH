@@ -951,7 +951,7 @@ function handleAdicionarItensDoCatalogo() {
                   </div>
 
                   <div className="rounded-xl border border-border bg-panel p-4">
-                    <h3 className="text-sm font-semibold">Itens mais saídos (últimos 30 dias)</h3>
+                    <h3 className="text-sm font-semibold">Itens de alta saída (últimos 30 dias)</h3>
                     <p className="mb-2 text-[11px] text-muted">
                       Principais itens enviados às Unidades nesta Regional.
                     </p>
