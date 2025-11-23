@@ -300,6 +300,7 @@ export default function Page() {
   }, []);
 
 useEffect(() => {
+  if (tab !== 'tabela') return;
   const body = bodyScrollRef.current;
   if (!body) return;
   const measure = () => {
@@ -310,9 +311,10 @@ useEffect(() => {
   return () => {
     window.removeEventListener('resize', measure);
   };
-}, [columns, rows, pageSize]);
+}, [columns, rows, pageSize, tab]);
 
 useEffect(() => {
+  if (tab !== 'tabela') return;
   const top = topScrollRef.current;
   const body = bodyScrollRef.current;
   if (!top || !body) return;
@@ -337,7 +339,7 @@ useEffect(() => {
     top.removeEventListener('scroll', onTop);
     body.removeEventListener('scroll', onBody);
   };
-}, [columns, rows, pageSize]);
+}, [columns, rows, pageSize, tab]);
 
 
   const unidadeOptions = useMemo(()=>{
