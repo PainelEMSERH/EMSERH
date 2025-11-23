@@ -57,6 +57,16 @@ function formatDate(iso: string | null | undefined) {
   return d.toLocaleDateString('pt-BR');
 }
 
+function toInputDate(iso: string | null | undefined) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function EstoqueSESMTPage() {
   const [tab, setTab] = useState<'geral' | 'mov' | 'ped'>('mov');
 
@@ -88,6 +98,7 @@ export default function EstoqueSESMTPage() {
   const [movPage, setMovPage] = useState(1);
   const movSize = 25;
   const [movLoading, setMovLoading] = useState(false);
+  const [editingMov, setEditingMov] = useState<MovRow | null>(null);
 
   // Catálogo SESMT (modal)
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -215,6 +226,8 @@ export default function EstoqueSESMTPage() {
     };
   }, [catalogOpen, catalogQuery]);
 
+  const isEditing = !!editingMov;
+
   const canSave = useMemo(() => {
     if (!regional || !unidadeSESMTNome) return false;
     if (!itemId || !quantidade) return false;
@@ -290,10 +303,6 @@ async function handleSalvarNovoEpi() {
 
       const qtd = Number(quantidade || 0);
       const unidadeNome = unidadeSESMTNome;
-      const destino =
-        tipo === 'entrada'
-          ? 'Entrada no estoque do SESMT (CAHOSP → SESMT)'
-          : destinoUnidade || null;
 
       const partesObs: string[] = [];
       if (tipo === 'entrada') {
@@ -305,23 +314,42 @@ async function handleSalvarNovoEpi() {
       if (observacao) partesObs.push(observacao);
       const obsFinal = partesObs.join(' | ') || null;
 
-      const body = {
-        unidadeId: unidadeNome,
-        itemId,
-        tipo,
-        quantidade: qtd,
-        destino,
-        observacao: obsFinal,
-        data: dataMov || null,
-      };
+      if (editingMov) {
+        await fetchJSON('/api/estoque/mov', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingMov.id,
+            quantidade: qtd,
+            observacao: obsFinal,
+            data: dataMov || null,
+          }),
+        });
+      } else {
+        const destino =
+          tipo === 'entrada'
+            ? 'Entrada no estoque do SESMT (CAHOSP → SESMT)'
+            : destinoUnidade || null;
 
-      await fetchJSON('/api/estoque/mov', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+        const body = {
+          unidadeId: unidadeNome,
+          itemId,
+          tipo,
+          quantidade: qtd,
+          destino,
+          observacao: obsFinal,
+          data: dataMov || null,
+        };
 
-      // Limpa campos específicos
+        await fetchJSON('/api/estoque/mov', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      }
+
+      // Limpa campos específicos e sai do modo edição (se ativo)
+      setEditingMov(null);
       setQuantidade('');
       setDestinoUnidade('');
       setNumeroPedido('');
@@ -480,8 +508,12 @@ async function handleSalvarNovoEpi() {
                     type="button"
                     className={`px-3 py-1 rounded-md ${
                       tipo === 'saida' ? 'bg-emerald-600 text-white' : 'text-text'
-                    }`}
-                    onClick={() => setTipo('saida')}
+                    } ${isEditing ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    onClick={() => {
+                      if (isEditing) return;
+                      setTipo('saida');
+                    }}
+                    disabled={isEditing}
                   >
                     Saída
                   </button>
@@ -617,8 +649,28 @@ async function handleSalvarNovoEpi() {
                     : 'bg-emerald-600 text-white hover:bg-emerald-500'
                 }`}
               >
-                {saving ? 'Salvando...' : 'Salvar movimentação'}
+                {saving ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Salvar movimentação'}
               </button>
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingMov(null);
+                    setTipo('entrada');
+                    setItemId('');
+                    setQuantidade('');
+                    setDataMov('');
+                    setDestinoUnidade('');
+                    setNumeroPedido('');
+                    setResponsavel('');
+                    setObservacao('');
+                  }}
+                  disabled={saving}
+                  className="ml-2 rounded-lg border border-border px-3 py-2 text-[11px] hover:bg-card"
+                >
+                  Cancelar edição
+                </button>
+              )}
             </div>
           </div>
 
@@ -647,19 +699,20 @@ async function handleSalvarNovoEpi() {
                     <th className="px-3 py-2 text-right">Qtd</th>
                     <th className="px-3 py-2 text-left">Destino</th>
                     <th className="px-3 py-2 text-left">Obs.</th>
+                    <th className="px-3 py-2 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {movLoading && (
                     <tr>
-                      <td colSpan={7} className="px-3 py-6 text-center text-muted">
+                      <td colSpan={8} className="px-3 py-6 text-center text-muted">
                         Carregando movimentações...
                       </td>
                     </tr>
                   )}
                   {!movLoading && movRows.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-3 py-6 text-center text-muted">
+                      <td colSpan={8} className="px-3 py-6 text-center text-muted">
                         Nenhuma movimentação registrada para este estoque.
                       </td>
                     </tr>
@@ -685,6 +738,30 @@ async function handleSalvarNovoEpi() {
                         <td className="px-3 py-2 align-top">{m.destino || '-'}</td>
                         <td className="px-3 py-2 align-top max-w-xs break-words">
                           {m.observacao || '-'}
+                        </td>
+                        <td className="px-3 py-2 align-top text-right">
+                          {m.tipo === 'entrada' && (
+                            <button
+                              type="button"
+                              className="rounded border border-border px-2 py-1 text-[10px] hover:bg-card"
+                              onClick={() => {
+                                setEditingMov(m);
+                                setTipo('entrada');
+                                setItemId(m.itemId);
+                                setQuantidade(String(m.quantidade));
+                                setDataMov(toInputDate(m.data));
+                                setDestinoUnidade('');
+                                setNumeroPedido('');
+                                setResponsavel('');
+                                setObservacao(m.observacao || '');
+                                if (typeof window !== 'undefined' && window.scrollTo) {
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }
+                              }}
+                            >
+                              Editar
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
