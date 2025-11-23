@@ -39,6 +39,16 @@ function __shouldHide(col: string): boolean {
 }
 
 // ---------- Formatações ----------
+function __isNomeColaborador(col: string): boolean {
+  const n = __norm(col);
+  // Colunas típicas de nome de colaborador
+  if (n === 'colaborador' || n === 'nomecolaborador' || n === 'nomeempregado' || n === 'nomefuncionario') return true;
+  // Fallback: se a coluna for exatamente "nome" e não estiver na lista de ocultas
+  if (n === 'nome' && !HIDE_NORMS.has(n)) return true;
+  return false;
+}
+
+
 function fmtDateDDMMYYYY(val: any): string {
   if (val === null || val === undefined) return '';
   const s = String(val).trim();
@@ -657,7 +667,9 @@ useEffect(() => {
                           .map((c, i) => (
                             <td
                               key={i}
-                              className="px-3 py-2 border-b border-border whitespace-nowrap"
+                              className={`px-3 py-2 border-b border-border whitespace-nowrap ${
+                                __isNomeColaborador(c) ? 'text-left' : 'text-center'
+                              }`}
                             >
                               {renderValue(c, r[c])}
                             </td>
