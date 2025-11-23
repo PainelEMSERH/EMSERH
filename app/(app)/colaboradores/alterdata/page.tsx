@@ -424,25 +424,32 @@ useEffect(() => {
     </div>
 
     <div className="flex flex-wrap items-center gap-3 md:justify-end text-[11px]">
-      <div className="flex items-center gap-1 rounded-full border border-border bg-panel px-1 py-0.5">
-        <button
-          className="rounded border border-border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={pageSafe<=1}
-          onClick={()=>setPage(p=>Math.max(1, p-1))}
-        >
-          ‹
-        </button>
-        <span className="px-2 text-[11px] font-medium">
-          Página {pageSafe} / {pageCount}
-        </span>
-        <button
-          className="rounded border border-border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={pageSafe>=pageCount}
-          onClick={()=>setPage(p=>Math.min(pageCount, p+1))}
-        >
-          ›
-        </button>
-      </div>
+<div className="flex items-center gap-2">
+  <span>
+    Página{' '}
+    <span className="font-semibold">
+      {pageSafe} / {pageCount}
+    </span>
+  </span>
+  <div className="inline-flex items-center gap-1">
+    <button
+      type="button"
+      className="rounded border border-border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
+      disabled={pageSafe<=1}
+      onClick={()=>setPage(p=>Math.max(1, p-1))}
+    >
+      Anterior
+    </button>
+    <button
+      type="button"
+      className="rounded border border-border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
+      disabled={pageSafe>=pageCount}
+      onClick={()=>setPage(p=>Math.min(pageCount, p+1))}
+    >
+      Próxima
+    </button>
+  </div>
+</div>
 
       <select
         value={pageSize}
