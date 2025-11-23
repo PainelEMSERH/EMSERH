@@ -754,6 +754,38 @@ function handleAdicionarItensDoCatalogo() {
         </nav>
       </div>
 
+          {/* Filtro de Regional */}
+          <div className="rounded-xl border border-border bg-panel p-4 flex flex-wrap items-center gap-3 text-xs">
+            <div className="flex flex-col gap-1">
+              <span className="font-medium">Regional</span>
+              <select
+                className="w-52 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+                value={regional}
+                onChange={(e) => {
+                  setRegional(e.target.value || '');
+                  setMovPage(1);
+                }}
+              >
+                <option value="">Selecione a Regional...</option>
+                {REGIONALS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+              {optsLoading && <span className="text-[11px] text-muted">Carregando unidades...</span>}
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="font-medium">Unidade (Estoque SESMT)</span>
+              <input
+                readOnly
+                value={regional ? unidadeSESMTNome || '' : ''}
+                placeholder="Selecione a Regional para ver o estoque do SESMT"
+                className="w-80 rounded border border-border bg-card px-3 py-2 text-xs text-muted"
+              />
+            </div>
+          </div>
+
       {tab === 'geral' && (
         <div className="space-y-4">
           <div className="rounded-xl border border-border bg-panel p-4 text-xs">
@@ -1402,38 +1434,6 @@ function handleAdicionarItensDoCatalogo() {
 
       {tab === 'mov' && (
         <div className="space-y-4">
-          {/* Filtro de Regional */}
-          <div className="rounded-xl border border-border bg-panel p-4 flex flex-wrap items-center gap-3 text-xs">
-            <div className="flex flex-col gap-1">
-              <span className="font-medium">Regional</span>
-              <select
-                className="w-52 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                value={regional}
-                onChange={(e) => {
-                  setRegional(e.target.value || '');
-                  setMovPage(1);
-                }}
-              >
-                <option value="">Selecione a Regional...</option>
-                {REGIONALS.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-              {optsLoading && <span className="text-[11px] text-muted">Carregando unidades...</span>}
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="font-medium">Unidade (Estoque SESMT)</span>
-              <input
-                readOnly
-                value={regional ? unidadeSESMTNome || '' : ''}
-                placeholder="Selecione a Regional para ver o estoque do SESMT"
-                className="w-80 rounded border border-border bg-card px-3 py-2 text-xs text-muted"
-              />
-            </div>
-          </div>
-
           {/* Nova Movimentação */}
           <div className="rounded-xl border border-border bg-panel p-4 text-xs space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
