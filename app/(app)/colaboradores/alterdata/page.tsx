@@ -604,14 +604,12 @@ useEffect(() => {
               {/* Barra de rolagem horizontal no topo, sincronizada com a tabela */}
               <div
                 ref={topScrollRef}
-                className="relative overflow-x-auto max-w-full border-b border-border bg-panel/40"
+                className="overflow-x-auto max-w-full border-b border-border bg-panel/40"
               >
                 <div
                   style={{ width: scrollWidth || '100%' }}
-                  className="h-1 rounded-full bg-gradient-to-r from-transparent via-border/70 to-transparent"
+                  className="h-1 rounded-full bg-border"
                 />
-                <div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-bg/80 to-transparent" />
-                <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-bg/80 to-transparent" />
               </div>
 
               {/* Tabela com rolagem vertical e horizontal dentro do card */}
