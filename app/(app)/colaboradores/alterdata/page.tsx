@@ -184,10 +184,7 @@ export default function Page() {
 
   const fetchedRef = useRef(false);
 
-  const topScrollRef = useRef<HTMLDivElement | null>(null);
   const bodyScrollRef = useRef<HTMLDivElement | null>(null);
-  const [scrollWidth, setScrollWidth] = useState(0);
-  const syncingRef = useRef(false);
 
   // Resetar página quando filtros mudarem
   useEffect(()=>{ setPage(1); }, [q, regional, unidade, pageSize]);
@@ -298,33 +295,6 @@ useEffect(() => {
   };
 }, [columns, rows, pageSize]);
 
-useEffect(() => {
-  const top = topScrollRef.current;
-  const body = bodyScrollRef.current;
-  if (!top || !body) return;
-
-  const onTop = () => {
-    if (syncingRef.current) return;
-    syncingRef.current = true;
-    body.scrollLeft = top.scrollLeft;
-    syncingRef.current = false;
-  };
-
-  const onBody = () => {
-    if (syncingRef.current) return;
-    syncingRef.current = true;
-    top.scrollLeft = body.scrollLeft;
-    syncingRef.current = false;
-  };
-
-  top.addEventListener('scroll', onTop);
-  body.addEventListener('scroll', onBody);
-  return () => {
-    top.removeEventListener('scroll', onTop);
-    body.removeEventListener('scroll', onBody);
-  };
-}, [columns, rows, pageSize]);
-
 
   const unidadeOptions = useMemo(()=>{
     const uk = unidKey;
@@ -423,10 +393,10 @@ useEffect(() => {
       {error && <span className="text-red-500">Erro: {error}</span>}
     </div>
 
-    <div className="flex flex-wrap items-center gap-3 md:justify-end">
+    <div className="flex flex-wrap items-center gap-3 md:justify-end text-[11px]">
       <div className="flex items-center gap-1 rounded-full border border-border bg-panel px-1 py-0.5">
         <button
-          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-text hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed"
+          className="rounded border border-border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
           disabled={pageSafe<=1}
           onClick={()=>setPage(p=>Math.max(1, p-1))}
         >
@@ -436,7 +406,7 @@ useEffect(() => {
           Página {pageSafe} / {pageCount}
         </span>
         <button
-          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-text hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed"
+          className="rounded border border-border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
           disabled={pageSafe>=pageCount}
           onClick={()=>setPage(p=>Math.min(pageCount, p+1))}
         >
@@ -457,23 +427,12 @@ useEffect(() => {
 
       {columns.length > 0 && (
         <div className="rounded-xl border border-border bg-panel p-0">
-          {/* Barra de rolagem horizontal no topo, sincronizada com a tabela */}
-          <div
-            ref={topScrollRef}
-            className="overflow-x-auto max-w-full border-b border-border bg-panel/40"
-          >
-            <div
-              style={{ width: scrollWidth || '100%' }}
-              className="h-1 rounded-full bg-border"
-            />
-          </div>
-
           {/* Tabela com rolagem vertical e horizontal dentro do card */}
           <div
             ref={bodyScrollRef}
             className="max-h-[calc(100vh-280px)] overflow-y-auto overflow-x-auto"
           >
-            <table className="min-w-full text-sm align-middle">
+            <table className="min-w-full text-[11px] align-middle">
               <thead className="sticky top-0 bg-panel">
                 <tr>
                   {columns
