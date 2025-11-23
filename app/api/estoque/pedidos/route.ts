@@ -68,33 +68,30 @@ export async function GET(req: Request) {
 
     if (regionalId) {
       params.push(regionalId);
-      where.push('p.regional = $' + params.length);
+      where.push(\`p.regional = $\${params.length}\`);
     }
 
     if (status) {
       params.push(status);
-      where.push('p.status = $' + params.length);
+      where.push(\`p.status = $\${params.length}\`);
     }
 
     if (qRaw) {
-      const q = '%' + qRaw.toUpperCase() + '%';
+      const q = \`%\${qRaw.toUpperCase()}%\`;
       params.push(q);
       const idx = params.length;
       where.push(
-        '(' +
-          "upper(coalesce(p.unidade_solicitante, '')) LIKE $" +
-          idx +
-          " OR upper(coalesce(p.responsavel, '')) LIKE $" +
-          idx +
-          " OR upper(coalesce(p.numero_cahosp, '')) LIKE $" +
-          idx +
-        ')',
+        \`(
+          upper(coalesce(p.unidade_solicitante, '')) LIKE $\${idx}
+          OR upper(coalesce(p.responsavel, '')) LIKE $\${idx}
+          OR upper(coalesce(p.numero_cahosp, '')) LIKE $\${idx}
+        )\`,
       );
     }
 
-    const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    const whereSql = where.length ? \`WHERE \${where.join(' AND ')}\` : '';
 
-    const listSql = `
+    const listSql = \`
       SELECT
         p.id::text,
         p.data_pedido,
@@ -110,7 +107,7 @@ export async function GET(req: Request) {
       FROM estoque_sesmt_pedido p
       LEFT JOIN estoque_sesmt_pedido_item i
         ON i.pedido_id = p.id
-      ${whereSql}
+      \${whereSql}
       GROUP BY
         p.id,
         p.data_pedido,
@@ -122,14 +119,14 @@ export async function GET(req: Request) {
         p.status,
         p.observacao
       ORDER BY p.data_pedido DESC, p.id DESC
-      LIMIT ${size} OFFSET ${offset}
-    `;
+      LIMIT \${size} OFFSET \${offset}
+    \`;
 
-    const countSql = `
+    const countSql = \`
       SELECT COUNT(*)::int AS c
       FROM estoque_sesmt_pedido p
-      ${whereSql}
-    `;
+      \${whereSql}
+    \`;
 
     const rows = await prisma.$queryRawUnsafe<any[]>(listSql, ...params);
     const totalRows = await prisma.$queryRawUnsafe<any[]>(countSql, ...params);
@@ -151,10 +148,9 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    const regionalRaw = (body?.regionalId || '').toString().trim().toUpperCase();
+    let regional = (body?.regionalId || '').toString().trim().toUpperCase();
     const solicitanteTipoRaw = (body?.solicitanteTipo || '').toString().trim().toUpperCase();
-    const solicitanteTipo: 'UNIDADE' | 'SESMT' =
-      solicitanteTipoRaw === 'SESMT' ? 'SESMT' : 'UNIDADE';
+    const solicitanteTipo = solicitanteTipoRaw === 'SESMT' ? 'SESMT' : 'UNIDADE';
     const unidade = (body?.unidade || '').toString().trim() || null;
     const dataIso = (body?.data || null) as string | null;
     const responsavel = (body?.responsavel || null) as string | null;
@@ -167,7 +163,7 @@ export async function POST(req: Request) {
       return !!desc && Number.isFinite(qtd) && qtd > 0;
     });
 
-    if (!regionalRaw) {
+    if (!regional) {
       return NextResponse.json(
         { ok: false, error: 'Regional é obrigatória para registrar o pedido.' },
         { status: 400 },
@@ -191,14 +187,14 @@ export async function POST(req: Request) {
     const dataParam = dataIso && dataIso.trim() ? dataIso : null;
 
     const inserted = await prisma.$queryRawUnsafe<any[]>(
-      `
+      \`
       INSERT INTO estoque_sesmt_pedido
         (regional, solicitante_tipo, unidade_solicitante, data_pedido, responsavel, numero_cahosp, observacao, status)
       VALUES
         ($1, $2, $3, COALESCE($4::timestamptz, now()), $5, $6, $7, 'ABERTO')
       RETURNING id
-      `,
-      regionalRaw,
+      \`,
+      regional,
       solicitanteTipo,
       unidade,
       dataParam,
@@ -222,12 +218,12 @@ export async function POST(req: Request) {
       const quantidade = Number(it?.quantidade || 0);
 
       await prisma.$executeRawUnsafe(
-        `
+        \`
         INSERT INTO estoque_sesmt_pedido_item
           (pedido_id, item_id, descricao, grupo, subgrupo, tamanho, unidade_medida, quantidade)
         VALUES
           ($1, $2, $3, $4, $5, $6, $7, $8)
-        `,
+        \`,
         pedidoId,
         itemId,
         descricao,
