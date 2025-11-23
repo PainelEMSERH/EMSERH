@@ -39,6 +39,36 @@ type CatalogItem = {
   tamanho: string | null;
 };
 
+
+type VisaoResumo = {
+  totalItensEstoque: number;
+  totalSaldo: number;
+  entradas30d: number;
+  saidas30d: number;
+};
+
+type VisaoItemSaldo = {
+  item: string;
+  saldo: number;
+};
+
+type VisaoItemSaida = {
+  item: string;
+  quantidade: number;
+};
+
+type VisaoAlerta = {
+  item: string;
+  saldo: number;
+  nivel: 'SEM_ESTOQUE' | 'BAIXO';
+};
+
+type VisaoResponse = {
+  resumo: VisaoResumo | null;
+  saldoPorItem: VisaoItemSaldo[];
+  topSaidas30d: VisaoItemSaida[];
+  alertas: VisaoAlerta[];
+};
 type PedidoItemDraft = {
   id: string;
   itemId: string | null;
@@ -162,6 +192,14 @@ export default function EstoqueSESMTPage() {
   const [pedidoCatalogItems, setPedidoCatalogItems] = useState<CatalogItem[]>([]);
   const [pedidoCatalogLoading, setPedidoCatalogLoading] = useState(false);
   const [pedidoQuantidadePorItem, setPedidoQuantidadePorItem] = useState<Record<string, string>>({});
+
+
+  // Visão geral
+  const [visResumo, setVisResumo] = useState<VisaoResumo | null>(null);
+  const [visSaldoItens, setVisSaldoItens] = useState<VisaoItemSaldo[]>([]);
+  const [visTopSaidas, setVisTopSaidas] = useState<VisaoItemSaida[]>([]);
+  const [visAlertas, setVisAlertas] = useState<VisaoAlerta[]>([]);
+  const [visLoading, setVisLoading] = useState(false);
 
   // Carrega regional do localStorage
   useEffect(() => {
@@ -304,7 +342,8 @@ export default function EstoqueSESMTPage() {
     };
   }, [pedidoModalOpen, pedidoCatalogQuery]);
 
-  // Carrega lista de pedidos de reposição para a Regional selecionada
+  
+// Carrega lista de pedidos de reposição para a Regional selecionada
   useEffect(() => {
     if (!regional) {
       setPedidoLista([]);
@@ -327,6 +366,44 @@ export default function EstoqueSESMTPage() {
       })
       .finally(() => setPedidoLoading(false));
   }, [regional, pedidoPage]);
+
+  // Carrega visão geral da Regional selecionada
+  useEffect(() => {
+    if (!regional) {
+      setVisResumo(null);
+      setVisSaldoItens([]);
+      setVisTopSaidas([]);
+      setVisAlertas([]);
+      return;
+    }
+
+    let active = true;
+    setVisLoading(true);
+    const url = `/api/estoque/visao?regionalId=${encodeURIComponent(regional)}`;
+    fetchJSON<VisaoResponse>(url)
+      .then((d) => {
+        if (!active) return;
+        setVisResumo(d.resumo || null);
+        setVisSaldoItens(d.saldoPorItem || []);
+        setVisTopSaidas(d.topSaidas30d || []);
+        setVisAlertas(d.alertas || []);
+      })
+      .catch(() => {
+        if (!active) return;
+        setVisResumo(null);
+        setVisSaldoItens([]);
+        setVisTopSaidas([]);
+        setVisAlertas([]);
+      })
+      .finally(() => {
+        if (!active) return;
+        setVisLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [regional]);
 
   const isEditing = !!editingMov;
 
@@ -678,8 +755,197 @@ function handleAdicionarItensDoCatalogo() {
       </div>
 
       {tab === 'geral' && (
-        <div className="rounded-xl border border-border bg-panel p-4 text-xs text-muted">
-          Visão geral do estoque SESMT ainda não implementada.
+        <div className="space-y-4">
+          <div className="rounded-xl border border-border bg-panel p-4 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold">Visão geral do estoque SESMT</h2>
+                <p className="text-[11px] text-muted">
+                  Panorama consolidado da Regional selecionada: saldo no estoque SESMT, movimentações recentes e alertas de estoque baixo.
+                </p>
+              </div>
+              {!regional && (
+                <span className="text-[11px] text-muted">
+                  Selecione uma Regional para visualizar o painel geral.
+                </span>
+              )}
+              {regional && (
+                <div className="text-right text-[11px] text-muted">
+                  Regional:{' '}
+                  <span className="font-semibold text-text">{regional}</span>
+                  <br />
+                  Estoque SESMT:{' '}
+                  <span className="font-semibold text-text">
+                    {canonUnidade(`ESTOQUE SESMT - ${regional}`)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {regional && (
+            <>
+              {/* Cards de resumo */}
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl border border-border bg-panel p-4">
+                  <p className="text-[11px] text-muted">Itens diferentes em estoque</p>
+                  <p className="mt-1 text-2xl font-semibold">
+                    {visResumo?.totalItensEstoque ?? 0}
+                  </p>
+                  <p className="mt-1 text-[10px] text-muted">
+                    Considerando apenas o estoque do SESMT da Regional.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border bg-panel p-4">
+                  <p className="text-[11px] text-muted">Saldo total no estoque SESMT</p>
+                  <p className="mt-1 text-2xl font-semibold">
+                    {visResumo?.totalSaldo ?? 0}
+                  </p>
+                  <p className="mt-1 text-[10px] text-muted">
+                    Soma das quantidades de todos os itens (entradas - saídas).
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border bg-panel p-4">
+                  <p className="text-[11px] text-muted">Entradas (últimos 30 dias)</p>
+                  <p className="mt-1 text-2xl font-semibold text-emerald-300">
+                    {visResumo?.entradas30d ?? 0}
+                  </p>
+                  <p className="mt-1 text-[10px] text-muted">
+                    Total de EPIs recebidos pela Regional no período.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border bg-panel p-4">
+                  <p className="text-[11px] text-muted">Saídas (últimos 30 dias)</p>
+                  <p className="mt-1 text-2xl font-semibold text-red-200">
+                    {visResumo?.saidas30d ?? 0}
+                  </p>
+                  <p className="mt-1 text-[10px] text-muted">
+                    Total de EPIs enviados às Unidades no período.
+                  </p>
+                </div>
+              </div>
+
+              {/* Tabelas principais */}
+              <div className="grid gap-4 lg:grid-cols-3">
+                {/* Saldo por item */}
+                <div className="lg:col-span-2 rounded-xl border border-border bg-panel p-4 text-xs">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold">Saldo por item no estoque SESMT</h3>
+                      <p className="text-[11px] text-muted">
+                        Entradas menos saídas para cada item, apenas no estoque do SESMT.
+                      </p>
+                    </div>
+                    {visLoading && (
+                      <span className="text-[11px] text-muted">Atualizando...</span>
+                    )}
+                  </div>
+
+                  <div className="overflow-x-auto rounded-lg border border-border bg-card">
+                    <table className="min-w-full text-[11px]">
+                      <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Item</th>
+                          <th className="px-3 py-2 text-right">Saldo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visSaldoItens.length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={2}
+                              className="px-3 py-6 text-center text-[11px] text-muted"
+                            >
+                              Nenhum registro de estoque para esta Regional.
+                            </td>
+                          </tr>
+                        )}
+                        {visSaldoItens.map((row) => (
+                          <tr key={row.item} className="border-t border-border/60">
+                            <td className="px-3 py-2 align-top">{row.item}</td>
+                            <td className="px-3 py-2 text-right align-top">{row.saldo}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <p className="mt-2 text-[10px] text-muted">
+                    Legenda de alerta: itens com saldo &le; 0 aparecem como &quot;Sem estoque&quot;
+                    na lista de alertas; saldo entre 1 e 50 aparece como &quot;Atenção - estoque baixo&quot;.
+                  </p>
+                </div>
+
+                {/* Alertas e top saídas */}
+                <div className="space-y-4 text-xs">
+                  <div className="rounded-xl border border-border bg-panel p-4">
+                    <h3 className="text-sm font-semibold">Alertas de estoque baixo</h3>
+                    <p className="mb-2 text-[11px] text-muted">
+                      Itens com saldo baixo ou zerado no estoque SESMT.
+                    </p>
+                    {visAlertas.length === 0 && (
+                      <p className="py-4 text-[11px] text-muted">
+                        Nenhum alerta de estoque baixo para esta Regional.
+                      </p>
+                    )}
+                    {visAlertas.length > 0 && (
+                      <ul className="space-y-2">
+                        {visAlertas.map((a) => (
+                          <li
+                            key={a.item}
+                            className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-card px-3 py-2"
+                          >
+                            <div className="flex-1">
+                              <div className="text-[11px] font-medium">{a.item}</div>
+                              <div className="text-[10px] text-muted">
+                                Saldo atual: {a.saldo}
+                              </div>
+                            </div>
+                            <span
+                              className={
+                                a.nivel === 'SEM_ESTOQUE'
+                                  ? 'rounded-full bg-red-900/40 px-2 py-0.5 text-[10px] font-semibold text-red-100'
+                                  : 'rounded-full bg-amber-900/40 px-2 py-0.5 text-[10px] font-semibold text-amber-100'
+                              }
+                            >
+                              {a.nivel === 'SEM_ESTOQUE'
+                                ? 'Sem estoque'
+                                : 'Atenção'}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-panel p-4">
+                    <h3 className="text-sm font-semibold">Itens mais saídos (últimos 30 dias)</h3>
+                    <p className="mb-2 text-[11px] text-muted">
+                      Principais itens enviados às Unidades nesta Regional.
+                    </p>
+                    {visTopSaidas.length === 0 && (
+                      <p className="py-4 text-[11px] text-muted">
+                        Nenhuma saída registrada nos últimos 30 dias.
+                      </p>
+                    )}
+                    {visTopSaidas.length > 0 && (
+                      <ul className="space-y-2">
+                        {visTopSaidas.map((s) => (
+                          <li
+                            key={s.item}
+                            className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-card px-3 py-2"
+                          >
+                            <span className="text-[11px]">{s.item}</span>
+                            <span className="text-[11px] font-semibold">{s.quantidade}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
