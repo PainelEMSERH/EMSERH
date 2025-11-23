@@ -184,7 +184,10 @@ export default function Page() {
 
   const fetchedRef = useRef(false);
 
+  const topScrollRef = useRef<HTMLDivElement | null>(null);
   const bodyScrollRef = useRef<HTMLDivElement | null>(null);
+  const [scrollWidth, setScrollWidth] = useState(0);
+  const syncingRef = useRef(false);
 
   // Resetar página quando filtros mudarem
   useEffect(()=>{ setPage(1); }, [q, regional, unidade, pageSize]);
@@ -292,6 +295,33 @@ useEffect(() => {
   window.addEventListener('resize', measure);
   return () => {
     window.removeEventListener('resize', measure);
+  };
+}, [columns, rows, pageSize]);
+
+useEffect(() => {
+  const top = topScrollRef.current;
+  const body = bodyScrollRef.current;
+  if (!top || !body) return;
+
+  const onTop = () => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
+    body.scrollLeft = top.scrollLeft;
+    syncingRef.current = false;
+  };
+
+  const onBody = () => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
+    top.scrollLeft = body.scrollLeft;
+    syncingRef.current = false;
+  };
+
+  top.addEventListener('scroll', onTop);
+  body.addEventListener('scroll', onBody);
+  return () => {
+    top.removeEventListener('scroll', onTop);
+    body.removeEventListener('scroll', onBody);
   };
 }, [columns, rows, pageSize]);
 
@@ -427,10 +457,21 @@ useEffect(() => {
 
       {columns.length > 0 && (
         <div className="rounded-xl border border-border bg-panel p-0">
+          {/* Barra de rolagem horizontal no topo, sincronizada com a tabela */}
+          <div
+            ref={topScrollRef}
+            className="overflow-x-auto max-w-full border-b border-border bg-panel/40"
+          >
+            <div
+              style={{ width: scrollWidth || '100%' }}
+              className="h-1 rounded-full bg-border"
+            />
+          </div>
+
           {/* Tabela com rolagem vertical e horizontal dentro do card */}
           <div
             ref={bodyScrollRef}
-            className="max-h-[calc(100vh-280px)] overflow-y-auto overflow-x-auto"
+            className="max-h-[calc(100vh-280px)] overflow-y-auto overflow-x-hidden"
           >
             <table className="min-w-full text-[11px] align-middle">
               <thead className="sticky top-0 bg-panel">
