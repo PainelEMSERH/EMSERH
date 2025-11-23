@@ -178,10 +178,13 @@ export default function KitsPage() {
         </div>
       </div>
 
+      {/* Linha de separação para manter o mesmo padrão visual do Estoque */}
+      <div className="border-b border-border" />
+
       {/* Filtros e resumo */}
-      <div className="rounded-xl border border-border bg-panel p-4 text-xs space-y-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div className="flex flex-col gap-1">
+      <div className="rounded-xl border border-border bg-panel p-4 text-xs">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="flex-1 flex flex-col gap-1">
             <span className="font-medium">Buscar função ou EPI</span>
             <input
               type="text"
@@ -195,7 +198,7 @@ export default function KitsPage() {
             />
           </div>
 
-          <div className="flex flex-col gap-1">
+          <div className="flex-1 flex flex-col gap-1">
             <span className="font-medium">Filtrar por unidade (opcional)</span>
             <input
               type="text"
@@ -209,7 +212,7 @@ export default function KitsPage() {
             />
           </div>
 
-          <div className="flex flex-col justify-end gap-1 text-[11px]">
+          <div className="w-full md:w-56 text-[11px] space-y-1">
             <div>
               <span className="text-muted">Funções com kit definido: </span>
               <span className="font-semibold">{totalFuncoesComKit}</span>
@@ -228,13 +231,11 @@ export default function KitsPage() {
         </div>
 
         {loading && (
-          <div className="text-[11px] text-muted">
+          <div className="mt-2 text-[11px] text-muted">
             Carregando mapa de kits...
           </div>
         )}
-      </div>
-
-      {/* Tabela de funções e detalhes de kit */}
+      </div>      {/* Tabela de funções e detalhes de kit */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-4">
         <div className="rounded-xl border border-border bg-panel text-xs lg:basis-7/12">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
