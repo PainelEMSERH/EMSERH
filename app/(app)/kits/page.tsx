@@ -234,7 +234,7 @@ export default function KitsPage() {
         )}
       </div>
 
-      {/* Tabela de funções e detalhes de kit */
+      {/* Tabela de funções e detalhes de kit */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-4">
         <div className="rounded-xl border border-border bg-panel text-xs lg:basis-7/12">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
