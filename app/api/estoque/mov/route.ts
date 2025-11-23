@@ -217,105 +217,59 @@ export async function POST(req: Request) {
   }
 }
 
-
-/**
- * PUT /api/estoque/mov
- * Atualiza uma movimentação existente.
- * No momento, restringimos a edição às entradas do estoque SESMT.
- */
 export async function PUT(req: Request) {
   try {
     await ensureTables();
 
     const body = await req.json();
-    const idRaw = body?.id;
-    const id = Number(idRaw);
+    const idRaw = (body?.id || '').toString().trim();
+    const quantidade = Number(body?.quantidade || 0);
+    const observacao = (body?.observacao || null) as string | null;
+    const dataIso = (body?.data || null) as string | null;
 
-    if (!id || !Number.isInteger(id) || id <= 0) {
-      return NextResponse.json(
-        { ok: false, error: 'ID da movimentação inválido.' },
-        { status: 400 }
-      );
+    if (!idRaw || !Number.isFinite(quantidade) || quantidade <= 0) {
+      return NextResponse.json({ ok: false, error: 'Dados inválidos' }, { status: 400 });
     }
 
-    const rows: any[] = await prisma.$queryRawUnsafe(
+    const current = await prisma.$queryRawUnsafe<any[]>(
       'SELECT id, tipo FROM estoque_sesmt_mov WHERE id = $1',
-      id
+      idRaw,
     );
 
-    if (!rows || rows.length === 0) {
+    if (!current || !current.length) {
+      return NextResponse.json({ ok: false, error: 'Movimentação não encontrada' }, { status: 404 });
+    }
+
+    if (current[0].tipo !== 'entrada') {
       return NextResponse.json(
-        { ok: false, error: 'Movimentação não encontrada.' },
-        { status: 404 }
+        { ok: false, error: 'Apenas movimentações de entrada podem ser editadas' },
+        { status: 400 },
       );
     }
 
-    const row = rows[0];
-    if (row.tipo !== 'entrada') {
-      return NextResponse.json(
-        { ok: false, error: 'Apenas movimentações de ENTRADA podem ser editadas por enquanto.' },
-        { status: 400 }
-      );
-    }
+    const dataParam = dataIso && dataIso.trim() ? dataIso : null;
 
-    const quantidadeRaw = body?.quantidade;
-    const observacao = (body?.observacao ?? null) as string | null;
-    const dataIso = (body?.data ?? null) as string | null;
-
-    const setSql: string[] = [];
-    const params: any[] = [];
-
-    if (quantidadeRaw !== undefined && quantidadeRaw !== null) {
-      const quantidade = Number(quantidadeRaw);
-      if (!Number.isFinite(quantidade) || quantidade <= 0) {
-        return NextResponse.json(
-          { ok: false, error: 'Quantidade inválida.' },
-          { status: 400 }
-        );
-      }
-      params.push(quantidade);
-      setSql.push(`quantidade = $${params.length}`);
-    }
-
-    if (observacao !== undefined) {
-      params.push(observacao);
-      setSql.push(`observacao = $${params.length}`);
-    }
-
-    if (dataIso) {
-      const d = new Date(dataIso);
-      if (Number.isNaN(d.getTime())) {
-        return NextResponse.json(
-          { ok: false, error: 'Data inválida.' },
-          { status: 400 }
-        );
-      }
-      params.push(d);
-      setSql.push(`data = $${params.length}`);
-    }
-
-    if (setSql.length === 0) {
-      return NextResponse.json(
-        { ok: false, error: 'Nenhum campo para atualizar.' },
-        { status: 400 }
-      );
-    }
-
-    params.push(id);
-    const sql = `
+    await prisma.$executeRawUnsafe(
+      `
       UPDATE estoque_sesmt_mov
-         SET ${setSql.join(', ')}
-       WHERE id = $${params.length}
-    `;
-
-    await prisma.$executeRawUnsafe(sql, ...params);
+         SET quantidade = $2,
+             observacao = $3,
+             data       = COALESCE($4::timestamptz, data)
+       WHERE id = $1
+      `,
+      idRaw,
+      quantidade,
+      observacao,
+      dataParam,
+    );
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     console.error('Erro em /api/estoque/mov PUT', e);
     return NextResponse.json(
-      { ok: false, error: e?.message || 'Erro interno ao atualizar movimentação' },
-      { status: 500 }
+      { ok: false, error: e?.message || 'Erro interno ao editar movimentação' },
+      { status: 500 },
     );
   }
 }
+

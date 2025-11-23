@@ -57,6 +57,17 @@ function formatDate(iso: string | null | undefined) {
   return d.toLocaleDateString('pt-BR');
 }
 
+function toInputDate(iso: string | null | undefined) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+
 export default function EstoqueSESMTPage() {
   const [tab, setTab] = useState<'geral' | 'mov' | 'ped'>('mov');
 
@@ -81,7 +92,6 @@ export default function EstoqueSESMTPage() {
   const [responsavel, setResponsavel] = useState<string>('');
   const [observacao, setObservacao] = useState<string>('');
   const [saving, setSaving] = useState(false);
-  const [editingMov, setEditingMov] = useState<MovRow | null>(null);
 
   // Movimentações (lista inferior)
   const [movRows, setMovRows] = useState<MovRow[]>([]);
@@ -89,6 +99,7 @@ export default function EstoqueSESMTPage() {
   const [movPage, setMovPage] = useState(1);
   const movSize = 25;
   const [movLoading, setMovLoading] = useState(false);
+  const [editingMov, setEditingMov] = useState<MovRow | null>(null);
 
   // Catálogo SESMT (modal)
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -216,6 +227,8 @@ export default function EstoqueSESMTPage() {
     };
   }, [catalogOpen, catalogQuery]);
 
+    const isEditing = !!editingMov;
+
   const canSave = useMemo(() => {
     if (!regional || !unidadeSESMTNome) return false;
     if (!itemId || !quantidade) return false;
@@ -284,133 +297,86 @@ async function handleSalvarNovoEpi() {
   }
 }
 
-  function handleEditarEntrada(row: MovRow) {
-    if (!row || row.tipo !== 'entrada') return;
-
-    setEditingMov(row);
-    setTipo('entrada');
-    setItemId(row.itemId);
-    setQuantidade(String(row.quantidade || ''));
-
+  async function handleSalvarMovimentacao() {
+    if (!canSave) return;
     try {
-      const d = row.data ? new Date(row.data) : null;
-      if (d && !Number.isNaN(d.getTime())) {
-        const iso = d.toISOString().slice(0, 10);
-        setDataMov(iso);
+      setSaving(true);
+
+      const qtd = Number(quantidade || 0);
+      const unidadeNome = unidadeSESMTNome;
+
+      const partesObs: string[] = [];
+      if (tipo === 'entrada') {
+        if (numeroPedido) partesObs.push(`Pedido CAHOSP: ${numeroPedido}`);
+        if (responsavel) partesObs.push(`Recebido por: ${responsavel}`);
       } else {
-        setDataMov('');
+        if (responsavel) partesObs.push(`Entregue por: ${responsavel}`);
       }
-    } catch {
+      if (observacao) partesObs.push(observacao);
+      const obsFinal = partesObs.join(' | ') || null;
+
+      if (editingMov) {
+        // Edição de movimentação de ENTRADA já existente
+        await fetchJSON('/api/estoque/mov', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingMov.id,
+            quantidade: qtd,
+            observacao: obsFinal,
+            data: dataMov || null,
+          }),
+        });
+      } else {
+        const destino =
+          tipo === 'entrada'
+            ? 'Entrada no estoque do SESMT (CAHOSP → SESMT)'
+            : destinoUnidade || null;
+
+        const body = {
+          unidadeId: unidadeNome,
+          itemId,
+          tipo,
+          quantidade: qtd,
+          destino,
+          observacao: obsFinal,
+          data: dataMov || null,
+        };
+
+        await fetchJSON('/api/estoque/mov', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      }
+
+      // Limpa campos específicos e sai do modo edição (se ativo)
+      setEditingMov(null);
+      setQuantidade('');
+      setDestinoUnidade('');
+      setNumeroPedido('');
+      setResponsavel('');
+      setObservacao('');
       setDataMov('');
+
+      // Recarrega lista
+      const url = `/api/estoque/mov?regionalId=${encodeURIComponent(
+        regional,
+      )}&unidadeId=${encodeURIComponent(unidadeNome)}&page=${movPage}&size=${movSize}`;
+      const d = await fetchJSON<{ rows: MovRow[]; total: number }>(url);
+      setMovRows(d.rows || []);
+      setMovTotal(d.total || 0);
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.message || 'Erro ao salvar movimentação.');
+    } finally {
+      setSaving(false);
     }
-
-    let numero = '';
-    let resp = '';
-    const resto: string[] = [];
-
-    if (row.observacao) {
-      const partes = row.observacao
-        .split('|')
-        .map((p) => p.trim())
-        .filter(Boolean);
-
-      for (const parte of partes) {
-        if (parte.startsWith('Pedido CAHOSP:')) {
-          numero = parte.replace('Pedido CAHOSP:', '').trim();
-        } else if (parte.startsWith('Recebido por:')) {
-          resp = parte.replace('Recebido por:', '').trim();
-        } else {
-          resto.push(parte);
-        }
-      }
-    }
-
-    setNumeroPedido(numero);
-    setResponsavel(resp);
-    setObservacao(resto.join(' | '));
-    setDestinoUnidade('');
   }
 
-  
-async function handleSalvarMovimentacao() {
-  if (!canSave) return;
-  try {
-    setSaving(true);
-
-    const qtd = Number(quantidade || 0);
-    const unidadeNome = unidadeSESMTNome;
-    const destino =
-      tipo === 'entrada'
-        ? 'Entrada no estoque do SESMT (CAHOSP → SESMT)'
-        : destinoUnidade || null;
-
-    const partesObs: string[] = [];
-    if (tipo === 'entrada') {
-      if (numeroPedido) partesObs.push(`Pedido CAHOSP: ${numeroPedido}`);
-      if (responsavel) partesObs.push(`Recebido por: ${responsavel}`);
-    } else {
-      if (responsavel) partesObs.push(`Entregue por: ${responsavel}`);
-    }
-    if (observacao) partesObs.push(observacao);
-    const obsFinal = partesObs.join(' | ') || null;
-
-    const baseBody = {
-      unidadeId: unidadeNome,
-      itemId,
-      tipo,
-      quantidade: qtd,
-      destino,
-      observacao: obsFinal,
-      data: dataMov || null,
-    };
-
-    if (editingMov && editingMov.tipo === 'entrada') {
-      const body = {
-        id: editingMov.id,
-        quantidade: qtd,
-        observacao: obsFinal,
-        data: dataMov || null,
-      };
-
-      await fetchJSON('/api/estoque/mov', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    } else {
-      await fetchJSON('/api/estoque/mov', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(baseBody),
-      });
-    }
-
-    // Limpa campos específicos
-    setQuantidade('');
-    setDestinoUnidade('');
-    setNumeroPedido('');
-    setResponsavel('');
-    setObservacao('');
-    setDataMov('');
-    setItemId('');
-    setEditingMov(null);
-    setTipo('entrada');
-
-    // Recarrega lista
-    const url = `/api/estoque/mov?regionalId=${encodeURIComponent(
-      regional,
-    )}&unidadeId=${encodeURIComponent(unidadeSESMTNome)}&page=${movPage}&size=${movSize}`;
-    const d = await fetchJSON<{ rows: MovRow[]; total: number }>(url);
-    setMovRows(d.rows || []);
-    setMovTotal(d.total || 0);
-  } catch (e: any) {
-    console.error(e);
-    alert(e?.message || 'Erro ao salvar movimentação.');
-  } finally {
-    setSaving(false);
-  }
-}
-;
+  const movTotalPages = useMemo(() => {
+    return movTotal > 0 ? Math.ceil(movTotal / movSize) : 1;
+  }, [movTotal]);
 
   return (
     <div className="space-y-4">
@@ -512,9 +478,7 @@ async function handleSalvarMovimentacao() {
           <div className="rounded-xl border border-border bg-panel p-4 text-xs space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h2 className="font-semibold text-sm">
-                  {editingMov && editingMov.tipo === 'entrada' ? 'Editar entrada' : 'Nova movimentação'}
-                </h2>
+                <h2 className="font-semibold text-sm">Nova movimentação</h2>
                 <p className="text-[11px] text-muted">
                   Registre entradas e saídas do estoque SESMT da Regional selecionada.
                 </p>
@@ -538,7 +502,7 @@ async function handleSalvarMovimentacao() {
                     className={`px-3 py-1 rounded-md ${
                       tipo === 'entrada' ? 'bg-emerald-600 text-white' : 'text-text'
                     }`}
-                    onClick={() => { if (!editingMov) setTipo('entrada'); }}
+                    onClick={() => setTipo('entrada')}
                   >
                     Entrada
                   </button>
@@ -546,8 +510,12 @@ async function handleSalvarMovimentacao() {
                     type="button"
                     className={`px-3 py-1 rounded-md ${
                       tipo === 'saida' ? 'bg-emerald-600 text-white' : 'text-text'
-                    }`}
-                    onClick={() => { if (!editingMov) setTipo('saida'); }}
+                    } ${isEditing ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    onClick={() => {
+                      if (isEditing) return;
+                      setTipo('saida');
+                    }}
+                    disabled={isEditing}
                   >
                     Saída
                   </button>
@@ -670,51 +638,45 @@ async function handleSalvarMovimentacao() {
                   onChange={(e) => setObservacao(e.target.value)}
                 />
                 <span className="text-[10px] text-muted">
-                  Máx. 120 caracteres. Use para detalhes rápidos sobre a movimentação.
-                </span>
+                  Máx. 120 caracteres. Use para detalhes rápidos sobre a movimen            </span>
               </div>
-              <div className="flex items-center gap-2">
-                {editingMov && editingMov.tipo === 'entrada' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingMov(null);
-                      setTipo('entrada');
-                      setItemId('');
-                      setQuantidade('');
-                      setDataMov('');
-                      setDestinoUnidade('');
-                      setNumeroPedido('');
-                      setResponsavel('');
-                      setObservacao('');
-                    }}
-                    className="rounded-lg border border-border px-3 py-1.5 text-[11px] text-muted hover:bg-card"
-                  >
-                    Cancelar edição
-                  </button>
-                )}
+              <button
+                type="button"
+                onClick={handleSalvarMovimentacao}
+                disabled={!canSave || saving}
+                className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
+                  !canSave || saving
+                    ? 'cursor-not-allowed bg-emerald-900/40 text-muted'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-500'
+                }`}
+              >
+                {saving ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Salvar movimentação'}
+              </button>
+              {isEditing && (
                 <button
                   type="button"
-                  onClick={handleSalvarMovimentacao}
-                  disabled={!canSave || saving}
-                  className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
-                    !canSave || saving
-                      ? 'cursor-not-allowed bg-emerald-900/40 text-muted'
-                      : 'bg-emerald-600 text-white hover:bg-emerald-500'
-                  }`}
+                  onClick={() => {
+                    setEditingMov(null);
+                    setTipo('entrada');
+                    setItemId('');
+                    setQuantidade('');
+                    setDataMov('');
+                    setDestinoUnidade('');
+                    setNumeroPedido('');
+                    setResponsavel('');
+                    setObservacao('');
+                  }}
+                  disabled={saving}
+                  className="ml-2 rounded-lg border border-border px-3 py-2 text-[11px] hover:bg-card"
                 >
-                  {saving
-                    ? 'Salvando...'
-                    : editingMov && editingMov.tipo === 'entrada'
-                    ? 'Salvar edição'
-                    : 'Salvar movimentação'}
+                  Cancelar edição
                 </button>
-              </div>
+              )}
             </div>
           </div>
 
           {/* Lista de movimentações */}
-          <div className="rounded-xl border border-border bg-panel p-4 text-xs space-y-3">
+text-xs space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm font-semibold">Movimentações do estoque SESMT</h2>
@@ -778,17 +740,28 @@ async function handleSalvarMovimentacao() {
                         <td className="px-3 py-2 align-top max-w-xs break-words">
                           {m.observacao || '-'}
                         </td>
-                        <td className="px-3 py-2 text-right align-top">
-                          {m.tipo === 'entrada' ? (
+                        <td className="px-3 py-2 align-top text-right">
+                          {m.tipo === 'entrada' && (
                             <button
                               type="button"
-                              className="rounded border border-border px-2 py-1 text-[10px] hover:bg-panel"
-                              onClick={() => handleEditarEntrada(m)}
+                              className="rounded border border-border px-2 py-1 text-[10px] hover:bg-card"
+                              onClick={() => {
+                                setEditingMov(m);
+                                setTipo('entrada');
+                                setItemId(m.itemId);
+                                setQuantidade(String(m.quantidade));
+                                setDataMov(toInputDate(m.data));
+                                setDestinoUnidade('');
+                                setNumeroPedido('');
+                                setResponsavel('');
+                                setObservacao(m.observacao || '');
+                                if (typeof window !== 'undefined' && window.scrollTo) {
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }
+                              }}
                             >
                               Editar
                             </button>
-                          ) : (
-                            <span className="text-muted">-</span>
                           )}
                         </td>
                       </tr>
