@@ -266,7 +266,7 @@ export default function KitsPage() {
             )}
           </div>
 
-          <div className="max-h-[520px] overflow-auto rounded-b-xl bg-card">
+          <div className="max-h-[520px] overflow-auto rounded-b-xl border-t border-border bg-card">
             <table className="min-w-full text-[11px]">
               <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
                 <tr>
@@ -294,15 +294,15 @@ export default function KitsPage() {
                     <tr
                       key={g.funcao}
                       className={`border-t border-border/60 ${
-                        isSelected ? 'bg-emerald-950/40' : ''
+                        isSelected ? 'bg-emerald-500/10' : ''
                       }`}
                     >
                       <td className="px-3 py-2 align-top">
                         <div className="font-semibold">{g.funcao}</div>
                       </td>
-                      <td className="px-3 py-2 align-top">
+                      <td className="px-3 py-2 align-top whitespace-normal break-words">
                         {g.unidades.length ? (
-                          <span>{g.unidades.join(' / ')}</span>
+                          <span className="text-[11px] leading-snug">{g.unidades.join(' / ')}</span>
                         ) : (
                           <span className="text-muted">Sem unidade vinculada</span>
                         )}
@@ -319,7 +319,7 @@ export default function KitsPage() {
                           className={`rounded border border-border px-2 py-1 text-[10px] ${
                             isSelected
                               ? 'bg-emerald-600 text-white'
-                              : 'hover:bg-card'
+                              : 'hover:bg-emerald-500/10'
                           }`}
                           onClick={() => setSelectedFuncao(g.funcao)}
                         >
@@ -354,7 +354,7 @@ export default function KitsPage() {
           )}
 
           {funcaoSelecionada && (
-            <div className="overflow-x-auto rounded-b-xl bg-card">
+            <div className="overflow-x-auto rounded-b-xl border-t border-border bg-card">
               <table className="min-w-full text-[11px]">
                 <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
                   <tr>
