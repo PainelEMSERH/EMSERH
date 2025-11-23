@@ -3,171 +3,160 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 
-type KitRow = {
+type KitMapRow = {
   funcao: string;
   item: string;
   quantidade: number;
   unidade: string;
 };
 
-type KitsResponse = {
-  rows: KitRow[];
+type KitMapResponse = {
+  rows: KitMapRow[];
   total: number;
 };
 
-async function fetchJSON<T>(url: string): Promise<T> {
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    console.error('Erro ao buscar', url, res.status, text);
-    throw new Error('Falha ao carregar dados de kits.');
+const fetchJSON = async <T = any>(url: string, init?: RequestInit): Promise<T> => {
+  const r = await fetch(url, { cache: 'no-store', ...init });
+  const data = await r.json();
+  if (!r.ok) {
+    throw new Error((data && (data.error || data.message)) || 'Erro ao carregar dados');
   }
-  return (await res.json()) as T;
-}
+  return data as T;
+};
 
-function normalizarTexto(s: string | null | undefined) {
-  return (s || '').toString().trim();
-}
+const PAGE_SIZE = 400;
 
 export default function KitsPage() {
   const [q, setQ] = useState('');
   const [unidade, setUnidade] = useState('');
-  const [rows, setRows] = useState<KitRow[]>([]);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const pageSize = 200;
+  const [rows, setRows] = useState<KitMapRow[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedFuncao, setSelectedFuncao] = useState<string | null>(null);
 
+  // Carrega dados do mapa de kits
   useEffect(() => {
-    let active = true;
+    let cancelled = false;
 
-    const params = new URLSearchParams();
-    if (q.trim()) params.set('q', q.trim());
-    if (unidade.trim()) params.set('unidade', unidade.trim());
-    params.set('page', String(page));
-    params.set('size', String(pageSize));
+    async function load() {
+      try {
+        setLoading(true);
+        setError(null);
 
-    setLoading(true);
+        const params = new URLSearchParams();
+        if (q.trim()) params.set('q', q.trim());
+        if (unidade.trim()) params.set('unidade', unidade.trim());
+        params.set('page', String(page));
+        params.set('size', String(PAGE_SIZE));
 
-    fetchJSON<KitsResponse>('/api/kits/map?' + params.toString())
-      .then((data) => {
-        if (!active) return;
-        const safeRows = Array.isArray(data.rows) ? data.rows : [];
-        setRows(safeRows);
-        const safeTotal =
-          typeof data.total === 'number' && Number.isFinite(data.total)
-            ? data.total
-            : safeRows.length;
-        setTotal(safeTotal);
-      })
-      .catch((err) => {
-        if (!active) return;
-        console.error(err);
-        setRows([]);
-        setTotal(0);
-      })
-      .finally(() => {
-        if (!active) return;
-        setLoading(false);
-      });
+        const data = await fetchJSON<KitMapResponse>(`/api/kits/map?${params.toString()}`);
 
-    return () => {
-      active = false;
-    };
-  }, [q, unidade, page]);
+        if (cancelled) return;
 
-  const { gruposComKit, gruposSemKit } = useMemo(() => {
-    const map = new Map<string, KitRow[]>();
+        const novasLinhas = data?.rows ?? [];
+        setRows(novasLinhas);
+        setTotal(typeof data?.total === 'number' ? data.total : novasLinhas.length);
 
-    rows.forEach((row) => {
-      const funcao = normalizarTexto(row.funcao) || 'SEM FUNÇÃO';
-      const atual = map.get(funcao) || [];
-      atual.push(row);
-      map.set(funcao, atual);
-    });
-
-    const grupos = Array.from(map.entries()).map(([funcao, itens]) => {
-      const totalQtd = itens.reduce((acc, it) => acc + (Number(it.quantidade) || 0), 0);
-      const unidadesSet = new Set<string>();
-      itens.forEach((it) => {
-        const u = normalizarTexto(it.unidade);
-        if (u) unidadesSet.add(u);
-      });
-      const unidadesList = Array.from(unidadesSet);
-      return {
-        funcao,
-        itens,
-        totalQtd,
-        unidades: unidadesList,
-      };
-    });
-
-    grupos.sort((a, b) => a.funcao.localeCompare(b.funcao, 'pt-BR'));
-
-    const gruposComKit = [];
-    const gruposSemKit = [];
-
-    for (const g of grupos) {
-      const temKitValido = g.itens.some((it) => {
-        const nome = normalizarTexto(it.item).toUpperCase();
-        const qtd = Number(it.quantidade) || 0;
-        if (!nome || nome === 'SEM EPI') return false;
-        if (qtd <= 0) return false;
-        return true;
-      });
-
-      if (temKitValido) {
-        gruposComKit.push(g);
-      } else {
-        gruposSemKit.push(g);
+        if (novasLinhas.length > 0) {
+          setSelectedFuncao((prev) => {
+            if (prev && novasLinhas.some((r) => r.funcao === prev)) {
+              return prev;
+            }
+            return novasLinhas[0].funcao;
+          });
+        } else {
+          setSelectedFuncao(null);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.message || 'Erro ao carregar dados');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
-    return { gruposComKit, gruposSemKit };
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [q, unidade, page]);
+
+  // Agrupa linhas por função
+  const gruposPorFuncao = useMemo(() => {
+    const map = new Map<string, KitMapRow[]>();
+
+    for (const row of rows) {
+      const key = row.funcao || 'SEM FUNÇÃO';
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)!.push(row);
+    }
+
+    const entries = Array.from(map.entries());
+    entries.sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
+
+    return entries;
   }, [rows]);
 
-  // Garante que sempre exista uma função selecionada quando houver dados
-  useEffect(() => {
-    if (!gruposComKit.length) {
-      setSelectedFuncao(null);
-      return;
-    }
-    if (!selectedFuncao) {
-      setSelectedFuncao(gruposComKit[0].funcao);
-      return;
-    }
-    const stillExists = gruposComKit.some((g) => g.funcao === selectedFuncao);
-    if (!stillExists) {
-      setSelectedFuncao(gruposComKit[0].funcao);
-    }
-  }, [gruposComKit, selectedFuncao]);
+  const funcoesResumo = useMemo(() => {
+    let comKit = 0;
+    let apenasSemEpi = 0;
 
-  const totalFuncoesComKit = useMemo(() => gruposComKit.length, [gruposComKit]);
-  const totalFuncoesSemKit = useMemo(() => gruposSemKit.length, [gruposSemKit]);
+    for (const [, itens] of gruposPorFuncao) {
+      const temEpiReal = itens.some((i) => {
+        const nome = (i.item || '').toUpperCase();
+        const qtd = i.quantidade ?? 0;
+        return nome !== 'SEM EPI' && qtd > 0;
+      });
 
-  const totalPages = useMemo(() => {
-    if (total <= 0) return 1;
-    return Math.max(1, Math.ceil(total / pageSize));
-  }, [total, pageSize]);
+      if (temEpiReal) {
+        comKit += 1;
+      } else {
+        apenasSemEpi += 1;
+      }
+    }
 
-  const funcaoSelecionada = useMemo(
-    () => gruposComKit.find((g) => g.funcao === selectedFuncao) || null,
-    [gruposComKit, selectedFuncao],
+    return {
+      funcoesTotal: gruposPorFuncao.length,
+      comKit,
+      apenasSemEpi,
+    };
+  }, [gruposPorFuncao]);
+
+  const funcoesLista = useMemo(
+    () =>
+      gruposPorFuncao.map(([funcao, itens]) => {
+        const qtdItens = itens.length;
+        const qtdTotal = itens.reduce((acc, it) => acc + (it.quantidade ?? 0), 0);
+        const unidades = Array.from(
+          new Set(itens.map((i) => (i.unidade || '').trim()).filter(Boolean)),
+        ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+        return {
+          funcao,
+          qtdItens,
+          qtdTotal,
+          unidades,
+        };
+      }),
+    [gruposPorFuncao],
   );
 
-  function handleChangePage(delta: number) {
-    setPage((prev) => {
-      const next = prev + delta;
-      if (next < 1) return 1;
-      if (next > totalPages) return totalPages;
-      return next;
-    });
-  }
+  const totalPages = Math.max(1, Math.ceil((total || 0) / PAGE_SIZE) || 1);
+
+  const funcaoSelecionada =
+    selectedFuncao && gruposPorFuncao.find(([f]) => f === selectedFuncao)?.[1];
 
   return (
     <div className="space-y-4">
-      {/* Cabeçalho */}
+      {/* Cabeçalho - seguindo padrão do Estoque */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-lg font-semibold">Mapa de kits por função</h1>
@@ -178,238 +167,253 @@ export default function KitsPage() {
         </div>
       </div>
 
-      {/* Linha de separação para manter o mesmo padrão visual do Estoque */}
+      {/* Linha de separação para manter o mesmo alinhamento visual do Estoque */}
       <div className="border-b border-border" />
 
-      {/* Filtros e resumo */}
-      <div className="rounded-xl border border-border bg-panel p-4 text-xs">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div className="flex-1 flex flex-col gap-1">
-            <span className="font-medium">Buscar função ou EPI</span>
-            <input
-              type="text"
-              className="rounded border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-              placeholder="Digite parte da função (ex.: ENFERMEIRO) ou do EPI (ex.: MÁSCARA)..."
-              value={q}
-              onChange={(e) => {
-                setPage(1);
-                setQ(e.target.value);
-              }}
-            />
-          </div>
-
-          <div className="flex-1 flex flex-col gap-1">
-            <span className="font-medium">Filtrar por unidade (opcional)</span>
-            <input
-              type="text"
-              className="rounded border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-              placeholder="Nome da unidade (ex.: HOSPITAL REGIONAL...)"
-              value={unidade}
-              onChange={(e) => {
-                setPage(1);
-                setUnidade(e.target.value);
-              }}
-            />
-          </div>
-
-          <div className="w-full md:w-56 text-[11px] space-y-1">
-            <div>
-              <span className="text-muted">Funções com kit definido: </span>
-              <span className="font-semibold">{totalFuncoesComKit}</span>
-            </div>
-            <div>
-              <span className="text-muted">Funções sem kit (apenas &quot;SEM EPI&quot;): </span>
-              <span className="font-semibold">{totalFuncoesSemKit}</span>
-            </div>
-            <div>
-              <span className="text-muted">Página </span>
-              <span className="font-semibold">
-                {page} / {totalPages}
-              </span>
-            </div>
-          </div>
+      {/* Filtros principais */}
+      <div className="rounded-xl border border-border bg-panel p-4 flex flex-wrap items-center gap-3 text-xs">
+        <div className="flex flex-col gap-1">
+          <span className="font-medium">Buscar função ou EPI</span>
+          <input
+            type="text"
+            className="w-80 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+            placeholder="Digite parte da função (ex.: ENFERMEIRO) ou do EPI (ex.: MÁSCARA)..."
+            value={q}
+            onChange={(e) => {
+              setPage(1);
+              setQ(e.target.value);
+            }}
+          />
         </div>
 
-        {loading && (
-          <div className="mt-2 text-[11px] text-muted">
-            Carregando mapa de kits...
-          </div>
-        )}
-      </div>      {/* Tabela de funções e detalhes de kit */}
+        <div className="flex flex-col gap-1">
+          <span className="font-medium">Filtrar por unidade (opcional)</span>
+          <input
+            type="text"
+            className="w-80 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+            placeholder="Nome da unidade (ex.: HOSPITAL REGIONAL...)"
+            value={unidade}
+            onChange={(e) => {
+              setPage(1);
+              setUnidade(e.target.value);
+            }}
+          />
+        </div>
+
+        <div className="ml-auto flex flex-col items-end gap-0.5 text-[11px] text-muted">
+          <span>
+            Funções com kit definido:{' '}
+            <span className="font-semibold text-text">{funcoesResumo.comKit}</span>
+          </span>
+          <span>
+            Funções sem kit (apenas &quot;SEM EPI&quot;):{' '}
+            <span className="font-semibold text-text">{funcoesResumo.apenasSemEpi}</span>
+          </span>
+          <span>
+            Página{' '}
+            <span className="font-semibold text-text">
+              {page} / {totalPages}
+            </span>
+          </span>
+        </div>
+      </div>
+
+      {/* Conteúdo principal: lista de funções e detalhes do kit */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-4">
+        {/* Funções com kit */}
         <div className="rounded-xl border border-border bg-panel text-xs lg:basis-7/12">
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <div>
-              <div className="text-sm font-semibold">Funções com kit cadastrado</div>
+          <div className="border-b border-border px-4 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="text-xs font-semibold">Funções com kit cadastrado</h2>
+                <p className="text-[11px] text-muted">
+                  Selecione uma função para ver o detalhamento do kit ao lado.
+                </p>
+              </div>
               <div className="text-[11px] text-muted">
-                Selecione uma função para ver o detalhamento do kit ao lado.
+                <span className="font-semibold text-text">{funcoesResumo.funcoesTotal}</span>{' '}
+                funções encontradas
               </div>
             </div>
-            {totalPages > 1 && (
-              <div className="inline-flex items-center gap-1 text-[11px] text-muted">
-                <button
-                  type="button"
-                  className="rounded border border-border px-2 py-1 disabled:opacity-40"
-                  onClick={() => handleChangePage(-1)}
-                  disabled={page <= 1}
-                >
-                  Anterior
-                </button>
-                <button
-                  type="button"
-                  className="rounded border border-border px-2 py-1 disabled:opacity-40"
-                  onClick={() => handleChangePage(1)}
-                  disabled={page >= totalPages}
-                >
-                  Próxima
-                </button>
-              </div>
-            )}
           </div>
 
-          <div className="max-h-[520px] overflow-auto rounded-b-xl border-t border-border bg-card">
-            <table className="min-w-full text-[11px]">
-              <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
+          <div className="max-h-[440px] overflow-auto">
+            <table className="min-w-full border-separate border-spacing-0">
+              <thead className="bg-muted/40 text-[11px] uppercase text-muted">
                 <tr>
-                  <th className="px-3 py-2 text-left">Função</th>
-                  <th className="px-3 py-2 text-left">Unidades</th>
-                  <th className="px-3 py-2 text-right">Itens</th>
-                  <th className="px-3 py-2 text-right">Qtd total</th>
-                  <th className="px-3 py-2 text-right">Ação</th>
+                  <th className="sticky left-0 z-10 border-b border-border bg-muted/40 px-3 py-2 text-left">
+                    Função
+                  </th>
+                  <th className="border-b border-border px-3 py-2 text-left">Unidades</th>
+                  <th className="border-b border-border px-3 py-2 text-center">Itens</th>
+                  <th className="border-b border-border px-3 py-2 text-center">Qtd total</th>
+                  <th className="border-b border-border px-3 py-2 text-center">Ação</th>
                 </tr>
               </thead>
               <tbody>
-                {!loading && gruposComKit.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="px-3 py-6 text-center text-[11px] text-muted"
-                    >
-                      Nenhuma função com kit cadastrada para os filtros atuais.
-                    </td>
-                  </tr>
-                )}
-                {gruposComKit.map((g) => {
-                  const isSelected = g.funcao === selectedFuncao;
+                {funcoesLista.map((linha) => {
+                  const selecionada = linha.funcao === selectedFuncao;
                   return (
                     <tr
-                      key={g.funcao}
-                      className={`border-t border-border/60 ${
-                        isSelected ? 'bg-emerald-500/10' : ''
+                      key={linha.funcao}
+                      className={`cursor-pointer border-b border-border/60 text-[11px] ${
+                        selecionada ? 'bg-emerald-50/70 dark:bg-emerald-500/10' : 'hover:bg-muted/40'
                       }`}
+                      onClick={() => setSelectedFuncao(linha.funcao)}
                     >
-                      <td className="px-3 py-2 align-top">
-                        <div className="font-semibold">{g.funcao}</div>
+                      <td className="sticky left-0 z-10 bg-panel px-3 py-2 text-left">
+                        <div className="max-w-xs truncate font-medium">{linha.funcao}</div>
                       </td>
-                      <td className="px-3 py-2 align-top whitespace-normal break-words">
-                        {g.unidades.length ? (
-                          <span className="text-[11px] leading-snug">{g.unidades.join(' / ')}</span>
-                        ) : (
-                          <span className="text-muted">Sem unidade vinculada</span>
-                        )}
+                      <td className="px-3 py-2 text-left">
+                        <div className="max-w-xs truncate">
+                          {linha.unidades.length === 0
+                            ? '—'
+                            : linha.unidades.length === 1
+                            ? linha.unidades[0]
+                            : `${linha.unidades[0]} + ${linha.unidades.length - 1} outras`}
+                        </div>
                       </td>
-                      <td className="px-3 py-2 text-right align-top">
-                        {g.itens.length}
-                      </td>
-                      <td className="px-3 py-2 text-right align-top">
-                        {g.totalQtd}
-                      </td>
-                      <td className="px-3 py-2 text-right align-top">
+                      <td className="px-3 py-2 text-center font-medium">{linha.qtdItens}</td>
+                      <td className="px-3 py-2 text-center font-medium">{linha.qtdTotal}</td>
+                      <td className="px-3 py-2 text-center">
                         <button
                           type="button"
-                          className={`rounded border border-border px-2 py-1 text-[10px] ${
-                            isSelected
-                              ? 'bg-emerald-600 text-white'
-                              : 'hover:bg-emerald-500/10'
+                          className={`rounded-full px-3 py-1 text-[11px] ${
+                            selecionada
+                              ? 'bg-emerald-500 text-white'
+                              : 'border border-border bg-card hover:bg-muted/60'
                           }`}
-                          onClick={() => setSelectedFuncao(g.funcao)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedFuncao(linha.funcao);
+                          }}
                         >
-                          {isSelected ? 'Selecionada' : 'Ver kit'}
+                          {selecionada ? 'Selecionada' : 'Ver kit'}
                         </button>
                       </td>
                     </tr>
                   );
                 })}
+
+                {funcoesLista.length === 0 && !loading && (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-4 py-8 text-center text-[11px] text-muted"
+                    >
+                      Nenhuma função encontrada para os filtros informados.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
+
+          {/* Paginação simples */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-border px-4 py-2 text-[11px] text-muted">
+              <div>
+                Mostrando{' '}
+                <span className="font-semibold text-text">
+                  {rows.length}
+                </span>{' '}
+                registros na página atual.
+              </div>
+              <div className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  className="rounded border border-border px-2 py-1 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Anterior
+                </button>
+                <span className="px-1">
+                  Página{' '}
+                  <span className="font-semibold text-text">
+                    {page} / {totalPages}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="rounded border border-border px-2 py-1 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Próxima
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Detalhes do kit da função selecionada */}
         <div className="rounded-xl border border-border bg-panel text-xs lg:basis-5/12">
           <div className="border-b border-border px-4 py-3">
-            <div className="text-sm font-semibold">
-              {funcaoSelecionada ? funcaoSelecionada.funcao : 'Detalhamento do kit'}
-            </div>
-            <div className="text-[11px] text-muted">
-              {funcaoSelecionada
-                ? 'Lista completa de EPIs previstos para a função selecionada.'
-                : 'Selecione uma função ao lado para visualizar o kit correspondente.'}
-            </div>
+            <h2 className="text-xs font-semibold">
+              {selectedFuncao || 'Nenhuma função selecionada'}
+            </h2>
+            <p className="text-[11px] text-muted">
+              Lista completa de EPIs previstos para a função selecionada.
+            </p>
           </div>
 
-          {!funcaoSelecionada && (
-            <div className="p-6 text-center text-[11px] text-muted">
-              Nenhuma função selecionada. Escolha uma função na tabela ao lado.
-            </div>
-          )}
+          <div className="max-h-[440px] overflow-auto">
+            {loading && (
+              <div className="px-4 py-8 text-center text-[11px] text-muted">
+                Carregando kit da função selecionada...
+              </div>
+            )}
 
-          {funcaoSelecionada && (
-            <div className="overflow-x-auto rounded-b-xl border-t border-border bg-card">
-              <table className="min-w-full text-[11px]">
-                <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
+            {!loading && !funcaoSelecionada && (
+              <div className="px-4 py-8 text-center text-[11px] text-muted">
+                Selecione uma função na tabela ao lado para ver o kit detalhado.
+              </div>
+            )}
+
+            {!loading && funcaoSelecionada && (
+              <table className="min-w-full border-separate border-spacing-0">
+                <thead className="bg-muted/40 text-[11px] uppercase text-muted">
                   <tr>
-                    <th className="px-3 py-2 text-left">EPI</th>
-                    <th className="px-3 py-2 text-right">Quantidade</th>
-                    <th className="px-3 py-2 text-left">Unidade de entrega</th>
+                    <th className="border-b border-border px-3 py-2 text-left">EPI</th>
+                    <th className="border-b border-border px-3 py-2 text-center">
+                      Quantidade
+                    </th>
+                    <th className="border-b border-border px-3 py-2 text-left">
+                      Unidade de entrega
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {funcaoSelecionada.itens
-                    .filter((it) => {
-                      const nome = normalizarTexto(it.item).toUpperCase();
-                      const qtd = Number(it.quantidade) || 0;
-                      if (!nome || nome === 'SEM EPI') return false;
-                      if (qtd <= 0) return false;
-                      return true;
-                    })
-                    .map((item, index) => (
-                      <tr
-                        key={funcaoSelecionada.funcao + '-' + index}
-                        className="border-t border-border/60"
-                      >
-                        <td className="px-3 py-2 align-top">{item.item}</td>
-                        <td className="px-3 py-2 text-right align-top">
-                          {Number(item.quantidade) || 0}
-                        </td>
-                        <td className="px-3 py-2 align-top">
-                          {normalizarTexto(item.unidade) || '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  {funcaoSelecionada.itens.filter((it) => {
-                    const nome = normalizarTexto(it.item).toUpperCase();
-                    const qtd = Number(it.quantidade) || 0;
-                    if (!nome || nome === 'SEM EPI') return false;
-                    if (qtd <= 0) return false;
-                    return true;
-                  }).length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={3}
-                        className="px-3 py-6 text-center text-[11px] text-muted"
-                      >
-                        Esta função está cadastrada apenas como &quot;SEM EPI&quot; ou com
-                        quantidades zeradas no mapa. Não há kit definido.
+                  {funcaoSelecionada.map((item, idx) => (
+                    <tr
+                      key={`${item.item}-${idx}`}
+                      className="border-b border-border/60 text-[11px]"
+                    >
+                      <td className="px-3 py-2 text-left">
+                        {item.item || 'SEM EPI'}
+                      </td>
+                      <td className="px-3 py-2 text-center font-medium">
+                        {item.quantidade ?? 0}
+                      </td>
+                      <td className="px-3 py-2 text-left">
+                        {item.unidade || '—'}
                       </td>
                     </tr>
-                  )}
+                  ))}
                 </tbody>
               </table>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Estado de erro global */}
+      {error && (
+        <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-xs text-red-800">
+          {error}
+        </div>
+      )}
     </div>
   );
 }
