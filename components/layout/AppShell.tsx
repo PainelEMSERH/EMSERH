@@ -12,7 +12,6 @@ const NAV = [
   { label: "Dashboard", href: "/" },
   { label: "Alterdata (Completa)", href: "/colaboradores/alterdata" },
   { label: "Entregas", href: "/entregas" },
-  { label: "Pendências", href: "/pendencias" },
   { label: "Estoque", href: "/estoque" },
   { label: "Kits", href: "/kits" },
   { label: "Relatórios", href: "/relatorios" },
