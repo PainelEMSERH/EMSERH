@@ -282,9 +282,7 @@ export default function EntregasPage() {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
-
-  
-const diagResumo = useMemo(() => {
+  const diagResumo = useMemo(() => {
     if (!rows.length) return null;
 
     const counts: Record<StatusCode, number> = {
@@ -323,6 +321,7 @@ const diagResumo = useMemo(() => {
     };
   }, [rows, statusMap]);
 
+
 const visibleRows = useMemo(() => {
     return rows.filter((r) => {
       const st = statusMap[r.id];
@@ -336,365 +335,364 @@ const visibleRows = useMemo(() => {
 
   
 
-return (
-  <div className="space-y-4">
-    {/* Cabeçalho */}
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div>
-        <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
-          EPI • Entregas
-        </p>
-        <h1 className="mt-1 text-lg font-semibold">Entregas de EPI</h1>
-        <p className="mt-1 text-xs text-muted">
-          Controle de entregas de EPI por colaborador, combinando base oficial do Alterdata e cadastros manuais.
-        </p>
+  return (
+    <div className="space-y-4">
+      {/* Cabeçalho */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
+            EPI • Entregas
+          </p>
+          <h1 className="mt-1 text-lg font-semibold">Entregas de EPI</h1>
+          <p className="mt-1 text-xs text-muted">
+            Controle de entregas de EPI por colaborador, combinando base oficial do Alterdata e cadastros manuais.
+          </p>
+        </div>
+        <div className="hidden md:flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs text-muted">
+          <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+          <span>Base oficial + colaboradores manuais</span>
+        </div>
       </div>
-      <div className="hidden md:flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs text-muted">
-        <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-        <span>Base oficial + colaboradores manuais</span>
+
+      {/* Abas */}
+      <div className="border-b border-border">
+        <nav className="-mb-px flex gap-4 text-xs">
+          <button
+            type="button"
+            onClick={() => setTab('lista')}
+            className={`border-b-2 px-3 py-2 ${
+              tab === 'lista'
+                ? 'border-emerald-500 text-emerald-500'
+                : 'border-transparent text-muted hover:text-text'
+            }`}
+          >
+            Lista de colaboradores
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('diag')}
+            className={`border-b-2 px-3 py-2 ${
+              tab === 'diag'
+                ? 'border-emerald-500 text-emerald-500'
+                : 'border-transparent text-muted hover:text-text'
+            }`}
+          >
+            Diagnóstico
+          </button>
+        </nav>
       </div>
-    </div>
 
-    {/* Abas */}
-    <div className="border-b border-border">
-      <nav className="-mb-px flex gap-4 text-xs">
-        <button
-          type="button"
-          onClick={() => setTab('lista')}
-          className={`border-b-2 px-3 py-2 ${
-            tab === 'lista'
-              ? 'border-emerald-500 text-emerald-500'
-              : 'border-transparent text-muted hover:text-text'
-          }`}
-        >
-          Lista de colaboradores
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('diag')}
-          className={`border-b-2 px-3 py-2 ${
-            tab === 'diag'
-              ? 'border-emerald-500 text-emerald-500'
-              : 'border-transparent text-muted hover:text-text'
-          }`}
-        >
-          Diagnóstico
-        </button>
-      </nav>
-    </div>
-
-    {/* Aba: Lista */}
-    {tab === 'lista' && (
-      <>
-        <div className="space-y-4">
-              <div className="flex flex-col md:flex-row gap-3 items-stretch">
-                <div className="flex-1">
-                  <label className="text-xs block mb-1">Regional</label>
-                  <select
-                    value={state.regional}
-                    onChange={e => setFilter({ regional: e.target.value, unidade: '', page: 1 })}
-                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-                  >
-                    <option value="">Selecione a Regional…</option>
-                    {regionais.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs block mb-1">Unidade</label>
-                  <select
-                    value={state.unidade}
-                    onChange={e => setFilter({ unidade: e.target.value, page: 1 })}
-                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-                    disabled={!state.regional}
-                  >
-                    <option value="">(todas)</option>
-                    {unidades.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
-                  </select>
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs block mb-1">Busca (nome/CPF)</label>
-                  <input
-                    value={state.q}
-                    onChange={e => setFilter({ q: e.target.value })}
-                    placeholder="Digite para filtrar…"
-                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-                  />
-                </div>
-                <button
-                  onClick={openNewManual}
-                  className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600 self-end h-10 md:h-auto"
+      {/* Aba: Lista */}
+      {tab === 'lista' && (
+        <>
+            <div className="flex flex-col md:flex-row gap-3 items-stretch">
+              <div className="flex-1">
+                <label className="text-xs block mb-1">Regional</label>
+                <select
+                  value={state.regional}
+                  onChange={e => setFilter({ regional: e.target.value, unidade: '', page: 1 })}
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
                 >
-                  Cadastrar colaborador
-                </button>
-                <div className="w-40">
-                  <label className="text-xs block mb-1">Itens por página</label>
-                  <select
-                    value={state.pageSize}
-                    onChange={e => setFilter({ pageSize: Number(e.target.value) || 25, page: 1 })}
-                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
-                  >
-                    {[10,25,50,100].map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
+                  <option value="">Selecione a Regional…</option>
+                  {regionais.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="text-xs block mb-1">Unidade</label>
+                <select
+                  value={state.unidade}
+                  onChange={e => setFilter({ unidade: e.target.value, page: 1 })}
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                  disabled={!state.regional}
+                >
+                  <option value="">(todas)</option>
+                  {unidades.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="text-xs block mb-1">Busca (nome/CPF)</label>
+                <input
+                  value={state.q}
+                  onChange={e => setFilter({ q: e.target.value })}
+                  placeholder="Digite para filtrar…"
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                />
+              </div>
+              <button
+                onClick={openNewManual}
+                className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600 self-end h-10 md:h-auto"
+              >
+                Cadastrar colaborador
+              </button>
+              <div className="w-40">
+                <label className="text-xs block mb-1">Itens por página</label>
+                <select
+                  value={state.pageSize}
+                  onChange={e => setFilter({ pageSize: Number(e.target.value) || 25, page: 1 })}
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                >
+                  {[10,25,50,100].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 text-xs text-neutral-700 dark:text-neutral-300 gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="opacity-70">Legenda:</span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span>Ativo</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-sky-500" />
+                  <span>Férias</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span>INSS</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-purple-500" />
+                  <span>Licença maternidade</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-red-500" />
+                  <span>Demitido 2025 sem EPI</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-neutral-400" />
+                  <span>Excluído da meta</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-[11px] px-1.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700">🅘</span>
+                  <span>observação rápida</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="rounded border-neutral-300 dark:border-neutral-700"
+                    checked={showExcluded}
+                    onChange={(e) => setShowExcluded(e.target.checked)}
+                  />
+                  <span>Mostrar colaboradores fora da meta</span>
+                </label>
+              </div>
+            </div>
+
+            {!state.regional && (
+              <div className="p-4 rounded-xl bg-amber-100 text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
+                Selecione uma <strong>Regional</strong> para começar.
+              </div>
+            )}
+
+            {state.regional && (
+              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-neutral-50 dark:bg-neutral-900/50">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Nome</th>
+                      <th className="px-3 py-2 text-left">CPF</th>
+                      <th className="px-3 py-2 text-left">Função</th>
+                      <th className="px-3 py-2 text-left">Unidade</th>
+                      <th className="px-3 py-2 text-left">Regional</th>
+                      <th className="px-3 py-2 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading && (
+                      <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Carregando…</td></tr>
+                    )}
+                    {!loading && visibleRows.map((r) => {
+                      const st = statusMap[r.id];
+                      const code: StatusCode = (st?.code || 'ATIVO');
+                      const label = st?.label || STATUS_LABELS[code];
+                      const obs = st?.obs || '';
+                      const isForaMeta = EXCLUDED_STATUS.includes(code);
+                      return (
+                        <tr key={r.id} className="border-t border-neutral-200 dark:border-neutral-800">
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${statusDotClass(code)}`} />
+                              <span className="truncate">{r.nome}</span>
+                              {(obs || code !== 'ATIVO') && (
+                                <span
+                                  className="text-[11px] px-1.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 cursor-default"
+                                  title={obs || label}
+                                >
+                                  🅘
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">{maskCPF(r.id)}</td>
+                          <td className="px-3 py-2">{r.funcao}</td>
+                          <td className="px-3 py-2">{r.unidade}</td>
+                          <td className="px-3 py-2">{r.regional}</td>
+                          <td className="px-3 py-2 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => openStatusModal(r)}
+                                className="px-2 py-1 rounded-lg border text-xs"
+                              >
+                                Situação
+                              </button>
+                              <button
+                                onClick={() => openDeliver(r)}
+                                disabled={isForaMeta}
+                                className={`px-3 py-2 rounded-xl text-sm ${
+                                  isForaMeta
+                                    ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500'
+                                    : 'bg-neutral-800 text-white dark:bg-emerald-600'
+                                }`}
+                              >
+                                Entregar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {!loading && visibleRows.length === 0 && (
+                      <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Sem resultados.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+
+                <div className="flex items-center justify-between px-3 py-2 border-t border-neutral-200 dark:border-neutral-800">
+                  <div className="text-xs opacity-70">Total: {total}</div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="px-2 py-1 rounded-lg border"
+                      disabled={state.page <= 1}
+                      onClick={() => setFilter({ page: Math.max(1, state.page - 1) })}
+                    >Anterior</button>
+                    <span className="text-xs opacity-70">Página {state.page} de {totalPages}</span>
+                    <button
+                      className="px-2 py-1 rounded-lg border"
+                      disabled={state.page >= totalPages}
+                      onClick={() => setFilter({ page: Math.min(totalPages, state.page + 1) })}
+                    >Próxima</button>
+                  </div>
                 </div>
               </div>
+            )}
 
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 text-xs text-neutral-700 dark:text-neutral-300 gap-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="opacity-70">Legenda:</span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>Ativo</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-sky-500" />
-                    <span>Férias</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-amber-500" />
-                    <span>INSS</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-purple-500" />
-                    <span>Licença maternidade</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-red-500" />
-                    <span>Demitido 2025 sem EPI</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-neutral-400" />
-                    <span>Excluído da meta</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="text-[11px] px-1.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700">🅘</span>
-                    <span>observação rápida</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="inline-flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="rounded border-neutral-300 dark:border-neutral-700"
-                      checked={showExcluded}
-                      onChange={(e) => setShowExcluded(e.target.checked)}
-                    />
-                    <span>Mostrar colaboradores fora da meta</span>
-                  </label>
-                </div>
-              </div>
+      
+      
+        </>
+      )}
 
-              {!state.regional && (
-                <div className="p-4 rounded-xl bg-amber-100 text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
-                  Selecione uma <strong>Regional</strong> para começar.
-                </div>
-              )}
+      {/* Aba: Diagnóstico */}
+      {tab === 'diag' && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-border bg-panel p-4 text-xs">
+            {!rows.length && (
+              <p className="text-muted">
+                Nenhum colaborador carregado ainda. Selecione uma regional e unidade na aba de lista.
+              </p>
+            )}
 
-              {state.regional && (
-                <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-neutral-50 dark:bg-neutral-900/50">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Nome</th>
-                        <th className="px-3 py-2 text-left">CPF</th>
-                        <th className="px-3 py-2 text-left">Função</th>
-                        <th className="px-3 py-2 text-left">Unidade</th>
-                        <th className="px-3 py-2 text-left">Regional</th>
-                        <th className="px-3 py-2 text-right">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loading && (
-                        <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Carregando…</td></tr>
-                      )}
-                      {!loading && visibleRows.map((r) => {
-                        const st = statusMap[r.id];
-                        const code: StatusCode = (st?.code || 'ATIVO');
-                        const label = st?.label || STATUS_LABELS[code];
-                        const obs = st?.obs || '';
-                        const isForaMeta = EXCLUDED_STATUS.includes(code);
-                        return (
-                          <tr key={r.id} className="border-t border-neutral-200 dark:border-neutral-800">
-                            <td className="px-3 py-2">
-                              <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${statusDotClass(code)}`} />
-                                <span className="truncate">{r.nome}</span>
-                                {(obs || code !== 'ATIVO') && (
-                                  <span
-                                    className="text-[11px] px-1.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 cursor-default"
-                                    title={obs || label}
-                                  >
-                                    🅘
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap">{maskCPF(r.id)}</td>
-                            <td className="px-3 py-2">{r.funcao}</td>
-                            <td className="px-3 py-2">{r.unidade}</td>
-                            <td className="px-3 py-2">{r.regional}</td>
-                            <td className="px-3 py-2 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <button
-                                  onClick={() => openStatusModal(r)}
-                                  className="px-2 py-1 rounded-lg border text-xs"
-                                >
-                                  Situação
-                                </button>
-                                <button
-                                  onClick={() => openDeliver(r)}
-                                  disabled={isForaMeta}
-                                  className={`px-3 py-2 rounded-xl text-sm ${
-                                    isForaMeta
-                                      ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500'
-                                      : 'bg-neutral-800 text-white dark:bg-emerald-600'
-                                  }`}
-                                >
-                                  Entregar
-                                </button>
-                              </div>
-                            </td>
+            {rows.length > 0 && diagResumo && (
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
+                      Colaboradores na lista
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-text">
+                      {diagResumo.total.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
+                      Dentro da meta
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-text">
+                      {diagResumo.dentroMeta.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
+                      Fora da meta
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-text">
+                      {diagResumo.foraMeta.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
+                      Regionais com entregas
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-text">
+                      {diagResumo.regionaisLista.length}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
+                      Situação dos colaboradores
+                    </p>
+                    <div className="overflow-hidden rounded-lg border border-border bg-card">
+                      <table className="min-w-full text-xs">
+                        <thead className="bg-panel">
+                          <tr>
+                            <th className="px-3 py-2 text-left border-b border-border">Situação</th>
+                            <th className="px-3 py-2 text-right border-b border-border">Qtd</th>
                           </tr>
-                        );
-                      })}
-                      {!loading && visibleRows.length === 0 && (
-                        <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Sem resultados.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody>
+                          {Object.entries(STATUS_LABELS).map(([code, label]) => (
+                            <tr key={code} className="odd:bg-panel/40">
+                              <td className="px-3 py-1.5 border-b border-border">
+                                {label}
+                              </td>
+                              <td className="px-3 py-1.5 text-right border-b border-border">
+                                {diagResumo.counts[code as StatusCode]?.toLocaleString() ?? 0}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
 
-                  <div className="flex items-center justify-between px-3 py-2 border-t border-neutral-200 dark:border-neutral-800">
-                    <div className="text-xs opacity-70">Total: {total}</div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        className="px-2 py-1 rounded-lg border"
-                        disabled={state.page <= 1}
-                        onClick={() => setFilter({ page: Math.max(1, state.page - 1) })}
-                      >Anterior</button>
-                      <span className="text-xs opacity-70">Página {state.page} de {totalPages}</span>
-                      <button
-                        className="px-2 py-1 rounded-lg border"
-                        disabled={state.page >= totalPages}
-                        onClick={() => setFilter({ page: Math.min(totalPages, state.page + 1) })}
-                      >Próxima</button>
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
+                      Distribuição por regional
+                    </p>
+                    <div className="overflow-hidden rounded-lg border border-border bg-card">
+                      <table className="min-w-full text-xs">
+                        <thead className="bg-panel">
+                          <tr>
+                            <th className="px-3 py-2 text-left border-b border-border">Regional</th>
+                            <th className="px-3 py-2 text-right border-b border-border">Colaboradores</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {diagResumo.regionaisLista.map(([reg, count]) => (
+                            <tr key={reg} className="odd:bg-panel/40">
+                              <td className="px-3 py-1.5 border-b border-border">
+                                {reg || '—'}
+                              </td>
+                              <td className="px-3 py-1.5 text-right border-b border-border">
+                                {count.toLocaleString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </div>
-              )}
-
-      
-      
-      </>
-    )}
-
-    {/* Aba: Diagnóstico */}
-    {tab === 'diag' && (
-      <div className="space-y-4">
-        <div className="rounded-xl border border-border bg-panel p-4 text-xs">
-          {!rows.length && (
-            <p className="text-muted">
-              Nenhum colaborador carregado ainda. Selecione uma regional e unidade na aba de lista.
-            </p>
-          )}
-
-          {rows.length > 0 && diagResumo && (
-            <div className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-4">
-                <div className="rounded-lg border border-border bg-card p-3">
-                  <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                    Colaboradores na lista
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-text">
-                    {diagResumo.total.toLocaleString()}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-border bg-card p-3">
-                  <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                    Dentro da meta
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-text">
-                    {diagResumo.dentroMeta.toLocaleString()}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-border bg-card p-3">
-                  <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                    Fora da meta
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-text">
-                    {diagResumo.foraMeta.toLocaleString()}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-border bg-card p-3">
-                  <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                    Regionais com entregas
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-text">
-                    {diagResumo.regionaisLista.length}
-                  </p>
-                </div>
               </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                    Situação dos colaboradores
-                  </p>
-                  <div className="overflow-hidden rounded-lg border border-border bg-card">
-                    <table className="min-w-full text-xs">
-                      <thead className="bg-panel">
-                        <tr>
-                          <th className="px-3 py-2 text-left border-b border-border">Situação</th>
-                          <th className="px-3 py-2 text-right border-b border-border">Qtd</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries(STATUS_LABELS).map(([code, label]) => (
-                          <tr key={code} className="odd:bg-panel/40">
-                            <td className="px-3 py-1.5 border-b border-border">
-                              {label}
-                            </td>
-                            <td className="px-3 py-1.5 text-right border-b border-border">
-                              {diagResumo.counts[code as StatusCode]?.toLocaleString() ?? 0}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                    Distribuição por regional
-                  </p>
-                  <div className="overflow-hidden rounded-lg border border-border bg-card">
-                    <table className="min-w-full text-xs">
-                      <thead className="bg-panel">
-                        <tr>
-                          <th className="px-3 py-2 text-left border-b border-border">Regional</th>
-                          <th className="px-3 py-2 text-right border-b border-border">Colaboradores</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {diagResumo.regionaisLista.map(([reg, count]) => (
-                          <tr key={reg} className="odd:bg-panel/40">
-                            <td className="px-3 py-1.5 border-b border-border">
-                              {reg || '—'}
-                            </td>
-                            <td className="px-3 py-1.5 text-right border-b border-border">
-                              {count.toLocaleString()}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
-    )}
+      )}
 
     {statusModal.open && statusModal.row && (
             <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center p-4 z-50" onClick={() => setStatusModal({ open: false })}>
@@ -869,6 +867,6 @@ return (
               </div>
             </div>
           )}
-  </div>
-);
+    </div>
+  );
 }
