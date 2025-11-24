@@ -39,16 +39,6 @@ function __shouldHide(col: string): boolean {
 }
 
 // ---------- Formatações ----------
-function __isNomeColaborador(col: string): boolean {
-  const n = __norm(col);
-  // Colunas típicas de nome de colaborador
-  if (n === 'colaborador' || n === 'nomecolaborador' || n === 'nomeempregado' || n === 'nomefuncionario') return true;
-  // Fallback: se a coluna for exatamente "nome" e não estiver na lista de ocultas
-  if (n === 'nome' && !HIDE_NORMS.has(n)) return true;
-  return false;
-}
-
-
 function fmtDateDDMMYYYY(val: any): string {
   if (val === null || val === undefined) return '';
   const s = String(val).trim();
@@ -184,10 +174,6 @@ export default function Page() {
   const [unidKey, setUnidKey] = useState<string | null>(null);
   const [votePeek, setVotePeek] = useState<string>(''); // diagnóstico leve
 
-  const [tab, setTab] = useState<'tabela' | 'diag'>('tabela');
-  const [sortKey, setSortKey] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-
   // Paginação (cliente)
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
@@ -300,7 +286,6 @@ export default function Page() {
   }, []);
 
 useEffect(() => {
-  if (tab !== 'tabela') return;
   const body = bodyScrollRef.current;
   if (!body) return;
   const measure = () => {
@@ -311,10 +296,9 @@ useEffect(() => {
   return () => {
     window.removeEventListener('resize', measure);
   };
-}, [columns, rows, pageSize, tab]);
+}, [columns, rows, pageSize]);
 
 useEffect(() => {
-  if (tab !== 'tabela') return;
   const top = topScrollRef.current;
   const body = bodyScrollRef.current;
   if (!top || !body) return;
@@ -339,7 +323,7 @@ useEffect(() => {
     top.removeEventListener('scroll', onTop);
     body.removeEventListener('scroll', onBody);
   };
-}, [columns, rows, pageSize, tab]);
+}, [columns, rows, pageSize]);
 
 
   const unidadeOptions = useMemo(()=>{
@@ -350,99 +334,23 @@ useEffect(() => {
   }, [rows, regional, unidKey]);
 
   // Aplica filtros (client-side)
-  const diagResumo = useMemo(() => {
-    if (tab !== 'diag') return null;
-    if (!rows.length) return null;
-
-    const total = rows.length;
-    let semRegional = 0;
-    const regionaisCount: Record<string, number> = {};
-    const unidadesSet = new Set<string>();
-    const uk = unidKey;
-
-    for (const r of rows) {
-      const reg = String((r as any).regional ?? '').trim();
-      if (!reg) {
-        semRegional++;
-      } else {
-        regionaisCount[reg] = (regionaisCount[reg] || 0) + 1;
-      }
-      if (uk) {
-        const un = String((r as any)[uk] ?? '').trim();
-        if (un) unidadesSet.add(un);
-      }
-    }
-
-    const regionaisLista = Object.entries(regionaisCount).sort((a, b) =>
-      a[0].localeCompare(b[0], 'pt-BR'),
-    );
-
-    return {
-      total,
-      semRegional,
-      regionaisLista,
-      unidadesCount: unidadesSet.size,
-    };
-  }, [rows, unidKey, tab]);
-
-  const filtered = useMemo(() => {
+  const filtered = useMemo(()=>{
     const uk = unidKey;
     let list = rows;
-    if (regional !== 'TODAS') list = list.filter((r) => r.regional === regional);
-    if (uk && unidade !== 'TODAS') list = list.filter((r) => String(r[uk] ?? '') === unidade);
+    if (regional !== 'TODAS') list = list.filter(r => r.regional === regional);
+    if (uk && unidade !== 'TODAS') list = list.filter(r => String(r[uk] ?? '') === unidade);
     if (q.trim()) {
       const needles = q.toLowerCase().split(/\s+/).filter(Boolean);
-      list = list.filter((r) => {
+      list = list.filter(r => {
         const blob = Object.values(r).join(' ').toLowerCase();
-        return needles.every((n) => blob.includes(n));
+        return needles.every(n => blob.includes(n));
       });
     }
-
-    if (sortKey) {
-      const key = sortKey;
-      const dir = sortDir === 'asc' ? 1 : -1;
-      const normKey = __norm(key);
-      const isDate = isDateKey(normKey);
-
-      const getVal = (row: AnyRow): any => {
-        const raw = row[key];
-        if (raw === null || raw === undefined) return '';
-        if (isDate) {
-          const formatted = fmtDateDDMMYYYY(raw);
-          if (!formatted) return '';
-          const parts = formatted.split('/');
-          if (parts.length === 3) {
-            const [dd, mm, yyyy] = parts;
-            return `${yyyy}-${mm}-${dd}`;
-          }
-          return formatted;
-        }
-        if (normKey.includes('cpf')) {
-          return String(raw).replace(/\D/g, '').padStart(11, '0');
-        }
-        if (normKey.includes('matric')) {
-          return fmtMatricula5(raw);
-        }
-        const asNum = Number(String(raw).replace(/[^0-9.-]/g, ''));
-        if (!Number.isNaN(asNum) && String(raw).trim() !== '') return asNum;
-        return String(raw).toLowerCase();
-      };
-
-      list = [...list].sort((a, b) => {
-        const va = getVal(a);
-        const vb = getVal(b);
-        if (va === vb) return 0;
-        if (va > vb) return dir;
-        if (va < vb) return -dir;
-        return 0;
-      });
-    }
-
     return list;
-  }, [rows, regional, unidade, q, unidKey, sortKey, sortDir]);
+  }, [rows, regional, unidade, q, unidKey]);
 
   // Paginação (client-side) sobre os filtrados
-  const [pageState, pageData] = useMemo(() => {
+  const [pageState, pageData] = useMemo(()=>{
     const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
     const pageSafe = Math.min(page, pageCount);
     const start = (pageSafe - 1) * pageSize;
@@ -453,331 +361,154 @@ useEffect(() => {
   const { pageCount, pageSafe, start, end } = pageState;
   const paged = pageData;
 
-  const handleSort = (col: string) => {
-    if (!col) return;
-    setPage(1);
-    if (sortKey === col) {
-      setSortDir((dir) => (dir === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(col);
-      setSortDir('asc');
-    }
-  };
-
   return (
     <div className="space-y-4">
-      {/* Cabeçalho */}
+      
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
-            Alterdata • Colaboradores
-          </p>
-          <h1 className="mt-1 text-lg font-semibold">Colaboradores · Alterdata (Completa)</h1>
-          <p className="mt-1 text-xs text-muted">
-            Visual completo da base Alterdata com regionalização automática, filtros rápidos e paginação em memória.
-          </p>
-        </div>
-        <div className="hidden md:flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs text-muted">
-          <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-          <span>Base carregada do Neon</span>
-        </div>
+  <div>
+    <p className="text-[11px] font-medium tracking-wide text-muted uppercase">Alterdata • Colaboradores</p>
+    <h1 className="mt-1 text-lg font-semibold">Colaboradores · Alterdata (Completa)</h1>
+    <p className="mt-1 text-xs text-muted">
+      Visual completo da base Alterdata com regionalização automática, filtros rápidos e paginação em memória.
+    </p>
+  </div>
+  <div className="hidden md:flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs text-muted">
+    <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+    <span>Base carregada do Neon</span>
+  </div>
+</div>
+
+      
+<div className="rounded-xl border border-border bg-panel p-4 space-y-3 text-xs">
+  <div className="flex flex-col gap-2 md:flex-row md:items-center">
+    <div className="flex-1">
+      <input
+        value={q}
+        onChange={e=>setQ(e.target.value)}
+        placeholder="Buscar por nome, CPF, matrícula, unidade..."
+        className="w-full px-3 py-2 rounded-xl border border-border bg-bg text-sm outline-none text-text placeholder:text-muted"
+      />
+    </div>
+    <div className="flex gap-2 md:ml-4">
+      <select
+        value={regional}
+        onChange={e=>{ setRegional(e.target.value as any); setUnidade('TODAS'); }}
+        className="px-3 py-2 rounded-xl border border-border bg-bg text-sm text-text"
+      >
+        <option value="TODAS">Regional (todas)</option>
+        {REGIONALS.map(r => <option key={r} value={r}>{r}</option>)}
+      </select>
+      <select
+        value={unidade}
+        onChange={e=>setUnidade(e.target.value as any)}
+        disabled={!unidKey}
+        className="px-3 py-2 rounded-xl border border-border bg-bg text-sm text-text disabled:opacity-50"
+      >
+        <option value="TODAS">Unidade (todas)</option>
+        {unidadeOptions.map(u => <option key={u} value={u}>{u}</option>)}
+      </select>
+    </div>
+  </div>
+
+  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between text-xs md:text-sm">
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="inline-flex items-center rounded-full bg-panel px-2.5 py-1 text-[11px] font-medium text-muted">
+        {filtered.length.toLocaleString()} registros
+      </span>
+      {loading && (
+        <span className="text-muted">
+          Carregando {progress && `(${progress})`}…
+        </span>
+      )}
+      {error && <span className="text-red-500">Erro: {error}</span>}
+    </div>
+
+    <div className="flex flex-wrap items-center gap-3 md:justify-end">
+      <div className="flex items-center gap-1 rounded-full border border-border bg-panel px-1 py-0.5">
+        <button
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-text hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed"
+          disabled={pageSafe<=1}
+          onClick={()=>setPage(p=>Math.max(1, p-1))}
+        >
+          ‹
+        </button>
+        <span className="px-2 text-[11px] font-medium">
+          Página {pageSafe} / {pageCount}
+        </span>
+        <button
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-text hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed"
+          disabled={pageSafe>=pageCount}
+          onClick={()=>setPage(p=>Math.min(pageCount, p+1))}
+        >
+          ›
+        </button>
       </div>
 
-      {/* Abas da página */}
-      <div className="border-b border-border">
-        <nav className="-mb-px flex gap-4 text-xs">
-          <button
-            type="button"
-            onClick={() => setTab('tabela')}
-            className={`border-b-2 px-3 py-2 ${
-              tab === 'tabela'
-                ? 'border-emerald-500 text-emerald-500'
-                : 'border-transparent text-muted hover:text-text'
-            }`}
+      <select
+        value={pageSize}
+        onChange={e=>setPageSize(parseInt(e.target.value,10))}
+        className="px-2.5 py-1.5 rounded-full border border-border bg-bg text-xs md:text-sm text-text hover:bg-panel"
+      >
+        {[25,50,100,200,500].map(n=> <option key={n} value={n}>{n}/página</option>)}
+      </select>
+    </div>
+  </div>
+</div>
+
+      {columns.length > 0 && (
+        <div className="rounded-xl border border-border bg-panel p-0">
+          {/* Barra de rolagem horizontal no topo, sincronizada com a tabela */}
+          <div
+            ref={topScrollRef}
+            className="overflow-x-auto max-w-full border-b border-border bg-panel/40"
           >
-            Tabela completa
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('diag')}
-            className={`border-b-2 px-3 py-2 ${
-              tab === 'diag'
-                ? 'border-emerald-500 text-emerald-500'
-                : 'border-transparent text-muted hover:text-text'
-            }`}
-          >
-            Diagnóstico
-          </button>
-        </nav>
-      </div>
-
-      {/* Aba: Tabela completa */}
-      {tab === 'tabela' && (
-        <>
-          {/* Filtros principais e resumo rápido */}
-          <div className="rounded-xl border border-border bg-panel p-4 space-y-3 text-xs">
-            <div className="flex flex-col gap-2 md:flex-row md:items-center">
-              <div className="flex-1">
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Buscar por nome, CPF, matrícula, unidade..."
-                  className="w-full px-3 py-2 rounded-xl border border-border bg-bg text-sm outline-none text-text placeholder:text-muted"
-                />
-              </div>
-              <div className="flex gap-2 md:ml-4">
-                <select
-                  value={regional}
-                  onChange={(e) => {
-                    setRegional(e.target.value as any);
-                    setUnidade('TODAS');
-                  }}
-                  className="px-3 py-2 rounded-xl border border-border bg-bg text-sm text-text"
-                >
-                  <option value="TODAS">Regional (todas)</option>
-                  {REGIONALS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={unidade}
-                  onChange={(e) => setUnidade(e.target.value as any)}
-                  disabled={!unidKey}
-                  className="px-3 py-2 rounded-xl border border-border bg-bg text-sm text-text disabled:opacity-50"
-                >
-                  <option value="TODAS">Unidade (todas)</option>
-                  {unidadeOptions.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between text-xs md:text-sm">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center rounded-full bg-panel px-2.5 py-1 text-[11px] font-medium text-muted">
-                  {filtered.length.toLocaleString()} registros
-                </span>
-                {loading && (
-                  <span className="text-muted">
-                    Carregando {progress && `(${progress})`}…
-                  </span>
-                )}
-                {error && <span className="text-red-500">Erro: {error}</span>}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 md:justify-end">
-                <div className="inline-flex items-center gap-2 text-[11px]">
-                  <span>
-                    Página <span className="font-semibold">{pageSafe}</span> / {pageCount}
-                  </span>
-                  <div className="inline-flex items-center gap-1">
-                    <button
-                      type="button"
-                      className="rounded border border-border bg-bg px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-50 hover:bg-panel"
-                      disabled={pageSafe <= 1}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    >
-                      Anterior
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded border border-border bg-bg px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-50 hover:bg-panel"
-                      disabled={pageSafe >= pageCount}
-                      onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                    >
-                      Próxima
-                    </button>
-                  </div>
-                </div>
-
-                <select
-                  value={pageSize}
-                  onChange={(e) => setPageSize(parseInt(e.target.value, 10))}
-                  className="px-2.5 py-1.5 rounded-full border border-border bg-bg text-xs md:text-sm text-text hover:bg-panel"
-                >
-                  {[25, 50, 100, 200, 500].map((n) => (
-                    <option key={n} value={n}>
-                      {n}/página
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            <div
+              style={{ width: scrollWidth || '100%' }}
+              className="h-1 rounded-full bg-border"
+            />
           </div>
 
-          {/* Tabela principal */}
-          {columns.length > 0 && (
-            <div className="rounded-xl border border-border bg-panel p-0">
-              {/* Barra de rolagem horizontal no topo, sincronizada com a tabela */}
-              <div
-                ref={topScrollRef}
-                className="overflow-x-auto max-w-full border-b border-border bg-panel/40"
-              >
-                <div
-                  style={{ width: scrollWidth || '100%' }}
-                  className="h-1 rounded-full bg-border"
-                />
-              </div>
-
-              {/* Tabela com rolagem vertical e horizontal dentro do card */}
-              <div
-                ref={bodyScrollRef}
-                className="max-h-[calc(100vh-280px)] overflow-y-auto overflow-x-auto"
-              >
-                <table className="min-w-full text-sm align-middle">
-                  <thead className="sticky top-0 bg-panel">
-                    <tr>
-                      {columns
-                        .filter((c) => !__shouldHide(c))
-                        .map((c, i) => {
-                          const isSorted = sortKey === c;
-                          const icon = !isSorted ? '↕︎' : sortDir === 'asc' ? '↑' : '↓';
-                          return (
-                            <th
-                              key={i}
-                              onClick={() => handleSort(c)}
-                              className="px-3 py-2 text-center border-b border-border whitespace-nowrap text-[11px] font-medium uppercase tracking-wide cursor-pointer select-none hover:bg-panel/80"
-                            >
-                              <span className="inline-flex items-center justify-center gap-1">
-                                <span>{headerLabel(c)}</span>
-                                <span
-                                  className={`text-[10px] ${
-                                    isSorted ? 'text-emerald-500' : 'text-muted'
-                                  }`}
-                                >
-                                  {icon}
-                                </span>
-                              </span>
-                            </th>
-                          );
-                        })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paged.map((r, idx) => (
-                      <tr
-                        key={idx}
-                        className="odd:bg-panel/40 hover:bg-panel/80 transition-colors"
-                      >
-                        {columns
-                          .filter((c) => !__shouldHide(c))
-                          .map((c, i) => (
-                            <td
-                              key={i}
-                              className={`px-3 py-2 border-b border-border whitespace-nowrap ${
-                                __isNomeColaborador(c) ? 'text-left' : 'text-center'
-                              }`}
-                            >
-                              {renderValue(c, r[c])}
-                            </td>
-                          ))}
-                      </tr>
+          {/* Tabela com rolagem vertical e horizontal dentro do card */}
+          <div
+            ref={bodyScrollRef}
+            className="max-h-[calc(100vh-280px)] overflow-y-auto overflow-x-auto"
+          >
+            <table className="min-w-full text-sm align-middle">
+              <thead className="sticky top-0 bg-panel">
+                <tr>
+                  {columns
+                    .filter(c => !__shouldHide(c))
+                    .map((c,i) => (
+                    <th
+                      key={i}
+                      className="px-3 py-2 text-center border-b border-border whitespace-nowrap text-xs font-medium uppercase tracking-wide"
+                    >
+                      {headerLabel(c)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {paged.map((r, idx) => (
+                  <tr key={idx} className="odd:bg-panel/40 hover:bg-panel/80 transition-colors">
+                    {columns
+                      .filter(c => !__shouldHide(c))
+                      .map((c,i) => (
+                      <td key={i} className="px-3 py-2 border-b border-border whitespace-nowrap">
+                        {renderValue(c, r[c])}
+                      </td>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <div className="text-xs text-muted">
-            Exibindo {start + 1}–{Math.min(end, filtered.length)} de {filtered.length} registros
-            (lista completa em cache, paginação no cliente)
-          </div>
-        </>
-      )}
-
-      {/* Aba: Diagnóstico */}
-      {tab === 'diag' && (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-panel p-4 text-xs">
-            {!rows.length && (
-              <p className="text-muted">
-                Base ainda não carregada. Aguarde alguns instantes para visualizar o diagnóstico.
-              </p>
-            )}
-
-            {rows.length > 0 && diagResumo && (
-              <div className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-4">
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                      Registros totais
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-text">
-                      {diagResumo.total.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                      Regionais mapeadas
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-text">
-                      {diagResumo.regionaisLista.length}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                      Unidades detectadas
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-text">
-                      {diagResumo.unidadesCount}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                      Sem regional
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-text">
-                      {diagResumo.semRegional.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                    Distribuição por regional
-                  </p>
-                  <div className="overflow-hidden rounded-lg border border-border bg-card">
-                    <table className="min-w-full text-xs">
-                      <thead className="bg-panel">
-                        <tr>
-                          <th className="px-3 py-2 text-left border-b border-border">Regional</th>
-                          <th className="px-3 py-2 text-right border-b border-border">
-                            Colaboradores
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {diagResumo.regionaisLista.map(([reg, count]) => (
-                          <tr key={reg} className="odd:bg-panel/40">
-                            <td className="px-3 py-1.5 border-b border-border">
-                              {reg || '—'}
-                            </td>
-                            <td className="px-3 py-1.5 text-right border-b border-border">
-                              {count.toLocaleString()}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {votePeek && (
-                  <div className="rounded-lg border border-dashed border-border bg-card/60 p-3 font-mono text-[10px] text-muted">
-                    {votePeek}
-                  </div>
-                )}
-              </div>
-            )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
+
+      <div className="text-xs text-muted">
+        Exibindo {start+1}–{Math.min(end, filtered.length)} de {filtered.length} registros (lista completa em cache, paginação no cliente)
+      </div>
     </div>
   );
 }
