@@ -81,45 +81,37 @@ async function fetchRawRows(origin: string, page: number, limit: number, req: Re
   return { rows: flat, total, limit: lim };
 }
 
-
-
-type RawRowsCache = { rows: any[]; total: number; limit: number; ts: number };
+type RawRowsCache = {
+  acc: any[];
+  total: number;
+  limit: number;
+  ts: number;
+};
 
 let RAW_ROWS_CACHE: RawRowsCache | null = null;
-let UNID_MAP_CACHE: { map: Record<string, string>; ts: number } | null = null;
-let KIT_MAP_CACHE: { map: Record<string, { item: string; qtd: number }[]>; ts: number } | null = null;
 
-const RAW_TTL_MS = 5 * 60 * 1000; // 5 minutos
-const MAP_TTL_MS = 60 * 60 * 1000; // 1 hora
+type UnidMapCache = {
+  map: Record<string, string>;
+  ts: number;
+};
 
-async function loadSafeRawRows(origin: string, req: Request): Promise<RawRowsCache> {
+let UNID_MAP_CACHE: UnidMapCache | null = null;
+
+type KitMapCache = {
+  map: Record<string, { item: string; qtd: number }[]>;
+  ts: number;
+};
+
+let KIT_MAP_CACHE: KitMapCache | null = null;
+
+async function loadUnidMapFromDB(): Promise<Record<string,string>> {
   const now = Date.now();
-  if (RAW_ROWS_CACHE && now - RAW_ROWS_CACHE.ts < RAW_TTL_MS) {
-    return RAW_ROWS_CACHE;
-  }
-
-  const limit = 1000; // mesmo limite da chamada original
-  const first = await fetchRawRows(origin, 1, limit, req);
-  let acc = first.rows.slice();
-  const pages = Math.max(1, Math.ceil(first.total / first.limit));
-  for (let p = 2; p <= pages; p++) {
-    const more = await fetchRawRows(origin, p, first.limit, req);
-    acc = acc.concat(more.rows);
-    if (acc.length >= first.total) break;
-  }
-
-  RAW_ROWS_CACHE = { rows: acc, total: first.total, limit: first.limit, ts: now };
-  return RAW_ROWS_CACHE;
-}
-
-async function loadUnidMapFromDB(): Promise<Record<string, string>> {
-  const now = Date.now();
-  if (UNID_MAP_CACHE && now - UNID_MAP_CACHE.ts < MAP_TTL_MS) {
+  if (UNID_MAP_CACHE && now - UNID_MAP_CACHE.ts < 60 * 60 * 1000) {
     return UNID_MAP_CACHE.map;
   }
   try {
     const rs = await prisma.$queryRaw<any[]>`SELECT unidade, regional FROM stg_unid_reg`;
-    const map: Record<string, string> = {};
+    const map: Record<string,string> = {};
     for (const r of rs) {
       const uni = String(r.unidade ?? '');
       const reg = String(r.regional ?? '');
@@ -133,9 +125,9 @@ async function loadUnidMapFromDB(): Promise<Record<string, string>> {
   }
 }
 
-async function loadKitMap(): Promise<Record<string, { item: string; qtd: number }[]>> {
+async function loadKitMap(): Promise<Record<string, {item:string,qtd:number}[]>> {
   const now = Date.now();
-  if (KIT_MAP_CACHE && now - KIT_MAP_CACHE.ts < MAP_TTL_MS) {
+  if (KIT_MAP_CACHE && now - KIT_MAP_CACHE.ts < 60 * 60 * 1000) {
     return KIT_MAP_CACHE.map;
   }
   try {
@@ -147,7 +139,7 @@ async function loadKitMap(): Promise<Record<string, { item: string; qtd: number 
         COALESCE(quantidade::numeric,0)     AS qtd
       FROM stg_epi_map
     `;
-    const map: Record<string, { item: string; qtd: number }[]> = {};
+    const map: Record<string, {item:string,qtd:number}[]> = {};
     for (const r of rs) {
       const keyFunc = normKey(r.func);
       const keySite = normKey(r.site);
@@ -165,6 +157,7 @@ async function loadKitMap(): Promise<Record<string, { item: string; qtd: number 
   } catch {
     return KIT_MAP_CACHE?.map || {};
   }
+}
 }
 
 function formatKit(items?: {item:string,qtd:number}[] | undefined): string {
@@ -184,11 +177,34 @@ export async function GET(req: Request) {
   const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
 
   try {
-    // 1) Carrega todas as páginas do raw-rows (com cache em memória)
-    const mirror = await loadSafeRawRows(url.origin, req);
-    let acc = mirror.rows.slice();
+    // 1) Carrega **todas** as páginas do raw-rows (com cache em memória por alguns minutos)
+    let acc: any[] = [];
+    let totalRaw = 0;
+    let limitRaw = 1000;
+    const nowRaw = Date.now();
 
-    // 2) Detecta chaves
+    if (RAW_ROWS_CACHE && nowRaw - RAW_ROWS_CACHE.ts < 5 * 60 * 1000) {
+      acc = RAW_ROWS_CACHE.acc;
+      totalRaw = RAW_ROWS_CACHE.total;
+      limitRaw = RAW_ROWS_CACHE.limit;
+    } else {
+      const limit = 1000; // tenta maior para reduzir quantidade de páginas
+      const first = await fetchRawRows(url.origin, 1, limit, req);
+      let tmp = first.rows.slice();
+      const pages = Math.max(1, Math.ceil(first.total / first.limit));
+      for (let p = 2; p <= pages; p++) {
+        const more = await fetchRawRows(url.origin, p, first.limit, req);
+        tmp = tmp.concat(more.rows);
+        // proteção simples: se por algum motivo tmp já cobre total, para
+        if (tmp.length >= first.total) break;
+      }
+      acc = tmp;
+      totalRaw = first.total;
+      limitRaw = first.limit;
+      RAW_ROWS_CACHE = { acc, total: totalRaw, limit: limitRaw, ts: nowRaw };
+    }
+
+// 2) Detecta chaves
     const cpfKey  = pickKeyByName(acc, ['cpf','matric','cpffunc','cpffuncionario']);
     const nomeKey = pickKeyByName(acc, ['nome','colab','funcionario']);
     const funcKey = pickKeyByName(acc, ['func','cargo']);
