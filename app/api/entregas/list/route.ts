@@ -81,63 +81,23 @@ async function fetchRawRows(origin: string, page: number, limit: number, req: Re
   return { rows: flat, total, limit: lim };
 }
 
-
-
-type RawRowsCache = { rows: any[]; total: number; limit: number; ts: number };
-
-let RAW_ROWS_CACHE: RawRowsCache | null = null;
-let UNID_MAP_CACHE: { map: Record<string, string>; ts: number } | null = null;
-let KIT_MAP_CACHE: { map: Record<string, { item: string; qtd: number }[]>; ts: number } | null = null;
-
-const RAW_TTL_MS = 5 * 60 * 1000; // 5 minutos
-const MAP_TTL_MS = 60 * 60 * 1000; // 1 hora
-
-async function loadSafeRawRows(origin: string, req: Request): Promise<RawRowsCache> {
-  const now = Date.now();
-  if (RAW_ROWS_CACHE && now - RAW_ROWS_CACHE.ts < RAW_TTL_MS) {
-    return RAW_ROWS_CACHE;
-  }
-
-  const limit = 1000; // mesmo limite da chamada original
-  const first = await fetchRawRows(origin, 1, limit, req);
-  let acc = first.rows.slice();
-  const pages = Math.max(1, Math.ceil(first.total / first.limit));
-  for (let p = 2; p <= pages; p++) {
-    const more = await fetchRawRows(origin, p, first.limit, req);
-    acc = acc.concat(more.rows);
-    if (acc.length >= first.total) break;
-  }
-
-  RAW_ROWS_CACHE = { rows: acc, total: first.total, limit: first.limit, ts: now };
-  return RAW_ROWS_CACHE;
-}
-
-async function loadUnidMapFromDB(): Promise<Record<string, string>> {
-  const now = Date.now();
-  if (UNID_MAP_CACHE && now - UNID_MAP_CACHE.ts < MAP_TTL_MS) {
-    return UNID_MAP_CACHE.map;
-  }
+async function loadUnidMapFromDB(): Promise<Record<string,string>> {
   try {
     const rs = await prisma.$queryRaw<any[]>`SELECT unidade, regional FROM stg_unid_reg`;
-    const map: Record<string, string> = {};
+    const map: Record<string,string> = {};
     for (const r of rs) {
       const uni = String(r.unidade ?? '');
       const reg = String(r.regional ?? '');
       const canon = canonUnidade(uni);
       if (canon && reg) map[canon] = reg;
     }
-    UNID_MAP_CACHE = { map, ts: now };
     return map;
   } catch {
-    return UNID_MAP_CACHE?.map || {};
+    return {};
   }
 }
 
-async function loadKitMap(): Promise<Record<string, { item: string; qtd: number }[]>> {
-  const now = Date.now();
-  if (KIT_MAP_CACHE && now - KIT_MAP_CACHE.ts < MAP_TTL_MS) {
-    return KIT_MAP_CACHE.map;
-  }
+async function loadKitMap(): Promise<Record<string, {item:string,qtd:number}[]>> {
   try {
     const rs = await prisma.$queryRaw<any[]>`
       SELECT
@@ -147,7 +107,7 @@ async function loadKitMap(): Promise<Record<string, { item: string; qtd: number 
         COALESCE(quantidade::numeric,0)     AS qtd
       FROM stg_epi_map
     `;
-    const map: Record<string, { item: string; qtd: number }[]> = {};
+    const map: Record<string, {item:string,qtd:number}[]> = {};
     for (const r of rs) {
       const keyFunc = normKey(r.func);
       const keySite = normKey(r.site);
@@ -160,10 +120,9 @@ async function loadKitMap(): Promise<Record<string, { item: string; qtd: number 
         map[keySite].push({ item: String(r.item || ''), qtd: Number(r.qtd || 0) });
       }
     }
-    KIT_MAP_CACHE = { map, ts: now };
     return map;
   } catch {
-    return KIT_MAP_CACHE?.map || {};
+    return {};
   }
 }
 
@@ -184,9 +143,17 @@ export async function GET(req: Request) {
   const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
 
   try {
-    // 1) Carrega todas as páginas do raw-rows (com cache em memória)
-    const mirror = await loadSafeRawRows(url.origin, req);
-    let acc = mirror.rows.slice();
+    // 1) Carrega **todas** as páginas do raw-rows (sem limite)
+    const limit = 1000; // tenta maior para reduzir quantidade de páginas
+    const first = await fetchRawRows(url.origin, 1, limit, req);
+    let acc = first.rows.slice();
+    const pages = Math.max(1, Math.ceil(first.total / first.limit));
+    for (let p = 2; p <= pages; p++) {
+      const more = await fetchRawRows(url.origin, p, first.limit, req);
+      acc = acc.concat(more.rows);
+      // proteção simples: se por algum motivo acc já cobre total, para
+      if (acc.length >= first.total) break;
+    }
 
     // 2) Detecta chaves
     const cpfKey  = pickKeyByName(acc, ['cpf','matric','cpffunc','cpffuncionario']);
