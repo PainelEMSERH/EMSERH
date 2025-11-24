@@ -492,24 +492,12 @@ const visibleRows = useMemo(() => {
                 <table className="min-w-full text-sm">
                   <thead className="bg-neutral-50 dark:bg-neutral-900/50">
                     <tr>
-                      <th className="px-3 py-2 text-center text-xs font-medium uppercase tracking-wide">
-                        Nome
-                      </th>
-                      <th className="px-3 py-2 text-center text-xs font-medium uppercase tracking-wide">
-                        CPF
-                      </th>
-                      <th className="px-3 py-2 text-center text-xs font-medium uppercase tracking-wide">
-                        Função
-                      </th>
-                      <th className="px-3 py-2 text-center text-xs font-medium uppercase tracking-wide">
-                        Unidade
-                      </th>
-                      <th className="px-3 py-2 text-center text-xs font-medium uppercase tracking-wide">
-                        Regional
-                      </th>
-                      <th className="px-3 py-2 text-center text-xs font-medium uppercase tracking-wide">
-                        Ações
-                      </th>
+                      <th className="px-3 py-2 text-left">Nome</th>
+                      <th className="px-3 py-2 text-left">CPF</th>
+                      <th className="px-3 py-2 text-left">Função</th>
+                      <th className="px-3 py-2 text-left">Unidade</th>
+                      <th className="px-3 py-2 text-left">Regional</th>
+                      <th className="px-3 py-2 text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -553,10 +541,10 @@ const visibleRows = useMemo(() => {
                               <button
                                 onClick={() => openDeliver(r)}
                                 disabled={isForaMeta}
-                                className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                                className={`px-3 py-2 rounded-xl text-sm ${
                                   isForaMeta
                                     ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500'
-                                    : 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400'
+                                    : 'bg-neutral-800 text-white dark:bg-emerald-600'
                                 }`}
                               >
                                 Entregar
@@ -614,7 +602,7 @@ const visibleRows = useMemo(() => {
                       Colaboradores na lista
                     </p>
                     <p className="mt-1 text-lg font-semibold text-text">
-                      {total.toLocaleString()}
+                      {diagResumo.total.toLocaleString()}
                     </p>
                   </div>
                   <div className="rounded-lg border border-border bg-card p-3">

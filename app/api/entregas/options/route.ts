@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { UNID_TO_REGIONAL } from '@/lib/unidReg';
 
 export async function GET() {
   try {
@@ -52,21 +51,9 @@ export async function GET() {
     unidades.sort((a,b)=>a.unidade.localeCompare(b.unidade));
     return NextResponse.json({ regionais, unidades });
   } catch (e: any) {
-    // Fallback: use static Unidade -> Regional mapping (UNID_TO_REGIONAL)
-    const unidades: { unidade: string; regional: string }[] = Object.entries(UNID_TO_REGIONAL).map(
-      ([unidade, regionalUpper]) => {
-        const regional =
-          regionalUpper.charAt(0) + regionalUpper.slice(1).toLowerCase();
-        return { unidade, regional };
-      }
-    );
-
-    const regionais = Array.from(
-      new Set(unidades.map((u) => u.regional).filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b));
-
-    unidades.sort((a, b) => a.unidade.localeCompare(b.unidade));
-
+    // Absolute fallback to avoid build breaks
+    const regionais = ['Norte','Sul','Leste','Central'];
+    const unidades: { unidade: string; regional: string }[] = [];
     return NextResponse.json({ regionais, unidades });
   }
 }
