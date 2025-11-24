@@ -158,7 +158,6 @@ async function loadKitMap(): Promise<Record<string, {item:string,qtd:number}[]>>
     return KIT_MAP_CACHE?.map || {};
   }
 }
-}
 
 function formatKit(items?: {item:string,qtd:number}[] | undefined): string {
   if (!items || !items.length) return '—';
