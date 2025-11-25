@@ -391,7 +391,7 @@ const visibleRows = useMemo(() => {
                 <select
                   value={state.regional}
                   onChange={e => setFilter({ regional: e.target.value, unidade: '', page: 1 })}
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                  className="w-full px-3 py-2 rounded-xl border border-border bg-panel text-sm text-text placeholder:text-muted shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 >
                   <option value="">Selecione a Regional…</option>
                   {regionais.map(r => <option key={r} value={r}>{r}</option>)}
@@ -402,7 +402,7 @@ const visibleRows = useMemo(() => {
                 <select
                   value={state.unidade}
                   onChange={e => setFilter({ unidade: e.target.value, page: 1 })}
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                  className="w-full px-3 py-2 rounded-xl border border-border bg-panel text-sm text-text placeholder:text-muted shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   disabled={!state.regional}
                 >
                   <option value="">(todas)</option>
@@ -415,7 +415,7 @@ const visibleRows = useMemo(() => {
                   value={state.q}
                   onChange={e => setFilter({ q: e.target.value })}
                   placeholder="Digite para filtrar…"
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                  className="w-full px-3 py-2 rounded-xl border border-border bg-panel text-sm text-text placeholder:text-muted shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
               <button
@@ -429,7 +429,7 @@ const visibleRows = useMemo(() => {
                 <select
                   value={state.pageSize}
                   onChange={e => setFilter({ pageSize: Number(e.target.value) || 25, page: 1 })}
-                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+                  className="w-full px-3 py-2 rounded-xl border border-border bg-panel text-sm text-text placeholder:text-muted shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 >
                   {[10,25,50,100].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
