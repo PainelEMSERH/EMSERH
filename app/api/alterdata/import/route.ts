@@ -2,7 +2,23 @@
 export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { randomUUID } from 'crypto';
+
+const ROOT_ADMIN_EMAIL = 'jonathan.alves@emserh.ma.gov.br';
+
+async function requireRootAdmin() {
+  const { userId } = await auth();
+  if (!userId) {
+    throw new Error('UNAUTHENTICATED');
+  }
+  const user = await currentUser();
+  const email = (user?.primaryEmailAddress?.emailAddress || '').toLowerCase();
+  if (email !== ROOT_ADMIN_EMAIL) {
+    throw new Error('FORBIDDEN');
+  }
+  return { userId, email };
+}
 
 async function ensureSetup(){
   const stmts = [
@@ -136,6 +152,7 @@ function parseCSV(text: string): { headers: string[]; rows: Record<string,string
 
 export async function POST(req: Request) {
   try{
+    const { email } = await requireRootAdmin();
     const form = await req.formData();
     const file = form.get('file') as File | null;
     if (!file) return NextResponse.json({ ok:false, error:'Envie um arquivo .xlsx ou .csv' }, { status:400 });
@@ -165,7 +182,7 @@ export async function POST(req: Request) {
 
     const batchId = randomUUID();
     const source = file.name || 'upload';
-    const user = 'jonathan';
+    const user = email || 'admin';
     let inserted = 0;
 
     const chunk = 800;
@@ -188,6 +205,24 @@ export async function POST(req: Request) {
     `);
 
     await prisma.$executeRawUnsafe(`SELECT apply_alterdata_v2_batch('${batchId}'::uuid)`);
+
+    // Audit log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          actorId: user,
+          action: 'alterdata_import',
+          entity: 'stg_alterdata_v2',
+          entityId: batchId,
+          diff: {
+            source,
+            totalRows: inserted,
+          } as any,
+        },
+      });
+    } catch (e) {
+      console.error('[alterdata/import] failed to write AuditLog', e);
+    }
 
     return NextResponse.json({ ok:true, batchId, total_rows: inserted });
   }catch(e:any){
