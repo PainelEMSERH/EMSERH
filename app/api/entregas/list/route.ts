@@ -44,6 +44,11 @@ function onlyDigits(v: any): string {
   return out;
 }
 
+
+function esc(s: string): string {
+  return (s ?? '').toString().replace(/'/g, "''");
+}
+
 function pickKeyByName(rows: any[], hints: string[]): string | null {
   if (!rows.length) return null;
   const keys = Object.keys(rows[0] || {});
@@ -175,6 +180,110 @@ function formatKit(items?: {item:string,qtd:number}[] | undefined): string {
     .join(' / ');
 }
 
+
+type FastListResult = { rows: Row[]; total: number };
+
+async function tryFastList(
+  regional: string,
+  unidade: string,
+  page: number,
+  pageSize: number
+): Promise<FastListResult | null> {
+  try {
+    const DEMISSAO_LIMITE = '2025-01-01';
+
+    const wh: string[] = [];
+    const regTrim = (regional || '').trim();
+    const uniTrim = (unidade || '').trim();
+
+    if (regTrim) {
+      wh.push(`regional = '${esc(regTrim)}'`);
+    }
+    if (uniTrim) {
+      wh.push(`unidade = '${esc(uniTrim)}'`);
+    }
+
+    // Aplica regra de demissão direto no banco: mantém sem demissão ou demitidos a partir de 2025
+    wh.push(`(demissao IS NULL OR demissao = '' OR demissao >= '${DEMISSAO_LIMITE}')`);
+
+    const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
+    const offset = (page - 1) * pageSize;
+
+    const rowsSql = `
+      SELECT
+        cpf,
+        nome,
+        funcao,
+        cargo,
+        unidade,
+        regional,
+        demissao
+      FROM mv_alterdata_flat
+      ${whereSql}
+      ORDER BY nome ASC
+      LIMIT ${pageSize} OFFSET ${offset}
+    `;
+
+    const countSql = `
+      SELECT COUNT(*)::int AS total
+      FROM mv_alterdata_flat
+      ${whereSql}
+    `;
+
+    const [rowsRaw, totalRes] = await Promise.all([
+      prisma.$queryRawUnsafe<any[]>(rowsSql),
+      prisma.$queryRawUnsafe<any[]>(countSql),
+    ]);
+
+    const total = Number((totalRes as any)?.[0]?.total ?? 0);
+    if (!Array.isArray(rowsRaw)) {
+      return { rows: [], total: 0 };
+    }
+
+    const [unidDBMap, kitMap] = await Promise.all([
+      loadUnidMapFromDB(),
+      loadKitMap(),
+    ]);
+
+    const rows: Row[] = (rowsRaw as any[])
+      .map((r: any) => {
+        const idRaw = r.cpf ?? r.CPF ?? '';
+        const id = onlyDigits(idRaw).slice(-11);
+        const nome = String(r.nome ?? r.NOME ?? '');
+        const func = String(r.funcao ?? r.cargo ?? r.FUNCAO ?? r.CARGO ?? '');
+        const un = String(r.unidade ?? r.UNIDADE ?? '');
+
+        let reg = String(r.regional ?? r.REGIONAL ?? '');
+        if (!reg) {
+          const canon = canonUnidade(un);
+          reg = (UNID_TO_REGIONAL as any)[canon] || unidDBMap[canon] || '';
+        }
+        const regOut = prettyRegional(reg);
+
+        const k1 = normKey(func);
+        const k2 = normKey(un);
+        const kitItems = (k1 && kitMap[k1]) || (k2 && kitMap[k2]) || undefined;
+        const kitStr = formatKit(kitItems);
+
+        return {
+          id,
+          nome,
+          funcao: func,
+          unidade: un,
+          regional: regOut,
+          kit: kitStr,
+          kitEsperado: kitStr,
+        } as Row;
+      })
+      .filter((r) => r.id || r.nome || r.unidade);
+
+    return { rows, total };
+  } catch (e) {
+    console.error('entregas/fast-list error (mv_alterdata_flat)', e);
+    return null;
+  }
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const regional = url.searchParams.get('regional') || '';
@@ -184,6 +293,20 @@ export async function GET(req: Request) {
   const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
 
   try {
+    const hasQ = !!q.trim();
+    if (!hasQ) {
+      const fast = await tryFastList(regional, unidade, page, pageSize);
+      if (fast && Array.isArray(fast.rows)) {
+        return NextResponse.json({
+          rows: fast.rows,
+          total: fast.total,
+          page,
+          pageSize,
+          source: 'mv_alterdata_flat',
+        });
+      }
+    }
+
     // 1) Carrega todas as páginas do raw-rows (com cache em memória)
     const mirror = await loadSafeRawRows(url.origin, req);
     let acc = mirror.rows.slice();
