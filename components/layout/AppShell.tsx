@@ -16,7 +16,6 @@ const NAV = [
   { label: "Kits", href: "/kits" },
   { label: "Relatórios", href: "/relatorios" },
   { label: "Admin", href: "/admin" },
-  { label: "Importar Alterdata", href: "/admin/importar" },
   { label: "Configurações", href: "/configuracoes" },
 ];
 

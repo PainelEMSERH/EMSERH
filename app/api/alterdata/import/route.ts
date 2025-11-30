@@ -13,12 +13,14 @@ async function requireRootAdmin() {
     throw new Error('UNAUTHENTICATED');
   }
   const user = await currentUser();
-  const email = (user?.primaryEmailAddress?.emailAddress || '').toLowerCase();
+  const email =
+    user?.primaryEmailAddress?.emailAddress?.toLowerCase() || '';
   if (email !== ROOT_ADMIN_EMAIL) {
     throw new Error('FORBIDDEN');
   }
   return { userId, email };
 }
+
 
 async function ensureSetup(){
   const stmts = [
@@ -204,27 +206,28 @@ export async function POST(req: Request) {
       ON CONFLICT (batch_id) DO NOTHING
     `);
 
-    await prisma.$executeRawUnsafe(`SELECT apply_alterdata_v2_batch('${batchId}'::uuid)`);
+await prisma.$executeRawUnsafe(`SELECT apply_alterdata_v2_batch('${batchId}'::uuid)`);
 
-    // Audit log
-    try {
-      await prisma.auditLog.create({
-        data: {
-          actorId: user,
-          action: 'alterdata_import',
-          entity: 'stg_alterdata_v2',
-          entityId: batchId,
-          diff: {
-            source,
-            totalRows: inserted,
-          } as any,
-        },
-      });
-    } catch (e) {
-      console.error('[alterdata/import] failed to write AuditLog', e);
-    }
+// Audit log da importação
+try {
+  await prisma.auditLog.create({
+    data: {
+      actorId: user,
+      action: 'alterdata_import',
+      entity: 'stg_alterdata_v2',
+      entityId: batchId,
+      diff: {
+        source,
+        totalRows: inserted,
+      } as any,
+    },
+  });
+} catch (e) {
+  console.error('[alterdata/import] failed to write AuditLog', e);
+}
 
-    return NextResponse.json({ ok:true, batchId, total_rows: inserted });
+return NextResponse.json({ ok:true, batchId, total_rows: inserted });
+
   }catch(e:any){
     console.error('[alterdata/import] error', e);
     return NextResponse.json({ ok:false, error: String(e?.message || e) }, { status:500 });

@@ -16,16 +16,15 @@ async function ensureAdmin() {
   const user = await currentUser();
   const email =
     user?.primaryEmailAddress?.emailAddress?.toLowerCase() || '';
+
   if (!email) {
     return { ok: false as const, status: 403, reason: 'FORBIDDEN' as const };
   }
 
-  // Root admin sempre tem permissão total
   if (email === ROOT_ADMIN_EMAIL) {
     return { ok: true as const, email };
   }
 
-  // Opcional: verifica se existe registro na tabela Usuario com role=admin
   try {
     const dbUser = await prisma.usuario.findUnique({
       where: { email },
@@ -34,7 +33,7 @@ async function ensureAdmin() {
       return { ok: true as const, email };
     }
   } catch {
-    // se der erro, mantém apenas o root admin como fallback
+    // se der erro, apenas o root admin tem acesso garantido
   }
 
   return { ok: false as const, status: 403, reason: 'FORBIDDEN' as const };
@@ -49,13 +48,22 @@ export async function GET() {
     );
   }
 
-  const logs = await prisma.auditLog.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  });
+  try {
+    const logs = await prisma.auditLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
 
-  return NextResponse.json({
-    ok: true,
-    logs,
-  });
+    return NextResponse.json({
+      ok: true,
+      logs,
+    });
+  } catch (e) {
+    console.error('[admin/logs] error loading logs', e);
+    // Não quebra a tela: apenas retorna lista vazia
+    return NextResponse.json({
+      ok: true,
+      logs: [],
+    });
+  }
 }

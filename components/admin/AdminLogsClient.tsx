@@ -6,7 +6,7 @@ type AuditLog = {
   actorId: string;
   action: string;
   entity: string;
-  entityId: string;
+  entityId: string | null;
   diff?: any;
   createdAt: string;
 };
@@ -35,7 +35,7 @@ export default function AdminLogsClient() {
           setLogs(json.logs || []);
         }
       } catch (e) {
-        if (!cancelled) setError('Erro ao carregar o log de ações.');
+        if (!cancelled) setError('Não foi possível carregar o log de ações.');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -53,9 +53,7 @@ export default function AdminLogsClient() {
         Registro das operações administrativas mais recentes (importações, alterações críticas, etc.).
       </p>
       <div className="rounded-xl border border-border bg-panel p-4 shadow-sm overflow-x-auto">
-        {loading && (
-          <p className="text-sm text-muted">Carregando log...</p>
-        )}
+        {loading && <p className="text-sm text-muted">Carregando log...</p>}
         {!loading && error && (
           <p className="text-sm text-red-500">{error}</p>
         )}
@@ -79,7 +77,7 @@ export default function AdminLogsClient() {
                 const when = Number.isNaN(dt.getTime())
                   ? log.createdAt
                   : dt.toLocaleString('pt-BR');
-                let detail = log.entityId;
+                let detail = log.entityId || '';
                 if (!detail && log.diff) {
                   try {
                     const d = log.diff as any;
@@ -100,8 +98,13 @@ export default function AdminLogsClient() {
                   }
                 }
                 return (
-                  <tr key={log.id} className="border-b border-border/60 last:border-0">
-                    <td className="px-2 py-1 align-top whitespace-nowrap">{when}</td>
+                  <tr
+                    key={log.id}
+                    className="border-b border-border/60 last:border-0"
+                  >
+                    <td className="px-2 py-1 align-top whitespace-nowrap">
+                      {when}
+                    </td>
                     <td className="px-2 py-1 align-top whitespace-nowrap">
                       {log.actorId || '—'}
                     </td>

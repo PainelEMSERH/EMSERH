@@ -24,7 +24,8 @@ export default function ImportarAlterdataClient() {
       const j = await r.json();
       if (!r.ok || !j?.ok) {
         setStatus(
-          'Erro ao importar: ' + (j?.error || 'verifique o arquivo e tente novamente.'),
+          'Erro ao importar: ' +
+            (j?.error || 'verifique o arquivo e tente novamente.'),
         );
       } else {
         setStatus(
@@ -40,7 +41,7 @@ export default function ImportarAlterdataClient() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-semibold mb-2">Importar Alterdata</h1>
+      <h2 className="text-lg font-semibold mb-2">Importar Alterdata</h2>
       <p className="text-sm text-muted mb-4">
         Envie o Excel (.xlsx) ou CSV da base Alterdata oficial. Apenas o administrador raiz pode
         executar esta operação.

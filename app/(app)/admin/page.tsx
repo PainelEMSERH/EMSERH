@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
 import AdminLogsClient from '@/components/admin/AdminLogsClient';
+import ImportarAlterdataClient from '@/components/admin/ImportarAlterdataClient';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -21,19 +22,50 @@ async function ensureAdmin() {
     redirect('/');
   }
 
+  // Root admin sempre tem acesso total
   if (email === ROOT_ADMIN_EMAIL) {
-    return { email, isRoot: true };
+    // Garante presença na tabela Usuario como admin
+    try {
+      await prisma.usuario.upsert({
+        where: { email },
+        update: {
+          nome: user?.fullName || user?.username || email,
+          ativo: true,
+          role: 'admin',
+          clerkUserId: user?.id || undefined,
+        },
+        create: {
+          email,
+          nome: user?.fullName || user?.username || email,
+          ativo: true,
+          role: 'admin',
+          clerkUserId: user?.id || undefined,
+        },
+      });
+    } catch {
+      // se falhar, ainda assim deixamos o root admin acessar
+    }
+    return {
+      email,
+      isRoot: true as const,
+      nome: user?.fullName || user?.username || email,
+    };
   }
 
+  // Demais admins precisam estar cadastrados na tabela Usuario
   try {
     const dbUser = await prisma.usuario.findUnique({
       where: { email },
     });
     if (dbUser && dbUser.role === 'admin' && dbUser.ativo) {
-      return { email, isRoot: false };
+      return {
+        email,
+        isRoot: false as const,
+        nome: dbUser.nome || email,
+      };
     }
   } catch {
-    // se der erro, só deixamos o root admin passar
+    // se der erro, só o root admin acessa
   }
 
   redirect('/');
@@ -42,9 +74,11 @@ async function ensureAdmin() {
 export default async function Page() {
   const admin = await ensureAdmin();
 
-  const totalUsuarios = await prisma.usuario.count().catch(() => 0);
-  const totalRegionais = await prisma.regional.count().catch(() => 0);
-  const totalUnidades = await prisma.unidade.count().catch(() => 0);
+  const [totalUsuarios, totalRegionais, totalUnidades] = await Promise.all([
+    prisma.usuario.count().catch(() => 0),
+    prisma.regional.count().catch(() => 0),
+    prisma.unidade.count().catch(() => 0),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -61,12 +95,13 @@ export default async function Page() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-1">Usuários & permissões</h2>
+          <h2 className="text-sm font-semibold mb-1">Usuários &amp; permissões</h2>
           <p className="text-xs text-muted mb-3">
             Controle de papéis (admin, regional, unidade, operador) e escopo de acesso.
           </p>
           <p className="text-xs text-muted mb-1">
-            Usuários cadastrados: <span className="font-semibold">{totalUsuarios}</span>
+            Usuários cadastrados:{' '}
+            <span className="font-semibold">{totalUsuarios}</span>
           </p>
           <p className="text-xs text-muted">
             Regionais: <span className="font-semibold">{totalRegionais}</span> • Unidades:{' '}
@@ -74,7 +109,7 @@ export default async function Page() {
           </p>
           <div className="mt-3">
             <span className="inline-flex items-center rounded-lg border border-border px-3 py-1 text-[11px] text-muted">
-              Gestão detalhada de usuários será adicionada em uma próxima etapa.
+              Gestão detalhada de usuários (lista e edição de permissões) será adicionada em uma próxima etapa.
             </span>
           </div>
         </div>
@@ -85,21 +120,23 @@ export default async function Page() {
             Importação da base Alterdata e outras operações que impactam todas as regionais.
           </p>
           <ul className="text-xs text-muted list-disc list-inside space-y-1">
-            <li>Importar Alterdata: <span className="font-semibold">exclusivo do usuário root</span>.</li>
-            <li>Demais admins podem acompanhar o log de ações, mas não importar.</li>
+            <li>
+              Importar Alterdata:{' '}
+              <span className="font-semibold">exclusivo do usuário root</span>.
+            </li>
+            <li>
+              Demais admins podem acompanhar o log de ações, mas não importar.
+            </li>
           </ul>
-          <div className="mt-3 flex items-center gap-2">
-            <a
-              href="/admin/importar"
-              className="inline-flex items-center rounded-lg border border-border px-3 py-1 text-[11px] hover:bg-panel/80"
-            >
-              Ir para Importar Alterdata
-            </a>
-          </div>
+          {!admin.isRoot && (
+            <p className="mt-3 text-[11px] text-muted">
+              Apenas o root admin pode executar a importação. Em caso de necessidade, solicite a ele.
+            </p>
+          )}
         </div>
 
         <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-1">Segurança & auditoria</h2>
+          <h2 className="text-sm font-semibold mb-1">Segurança &amp; auditoria</h2>
           <p className="text-xs text-muted mb-3">
             Monitoramento das ações críticas realizadas no sistema, com foco em operações de admin.
           </p>
@@ -112,6 +149,12 @@ export default async function Page() {
           </p>
         </div>
       </div>
+
+      {admin.isRoot && (
+        <div className="mt-2">
+          <ImportarAlterdataClient />
+        </div>
+      )}
 
       <AdminLogsClient />
     </div>
