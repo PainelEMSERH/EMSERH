@@ -59,14 +59,6 @@ export async function GET(req: NextRequest) {
       if (!fKey || fKey !== funcKey) continue;
 
       const site = String(r.site || '').trim();
-      const siteKey = site ? normKey(site) : '';
-
-      if (unidadeKey) {
-        // Se tem unidade do colaborador:
-        // - aceita linhas sem unidade (site vazio) => kit genérico
-        // - ou linhas cuja unidade mapeada bate com a unidade do colaborador
-        if (siteKey && siteKey !== unidadeKey) continue;
-      }
 
       const itemName = String(r.item || '').trim();
       if (!itemName) continue;
