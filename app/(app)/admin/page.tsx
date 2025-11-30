@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
+import AdminUsersClient from '@/components/admin/AdminUsersClient';
 import AdminLogsClient from '@/components/admin/AdminLogsClient';
 import ImportarAlterdataClient from '@/components/admin/ImportarAlterdataClient';
 
@@ -22,7 +23,6 @@ async function ensureAdmin() {
     redirect('/');
   }
 
-  // Root admin sempre tem acesso total
   if (email === ROOT_ADMIN_EMAIL) {
     // Garante presença na tabela Usuario como admin
     try {
@@ -32,18 +32,19 @@ async function ensureAdmin() {
           nome: user?.fullName || user?.username || email,
           ativo: true,
           role: 'admin',
-          clerkUserId: user?.id || undefined,
+          clerkUserId: user?.id || '',
         },
         create: {
+          id: user?.id || email,
           email,
           nome: user?.fullName || user?.username || email,
           ativo: true,
           role: 'admin',
-          clerkUserId: user?.id || undefined,
+          clerkUserId: user?.id || '',
         },
       });
-    } catch {
-      // se falhar, ainda assim deixamos o root admin acessar
+    } catch (e) {
+      console.error('[admin.ensureAdmin] erro ao garantir root admin', e);
     }
     return {
       email,
@@ -52,10 +53,13 @@ async function ensureAdmin() {
     };
   }
 
-  // Demais admins precisam estar cadastrados na tabela Usuario
   try {
     const dbUser = await prisma.usuario.findUnique({
       where: { email },
+      include: {
+        regional: true,
+        unidade: true,
+      },
     });
     if (dbUser && dbUser.role === 'admin' && dbUser.ativo) {
       return {
@@ -64,8 +68,8 @@ async function ensureAdmin() {
         nome: dbUser.nome || email,
       };
     }
-  } catch {
-    // se der erro, só o root admin acessa
+  } catch (e) {
+    console.error('[admin.ensureAdmin] erro ao consultar Usuario', e);
   }
 
   redirect('/');
@@ -95,66 +99,66 @@ export default async function Page() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-1">Usuários &amp; permissões</h2>
+          <h2 className="text-sm font-semibold mb-1">Visão geral</h2>
           <p className="text-xs text-muted mb-3">
-            Controle de papéis (admin, regional, unidade, operador) e escopo de acesso.
+            Resumo dos principais elementos administrados pelo sistema.
           </p>
           <p className="text-xs text-muted mb-1">
             Usuários cadastrados:{' '}
             <span className="font-semibold">{totalUsuarios}</span>
           </p>
+          <p className="text-xs text-muted mb-1">
+            Regionais:{' '}
+            <span className="font-semibold">{totalRegionais}</span>
+          </p>
           <p className="text-xs text-muted">
-            Regionais: <span className="font-semibold">{totalRegionais}</span> • Unidades:{' '}
+            Unidades:{' '}
             <span className="font-semibold">{totalUnidades}</span>
           </p>
-          <div className="mt-3">
-            <span className="inline-flex items-center rounded-lg border border-border px-3 py-1 text-[11px] text-muted">
-              Gestão detalhada de usuários (lista e edição de permissões) será adicionada em uma próxima etapa.
-            </span>
-          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
+          <h2 className="text-sm font-semibold mb-1">Permissões &amp; escopo</h2>
+          <p className="text-xs text-muted mb-3">
+            Controle do que cada usuário pode ver: admins, gestores regionais, gestores de
+            unidade e operadores.
+          </p>
+          <ul className="text-xs text-muted list-disc list-inside space-y-1">
+            <li>
+              Admins podem ver todas as regionais e unidades (conforme configuração futura nas
+              telas).
+            </li>
+            <li>
+              Gestores regionais enxergam apenas dados da própria regional.
+            </li>
+            <li>
+              Gestores de unidade e operadores enxergam apenas a própria unidade.
+            </li>
+          </ul>
         </div>
 
         <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
           <h2 className="text-sm font-semibold mb-1">Ferramentas de dados</h2>
           <p className="text-xs text-muted mb-3">
-            Importação da base Alterdata e outras operações que impactam todas as regionais.
+            Importação da base Alterdata e demais operações de alto impacto.
           </p>
           <ul className="text-xs text-muted list-disc list-inside space-y-1">
             <li>
               Importar Alterdata:{' '}
               <span className="font-semibold">exclusivo do usuário root</span>.
             </li>
-            <li>
-              Demais admins podem acompanhar o log de ações, mas não importar.
-            </li>
+            <li>Demais admins podem acompanhar o log de ações, mas não importar.</li>
           </ul>
-          {!admin.isRoot && (
-            <p className="mt-3 text-[11px] text-muted">
-              Apenas o root admin pode executar a importação. Em caso de necessidade, solicite a ele.
-            </p>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-1">Segurança &amp; auditoria</h2>
-          <p className="text-xs text-muted mb-3">
-            Monitoramento das ações críticas realizadas no sistema, com foco em operações de admin.
-          </p>
-          <ul className="text-xs text-muted list-disc list-inside space-y-1">
-            <li>Registro de importações da base Alterdata.</li>
-            <li>Registro de futuras alterações de permissões e configurações sensíveis.</li>
-          </ul>
-          <p className="mt-2 text-[11px] text-muted">
-            Abaixo você encontra a lista das últimas ações registradas.
-          </p>
         </div>
       </div>
 
       {admin.isRoot && (
-        <div className="mt-2">
+        <div className="mt-4">
           <ImportarAlterdataClient />
         </div>
       )}
+
+      <AdminUsersClient />
 
       <AdminLogsClient />
     </div>

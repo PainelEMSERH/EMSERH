@@ -28,14 +28,16 @@ export default function AdminLogsClient() {
         const r = await fetch('/api/admin/logs');
         const json: ApiResponse = await r.json();
         if (!r.ok || !('ok' in json) || !json.ok) {
-          if (!cancelled) setError('Não foi possível carregar o log de ações.');
+          if (!cancelled)
+            setError('Não foi possível carregar o log de ações.');
           return;
         }
         if (!cancelled) {
           setLogs(json.logs || []);
         }
       } catch (e) {
-        if (!cancelled) setError('Não foi possível carregar o log de ações.');
+        if (!cancelled)
+          setError('Não foi possível carregar o log de ações.');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -47,7 +49,7 @@ export default function AdminLogsClient() {
   }, []);
 
   return (
-    <div className="mt-8">
+    <div className="mt-10">
       <h2 className="text-lg font-semibold mb-2">Últimas ações</h2>
       <p className="text-xs text-muted mb-3">
         Registro das operações administrativas mais recentes (importações, alterações críticas, etc.).

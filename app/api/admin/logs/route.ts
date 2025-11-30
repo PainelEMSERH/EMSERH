@@ -32,7 +32,8 @@ async function ensureAdmin() {
     if (dbUser && dbUser.role === 'admin' && dbUser.ativo) {
       return { ok: true as const, email };
     }
-  } catch {
+  } catch (e) {
+    console.error('[admin/logs.ensureAdmin] erro ao consultar Usuario', e);
     // se der erro, apenas o root admin tem acesso garantido
   }
 
