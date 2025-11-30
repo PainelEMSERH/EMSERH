@@ -1,11 +1,18 @@
+
 export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 type KitRow = { item: string; quantidade: number; nome_site: string | null };
 
 function normKey(s: any): string {
-  return (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+  return (s ?? '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/gi, '')
+    .toLowerCase();
 }
 
 function normFuncKey(s: any): string {
@@ -14,8 +21,10 @@ function normFuncKey(s: any): string {
   return normKey(cleaned);
 }
 
-let KIT_CACHE: { map: Record<string, KitRow[]>; ts: number } | null = null;
-const KIT_TTL_MS = 60 * 60 * 1000;
+type KitCache = { map: Record<string, KitRow[]>; ts: number } | null;
+
+let KIT_CACHE: KitCache = null;
+const KIT_TTL_MS = 60 * 60 * 1000; // 1h
 
 async function loadKitMap(): Promise<Record<string, KitRow[]>> {
   const now = Date.now();
@@ -33,24 +42,36 @@ async function loadKitMap(): Promise<Record<string, KitRow[]>> {
   `);
 
   const map: Record<string, KitRow[]> = {};
+  const seen: Record<string, Set<string>> = {};
+
+  function push(key: string, base: KitRow) {
+    if (!key) return;
+    const normItem = normKey(base.item);
+    if (!map[key]) {
+      map[key] = [];
+      seen[key] = new Set<string>();
+    }
+    const s = seen[key]!;
+    if (s.has(normItem)) return;
+    s.add(normItem);
+    map[key].push(base);
+  }
+
   for (const r of rs) {
     const item = String(r.item || '');
     if (!item) continue;
+
     const base: KitRow = {
       item,
       quantidade: Number(r.qtd || 0) || 0,
       nome_site: r.site ? String(r.site) : null,
     };
+
     const keyFunc = normFuncKey(r.func);
     const keySite = normFuncKey(r.site);
-    if (keyFunc) {
-      if (!map[keyFunc]) map[keyFunc] = [];
-      map[keyFunc].push(base);
-    }
-    if (keySite && keySite !== keyFunc) {
-      if (!map[keySite]) map[keySite] = [];
-      map[keySite].push(base);
-    }
+
+    if (keyFunc) push(keyFunc, base);
+    if (keySite && keySite !== keyFunc) push(keySite, base);
   }
 
   KIT_CACHE = { map, ts: now };

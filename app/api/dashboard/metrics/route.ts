@@ -1,4 +1,6 @@
+
 import { NextRequest } from 'next/server'
+import { obrigatoriosWhereSql } from '@/data/epiObrigatorio'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,8 +14,13 @@ type KPI = {
   pendenciasAbertas: number,
   topItens: { itemId: string, nome: string, quantidade: number }[]
 }
+
 type Series = { labels: string[], entregas: number[], itens: number[] }
-type Alertas = { estoqueAbaixoMinimo: { unidade: string, item: string, quantidade: number, minimo: number }[], pendenciasVencidas: number }
+
+type Alertas = {
+  estoqueAbaixoMinimo: { unidade: string, item: string, quantidade: number, minimo: number }[],
+  pendenciasVencidas: number
+}
 
 function startOfMonth(y:number,m:number){ return new Date(Date.UTC(y, m-1, 1, 0,0,0)) }
 function endOfMonth(y:number,m:number){ return new Date(Date.UTC(y, m, 0, 23,59,59)) }
@@ -39,22 +46,22 @@ export async function GET(req: NextRequest){
     pendenciasAbertas: 0,
     topItens: []
   }
+
   let series: Series = { labels: [], entregas: [], itens: [] }
   let alertas: Alertas = { estoqueAbaixoMinimo: [], pendenciasVencidas: 0 }
 
-  // colaboradores elegíveis no mês (stg_alterdata)
+  // 1) colaboradores elegíveis no mês (stg_alterdata)
   try{
-    const sql = `
+    const rows:any[] = await prisma.$queryRawUnsafe(`
       SELECT COUNT(*)::int AS c
       FROM stg_alterdata a
       WHERE a.admissao <= '${fimDate}'::date
         AND (a.demissao IS NULL OR a.demissao >= '${iniDate}'::date)
-    `
-    const r:any[] = await prisma.$queryRawUnsafe(sql)
-    kpis.colaboradoresAtendidos = Number(r?.[0]?.c || 0)
+    `)
+    kpis.colaboradoresAtendidos = Number(rows?.[0]?.c || 0)
   }catch{}
 
-  // itens planejados do mês (stg_alterdata x stg_epi_map)
+  // 2) itens planejados do mês - SOMENTE EPIs obrigatórios (stg_alterdata x stg_epi_map)
   try{
     const elig = `
       WITH elig AS (
@@ -63,44 +70,62 @@ export async function GET(req: NextRequest){
         WHERE a.admissao <= '${fimDate}'::date
           AND (a.demissao IS NULL OR a.demissao >= '${iniDate}'::date)
       )
-    `
+    `;
+    const obrigPlan = obrigatoriosWhereSql('m.epi_item');
+
     const r:any[] = await prisma.$queryRawUnsafe(`${elig}
       SELECT COALESCE(SUM(m.quantidade),0)::int AS q
       FROM elig e
       JOIN stg_epi_map m
         ON UPPER(REGEXP_REPLACE(m.alterdata_funcao,'[^A-Z0-9]+','','g')) = e.func_key
-    `)
-    const planejadosMes = Number(r?.[0]?.q || 0)
-    kpis.metaMensal.valorMeta = planejadosMes
-    kpis.metaAnual.valorMeta = planejadosMes * 12
+       WHERE ${obrigPlan}
+    `);
+    const planejadosMes = Number(r?.[0]?.q || 0);
+    kpis.metaMensal.valorMeta = planejadosMes;
+    kpis.metaAnual.valorMeta = planejadosMes * 12;
 
     const top:any[] = await prisma.$queryRawUnsafe(`${elig}
       SELECT m.epi_item AS nome, SUM(m.quantidade)::int AS quantidade
       FROM elig e
       JOIN stg_epi_map m
         ON UPPER(REGEXP_REPLACE(m.alterdata_funcao,'[^A-Z0-9]+','','g')) = e.func_key
+       WHERE ${obrigPlan}
       GROUP BY m.epi_item
       ORDER BY quantidade DESC
       LIMIT 5
-    `)
-    kpis.topItens = (top||[]).map((x:any,i:number)=>({ itemId: String(i+1), nome: String(x.nome), quantidade: Number(x.quantidade||0) }))
+    `);
+    kpis.topItens = (top||[]).map((x:any,i:number)=>({
+      itemId: String(i+1),
+      nome: String(x.nome),
+      quantidade: Number(x.quantidade || 0)
+    }));
   }catch{}
 
-  // realizado (entrega/entrega_item), se existir
+  // 3) realizado no mês - SOMENTE EPIs obrigatórios, usando epi_entregas
   try{
+    const obrig = obrigatoriosWhereSql('b.item');
     const rows:any[] = await prisma.$queryRawUnsafe(`
-      SELECT COALESCE(SUM(ei.qtdEntregue),0)::int AS q
-        FROM entrega_item ei
-        JOIN entrega e ON e.id = ei.entregaId
-       WHERE e.data >= '${ini.toISOString()}'::timestamptz AND e.data <= '${fim.toISOString()}'::timestamptz
-    `)
-    const q = Number(rows?.[0]?.q || 0)
-    kpis.itensEntregues = q
-    kpis.metaMensal.realizado = q
-    kpis.metaAnual.realizado = q // simplificado
+      WITH base AS (
+        SELECT
+          e.item,
+          (elem->>'date')::date AS data,
+          (elem->>'qty')::int  AS quantidade
+        FROM epi_entregas e
+        CROSS JOIN LATERAL jsonb_array_elements(e.deliveries) elem
+      )
+      SELECT COALESCE(SUM(b.quantidade),0)::int AS q
+      FROM base b
+      WHERE b.data >= '${iniDate}'::date
+        AND b.data <= '${fimDate}'::date
+        AND ${obrig}
+    `);
+    const q = Number(rows?.[0]?.q || 0);
+    kpis.itensEntregues = q;
+    kpis.metaMensal.realizado = q;
+    kpis.metaAnual.realizado = q; // simplificado
   }catch{}
 
-  // pendências e estoque (se existirem)
+  // 4) pendências e estoque (se existirem)
   try{
     const p:any[] = await prisma.$queryRawUnsafe(`
       SELECT 
@@ -113,62 +138,93 @@ export async function GET(req: NextRequest){
   }catch{}
 
   try{
-    const e:any[] = await prisma.$queryRawUnsafe(`
+    const eRows:any[] = await prisma.$queryRawUnsafe(`
       SELECT u.nome AS unidade, i.nome AS item, e.quantidade::int AS quantidade, e.minimo::int AS minimo
         FROM estoque e
-        JOIN item i ON i.id = e.itemId
-        JOIN unidade u ON u.id = e.unidadeId
+        JOIN item i ON i.id = e."itemId"
+        JOIN unidade u ON u.id = e."unidadeId"
        WHERE (e.quantidade < e.minimo)
        ORDER BY e.quantidade ASC
        LIMIT 6
     `)
-    alertas.estoqueAbaixoMinimo = (e||[]).map((x:any)=>({ unidade: String(x.unidade), item: String(x.item), quantidade: Number(x.quantidade||0), minimo: Number(x.minimo||0) }))
+    alertas.estoqueAbaixoMinimo = (eRows||[]).map((x:any)=>({
+      unidade: String(x.unidade),
+      item: String(x.item),
+      quantidade: Number(x.quantidade || 0),
+      minimo: Number(x.minimo || 0)
+    }))
   }catch{}
 
-  // séries 12 meses
+  // 5) séries dos últimos 6 meses (planejado x entregue) - apenas itens obrigatórios
   try{
-    const labels:string[] = []
-    const entr:number[] = []
-    const its:number[] = []
-    for(let i=11;i>=0;i--){
-      const d = addMonths(now, -i)
-      const y = d.getUTCFullYear(), m = d.getUTCMonth()+1
-      const s = startOfMonth(y,m).toISOString().substring(0,10)
-      const e = endOfMonth(y,m).toISOString().substring(0,10)
-      labels.push(String(m).padStart(2,'0')+'/'+y)
+    const labels: string[] = []
+    const its: number[] = []
+    const entr: number[] = []
 
-      // planejado
+    const baseRef = new Date(ini)
+
+    for(let delta=-5; delta<=0; delta++){
+      const d = addMonths(baseRef, delta)
+      const y = d.getUTCFullYear()
+      const m = d.getUTCMonth()+1
+      const sDate = startOfMonth(y,m).toISOString().substring(0,10)
+      const eDate = endOfMonth(y,m).toISOString().substring(0,10)
+      labels.push(String(m).padStart(2,'0') + '/' + y)
+
+      // planejado (stg_alterdata x stg_epi_map)
       try{
         const elig = `
           WITH elig AS (
             SELECT UPPER(REGEXP_REPLACE(a.funcao,'[^A-Z0-9]+','','g')) AS func_key
             FROM stg_alterdata a
-            WHERE a.admissao <= '${e}'::date
-              AND (a.demissao IS NULL OR a.demissao >= '${s}'::date)
+            WHERE a.admissao <= '${eDate}'::date
+              AND (a.demissao IS NULL OR a.demissao >= '${sDate}'::date)
           )
-        `
+        `;
+        const obrigPlan = obrigatoriosWhereSql('m.epi_item');
         const r:any[] = await prisma.$queryRawUnsafe(`${elig}
           SELECT COALESCE(SUM(m.quantidade),0)::int AS q
           FROM elig e
           JOIN stg_epi_map m
             ON UPPER(REGEXP_REPLACE(m.alterdata_funcao,'[^A-Z0-9]+','','g')) = e.func_key
+           WHERE ${obrigPlan}
         `)
         its.push(Number(r?.[0]?.q || 0))
       }catch{ its.push(0) }
 
-      // entregue
+      // entregue (epi_entregas)
       try{
+        const obrigEnt = obrigatoriosWhereSql('b.item');
         const r:any[] = await prisma.$queryRawUnsafe(`
-          SELECT COALESCE(SUM(ei.qtdEntregue),0)::int AS q
-            FROM entrega_item ei
-            JOIN entrega en ON en.id = ei.entregaId
-           WHERE en.data >= '${s}'::date AND en.data <= '${e}'::date
+          WITH base AS (
+            SELECT
+              e.item,
+              (elem->>'date')::date AS data,
+              (elem->>'qty')::int  AS quantidade
+            FROM epi_entregas e
+            CROSS JOIN LATERAL jsonb_array_elements(e.deliveries) elem
+          )
+          SELECT COALESCE(SUM(b.quantidade),0)::int AS q
+          FROM base b
+          WHERE b.data >= '${sDate}'::date
+            AND b.data <= '${eDate}'::date
+            AND ${obrigEnt}
         `)
         entr.push(Number(r?.[0]?.q || 0))
       }catch{ entr.push(0) }
     }
+
     series = { labels, entregas: entr, itens: its }
   }catch{}
+
+  // 6) variação mensal (%)
+  if (kpis.metaMensal.valorMeta > 0){
+    kpis.variacaoMensalPerc = Number(
+      (((kpis.metaMensal.realizado - kpis.metaMensal.valorMeta) / kpis.metaMensal.valorMeta) * 100).toFixed(1)
+    )
+  }else{
+    kpis.variacaoMensalPerc = 0
+  }
 
   return new Response(JSON.stringify({ kpis, series, alertas }), { headers: { 'content-type': 'application/json' } })
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { isEpiObrigatorio } from '@/data/epiObrigatorio';
 
 type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string; nome_site?: string | null; };
 type KitItem = { item: string; quantidade: number; nome_site?: string | null; };
@@ -799,10 +800,23 @@ const visibleRows = useMemo(() => {
                     <div className="space-y-2 mt-2">
                       {kit.map((k, i) => {
                         const delivered = deliv.find(d => d.item.toLowerCase() === (k.item||'').toLowerCase());
+                        const obrigatorio = isEpiObrigatorio(k.item);
                         return (
                           <div key={i} className="border rounded-xl p-2">
-                            <div className="text-sm">{k.item}</div>
-                            <div className="text-xs opacity-70">
+                            <div className="text-sm flex items-center justify-between gap-2">
+                              <span>{k.item}</span>
+                              <span
+                                className={
+                                  'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ' +
+                                  (obrigatorio
+                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                    : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-900/60 dark:text-neutral-300')
+                                }
+                              >
+                                {obrigatorio ? 'OBRIGATÓRIO' : 'NÃO OBRIGATÓRIO'}
+                              </span>
+                            </div>
+                            <div className="text-xs opacity-70 mt-0.5">
                               Requerido: {k.quantidade} • Entregue: {delivered?.qty_delivered || 0}
                             </div>
                           </div>
@@ -817,7 +831,15 @@ const visibleRows = useMemo(() => {
                     <div className="flex flex-col gap-2 mt-2">
                       <select value={deliverForm.item} onChange={e => setDeliverForm({ ...deliverForm, item: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900">
                         <option value="">Selecione o EPI…</option>
-                        {kit.map((k, i) => <option key={i} value={k.item}>{k.item}</option>)}
+                        {kit.map((k, i) => {
+                          const obrigatorio = isEpiObrigatorio(k.item);
+                          const label = obrigatorio ? k.item : `${k.item} (não obrigatório SESMT)`;
+                          return (
+                            <option key={i} value={k.item}>
+                              {label}
+                            </option>
+                          );
+                        })}
                       </select>
                       <input type="date" value={deliverForm.data} onChange={e => setDeliverForm({ ...deliverForm, data: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" />
                       <input type="number" min={1} value={deliverForm.qtd} onChange={e => setDeliverForm({ ...deliverForm, qtd: Math.max(1, Number(e.target.value)||1) })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" />
@@ -825,7 +847,10 @@ const visibleRows = useMemo(() => {
                     </div>
 
                     <div className="mt-4">
-                      <div className="font-medium text-sm">Entregas registradas</div>
+                      <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-2 mb-1">
+                      Somente EPIs marcados como <strong>OBRIGATÓRIO</strong> contam para a meta do SESMT.
+                    </p>
+                    <div className="font-medium text-sm">Entregas registradas</div>
                       <div className="grid grid-cols-1 gap-2 mt-2">
                         {deliv.map((d, i) => (
                           <div key={i} className="border rounded-xl p-2">
