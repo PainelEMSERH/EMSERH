@@ -34,6 +34,11 @@ function prettyRegional(reg: any): string {
 function normKey(s: any): string {
   return (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
 }
+function normFuncKey(s: any): string {
+  const raw = (s ?? '').toString();
+  const cleaned = raw.replace(/\(A\)/gi, '').replace(/\s+/g, ' ');
+  return normKey(cleaned);
+}
 function onlyDigits(v: any): string {
   const s = String(v ?? '');
   let out = '';
@@ -260,8 +265,8 @@ async function tryFastList(
         }
         const regOut = prettyRegional(reg);
 
-        const k1 = normKey(func);
-        const k2 = normKey(un);
+        const k1 = normFuncKey(func);
+        const k2 = normFuncKey(un);
         const kitItems = (k1 && kitMap[k1]) || (k2 && kitMap[k2]) || undefined;
         const kitStr = formatKit(kitItems);
 
@@ -341,8 +346,8 @@ export async function GET(req: Request) {
         reg = (UNID_TO_REGIONAL as any)[canon] || unidDBMap[canon] || '';
       }
       const regOut = prettyRegional(reg);
-      const k1 = normKey(func);
-      const k2 = normKey(un);
+      const k1 = normFuncKey(func);
+      const k2 = normFuncKey(un);
       const kitItems = (k1 && kitMap[k1]) || (k2 && kitMap[k2]) || undefined;
       const kitStr = formatKit(kitItems);
       return {
