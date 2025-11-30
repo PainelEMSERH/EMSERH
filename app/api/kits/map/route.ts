@@ -41,21 +41,38 @@ export async function GET(req: Request){
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   // Nota: usamos $queryRawUnsafe para flexibilidade sem depender do schema Prisma.
+
   const rows: any[] = await prisma.$queryRawUnsafe(`
     SELECT
       m.alterdata_funcao  AS funcao,
       m.epi_item          AS item,
-      COALESCE(m.quantidade, 0)::float AS quantidade,
+      GREATEST(1, ROUND(COALESCE(m.quantidade, 1)))::float AS quantidade,
       m.nome_site         AS unidade
     FROM stg_epi_map m
     ${whereSql}
-    ORDER BY m.alterdata_funcao, m.epi_item
+    GROUP BY
+      m.alterdata_funcao,
+      m.epi_item,
+      m.nome_site
+    ORDER BY
+      m.alterdata_funcao,
+      m.epi_item
     LIMIT ${size} OFFSET ${offset}
   `, ...params);
 
   // Opcional: total para paginação futura
   const totalRes: any[] = await prisma.$queryRawUnsafe(`
-    SELECT COUNT(*)::int AS c FROM stg_epi_map m ${whereSql}
+    SELECT COUNT(*)::int AS c
+    FROM (
+      SELECT
+        1
+      FROM stg_epi_map m
+      ${whereSql}
+      GROUP BY
+        m.alterdata_funcao,
+        m.epi_item,
+        m.nome_site
+    ) sub
   `, ...params);
 
   return NextResponse.json({ rows, total: (totalRes?.[0]?.c ?? rows.length) });
