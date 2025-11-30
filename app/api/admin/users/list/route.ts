@@ -102,9 +102,12 @@ export async function GET() {
     });
   } catch (e) {
     console.error('[admin/users/list] erro ao carregar dados', e);
-    return NextResponse.json(
-      { ok: false, error: 'INTERNAL_ERROR' },
-      { status: 500 },
-    );
+    // Em caso de erro, não quebramos a tela: retornamos listas vazias
+    return NextResponse.json({
+      ok: true,
+      users: [],
+      regionais: [],
+      unidades: [],
+    });
   }
 }
