@@ -4,7 +4,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
 async function ensureUsuario() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) {
     return;
   }
