@@ -21,6 +21,7 @@ function normFuncKey(s: any): string {
   return normKey(cleaned);
 }
 
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const funcaoRaw = (searchParams.get('funcao') || '').trim();
@@ -52,33 +53,59 @@ export async function GET(req: NextRequest) {
       `
     );
 
-    const byItem = new Map<string, KitRow>();
+    const all: KitRow[] = [];
+    const genericos: KitRow[] = [];
+    const porUnidade: KitRow[] = [];
 
     for (const r of rows) {
       const fKey = normFuncKey(r.func);
       if (!fKey || fKey !== funcKey) continue;
 
       const site = String(r.site || '').trim();
+      const siteKey = site ? normKey(site) : '';
 
       const itemName = String(r.item || '').trim();
       if (!itemName) continue;
 
-      const itemKey = normKey(itemName);
       const qtd = Number(r.qtd || 1) || 1;
 
+      const base: KitRow = {
+        item: itemName,
+        quantidade: qtd,
+        nome_site: site || null,
+      };
+
+      all.push(base);
+
+      if (!siteKey) {
+        genericos.push(base);
+      } else if (unidadeKey && siteKey === unidadeKey) {
+        porUnidade.push(base);
+      }
+    }
+
+    let fonte: KitRow[];
+    if (porUnidade.length > 0) {
+      fonte = porUnidade;
+    } else if (genericos.length > 0) {
+      fonte = genericos;
+    } else {
+      fonte = all;
+    }
+
+    const byItem = new Map<string, KitRow>();
+
+    for (const base of fonte) {
+      const itemKey = normKey(base.item);
       const existing = byItem.get(itemKey);
       if (!existing) {
-        byItem.set(itemKey, {
-          item: itemName,
-          quantidade: qtd,
-          nome_site: site || null,
-        });
+        byItem.set(itemKey, { ...base });
       } else {
-        if (qtd > existing.quantidade) {
-          existing.quantidade = qtd;
+        if (base.quantidade > existing.quantidade) {
+          existing.quantidade = base.quantidade;
         }
-        if (!existing.nome_site && site) {
-          existing.nome_site = site;
+        if (!existing.nome_site && base.nome_site) {
+          existing.nome_site = base.nome_site;
         }
       }
     }
@@ -96,3 +123,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
