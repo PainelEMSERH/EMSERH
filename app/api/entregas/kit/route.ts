@@ -6,92 +6,53 @@ import prisma from '@/lib/prisma';
 
 type KitRow = { item: string; quantidade: number; nome_site: string | null };
 
-function normKey(s: any): string {
-  return (s ?? '')
-    .toString()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]/gi, '')
-    .toLowerCase();
-}
-
-function normFuncKey(s: any): string {
-  const raw = (s ?? '').toString();
-  const cleaned = raw.replace(/\(A\)/gi, '').replace(/\s+/g, ' ');
-  return normKey(cleaned);
-}
-
-type KitCache = { map: Record<string, KitRow[]>; ts: number } | null;
-
-let KIT_CACHE: KitCache = null;
-const KIT_TTL_MS = 60 * 60 * 1000; // 1h
-
-async function loadKitMap(): Promise<Record<string, KitRow[]>> {
-  const now = Date.now();
-  if (KIT_CACHE && now - KIT_CACHE.ts < KIT_TTL_MS) {
-    return KIT_CACHE.map;
-  }
-
-  const rs = await prisma.$queryRawUnsafe<any[]>(`
-    SELECT
-      COALESCE(alterdata_funcao::text,'') AS func,
-      COALESCE(nome_site::text,'')        AS site,
-      COALESCE(epi_item::text,'')         AS item,
-      COALESCE(quantidade::numeric,0)     AS qtd
-    FROM stg_epi_map
-  `);
-
-  const map: Record<string, KitRow[]> = {};
-  const seen: Record<string, Set<string>> = {};
-
-  function push(key: string, base: KitRow) {
-    if (!key) return;
-    const normItem = normKey(base.item);
-    if (!map[key]) {
-      map[key] = [];
-      seen[key] = new Set<string>();
-    }
-    const s = seen[key]!;
-    if (s.has(normItem)) return;
-    s.add(normItem);
-    map[key].push(base);
-  }
-
-  for (const r of rs) {
-    const item = String(r.item || '');
-    if (!item) continue;
-
-    const base: KitRow = {
-      item,
-      quantidade: Number(r.qtd || 0) || 0,
-      nome_site: r.site ? String(r.site) : null,
-    };
-
-    const keyFunc = normFuncKey(r.func);
-    const keySite = normFuncKey(r.site);
-
-    if (keyFunc) push(keyFunc, base);
-    if (keySite && keySite !== keyFunc) push(keySite, base);
-  }
-
-  KIT_CACHE = { map, ts: now };
-  return map;
-}
-
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const funcao = (searchParams.get('funcao') || '').trim();
-  if (!funcao) {
+  const funcaoRaw = (searchParams.get('funcao') || '').trim();
+  const unidadeRaw = (searchParams.get('unidade') || '').trim();
+
+  if (!funcaoRaw) {
     return NextResponse.json(
-      { ok: false, error: 'funcao inválida' },
+      { ok: false, error: 'função inválida' },
       { status: 400 },
     );
   }
 
   try {
-    const map = await loadKitMap();
-    const key = normFuncKey(funcao);
-    const items = key ? map[key] || [] : [];
+    const params: any[] = [funcaoRaw];
+    let whereUnid = '';
+
+    if (unidadeRaw) {
+      params.push(unidadeRaw);
+      whereUnid = `
+        AND (
+          trim(coalesce(m.nome_site,'')) = ''
+          OR UPPER(REGEXP_REPLACE(m.nome_site,'[^A-Z0-9]+','','g')) = UPPER(REGEXP_REPLACE($2,'[^A-Z0-9]+','','g'))
+        )
+      `;
+    }
+
+    const sql = `
+      SELECT
+        TRIM(m.epi_item) AS item,
+        GREATEST(1, ROUND(COALESCE(m.quantidade,1)))::int AS quantidade,
+        NULLIF(TRIM(m.nome_site),'') AS nome_site
+      FROM stg_epi_map m
+      WHERE UPPER(REGEXP_REPLACE(m.alterdata_funcao,'[^A-Z0-9]+','','g'))
+            = UPPER(REGEXP_REPLACE($1,'[^A-Z0-9]+','','g'))
+      ${whereUnid}
+      GROUP BY TRIM(m.epi_item), NULLIF(TRIM(m.nome_site),'')
+      ORDER BY TRIM(m.epi_item);
+    `;
+
+    const rows: any[] = await prisma.$queryRawUnsafe(sql, ...params);
+
+    const items: KitRow[] = rows.map((r: any) => ({
+      item: String(r.item || ''),
+      quantidade: Number(r.quantidade || 1) || 1,
+      nome_site: r.nome_site ? String(r.nome_site) : null,
+    }));
+
     return NextResponse.json({ ok: true, items });
   } catch (e: any) {
     console.error('Error in /api/entregas/kit', e);

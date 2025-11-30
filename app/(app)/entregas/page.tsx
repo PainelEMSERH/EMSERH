@@ -235,18 +235,28 @@ export default function EntregasPage() {
     setStatusModal({ open: false });
   }
 
-  async function openDeliver(row: Row) {
+  
+async function openDeliver(row: Row) {
     setModal({ open: true, row });
     setDeliverForm({ item: '', qtd: 1, data: new Date().toISOString().substring(0,10) });
-    // kit
-    const { json: kitJ } = await fetchJSON('/api/entregas/kit?funcao=' + encodeURIComponent(row.funcao), { cache: 'no-store' });
+
+    // monta query string com função + unidade
+    const params = new URLSearchParams();
+    params.set('funcao', row.funcao || '');
+    if (row.unidade) {
+      params.set('unidade', row.unidade);
+    }
+
+    // kit esperado (considerando função + unidade hospitalar)
+    const { json: kitJ } = await fetchJSON('/api/entregas/kit?' + params.toString(), { cache: 'no-store' });
     const items: KitItem[] = (kitJ?.items || kitJ?.itens || []).map((r: any) => ({
       item: r.item ?? r.epi ?? r.epi_item ?? '',
       quantidade: Number(r.quantidade ?? 1) || 1,
       nome_site: r.nome_site ?? null,
     })).filter((x: any) => x.item);
     setKit(items);
-    // deliveries
+
+    // entregas já registradas para o CPF
     const { json: dJ } = await fetchJSON('/api/entregas/deliver?cpf=' + encodeURIComponent(row.id), { cache: 'no-store' });
     setDeliv((dJ?.rows || []).map((r: any) => ({
       item: String(r.item || ''),
@@ -255,8 +265,7 @@ export default function EntregasPage() {
       deliveries: Array.isArray(r.deliveries) ? r.deliveries : [],
     })));
   }
-
-  async function doDeliver() {
+async function doDeliver() {
     if (!modal.row) return;
     const body = {
       cpf: modal.row.id,
