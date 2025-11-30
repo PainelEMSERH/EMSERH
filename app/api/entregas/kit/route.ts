@@ -6,6 +6,21 @@ import prisma from '@/lib/prisma';
 
 type KitRow = { item: string; quantidade: number; nome_site: string | null };
 
+function normKey(s: any): string {
+  return (s ?? '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/gi, '')
+    .toLowerCase();
+}
+
+function normFuncKey(s: any): string {
+  const raw = (s ?? '').toString();
+  const cleaned = raw.replace(/\(A\)/gi, '').replace(/\s+/g, ' ');
+  return normKey(cleaned);
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const funcaoRaw = (searchParams.get('funcao') || '').trim();
@@ -19,39 +34,66 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const params: any[] = [funcaoRaw];
-    let whereUnid = '';
+    const funcKey = normFuncKey(funcaoRaw);
+    const unidadeKey = unidadeRaw ? normKey(unidadeRaw) : '';
 
-    if (unidadeRaw) {
-      params.push(unidadeRaw);
-      whereUnid = `
-        AND (
-          trim(coalesce(m.nome_site,'')) = ''
-          OR UPPER(REGEXP_REPLACE(m.nome_site,'[^A-Z0-9]+','','g')) = UPPER(REGEXP_REPLACE($2,'[^A-Z0-9]+','','g'))
-        )
-      `;
+    if (!funcKey) {
+      return NextResponse.json({ ok: true, items: [] });
     }
 
-    const sql = `
+    const rows: any[] = await prisma.$queryRawUnsafe(
+      `
       SELECT
-        TRIM(m.epi_item) AS item,
-        GREATEST(1, ROUND(COALESCE(m.quantidade,1)))::int AS quantidade,
-        NULLIF(TRIM(m.nome_site),'') AS nome_site
-      FROM stg_epi_map m
-      WHERE UPPER(REGEXP_REPLACE(m.alterdata_funcao,'[^A-Z0-9]+','','g'))
-            = UPPER(REGEXP_REPLACE($1,'[^A-Z0-9]+','','g'))
-      ${whereUnid}
-      GROUP BY TRIM(m.epi_item), NULLIF(TRIM(m.nome_site),'')
-      ORDER BY TRIM(m.epi_item);
-    `;
+        COALESCE(alterdata_funcao::text, '') AS func,
+        COALESCE(nome_site::text, '')        AS site,
+        COALESCE(epi_item::text, '')         AS item,
+        COALESCE(quantidade::numeric, 1)     AS qtd
+      FROM stg_epi_map
+      `
+    );
 
-    const rows: any[] = await prisma.$queryRawUnsafe(sql, ...params);
+    const byItem = new Map<string, KitRow>();
 
-    const items: KitRow[] = rows.map((r: any) => ({
-      item: String(r.item || ''),
-      quantidade: Number(r.quantidade || 1) || 1,
-      nome_site: r.nome_site ? String(r.nome_site) : null,
-    }));
+    for (const r of rows) {
+      const fKey = normFuncKey(r.func);
+      if (!fKey || fKey !== funcKey) continue;
+
+      const site = String(r.site || '').trim();
+      const siteKey = site ? normKey(site) : '';
+
+      if (unidadeKey) {
+        // Se tem unidade do colaborador:
+        // - aceita linhas sem unidade (site vazio) => kit genérico
+        // - ou linhas cuja unidade mapeada bate com a unidade do colaborador
+        if (siteKey && siteKey !== unidadeKey) continue;
+      }
+
+      const itemName = String(r.item || '').trim();
+      if (!itemName) continue;
+
+      const itemKey = normKey(itemName);
+      const qtd = Number(r.qtd || 1) || 1;
+
+      const existing = byItem.get(itemKey);
+      if (!existing) {
+        byItem.set(itemKey, {
+          item: itemName,
+          quantidade: qtd,
+          nome_site: site || null,
+        });
+      } else {
+        if (qtd > existing.quantidade) {
+          existing.quantidade = qtd;
+        }
+        if (!existing.nome_site && site) {
+          existing.nome_site = site;
+        }
+      }
+    }
+
+    const items = Array.from(byItem.values()).sort((a, b) =>
+      a.item.localeCompare(b.item, 'pt-BR')
+    );
 
     return NextResponse.json({ ok: true, items });
   } catch (e: any) {
