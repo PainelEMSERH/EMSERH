@@ -128,7 +128,7 @@ async function loadUnidMapFromDB(): Promise<Record<string, string>> {
     return UNID_MAP_CACHE.map;
   }
   try {
-    const rs = await prisma.$queryRaw<any[]>`SELECT unidade, regional FROM stg_unid_reg`;
+    const rs = await prisma.$queryRaw<any[]>`SELECT nmdepartamento AS unidade, regional_responsavel AS regional FROM stg_unid_reg`;
     const map: Record<string, string> = {};
     for (const r of rs) {
       const uni = String(r.unidade ?? '');
@@ -149,34 +149,44 @@ async function loadKitMap(): Promise<Record<string, { item: string; qtd: number 
     return KIT_MAP_CACHE.map;
   }
   try {
+    // Mapa de EPIs por colaborador (CPF), usando a view vw_entregas_epi_unidade,
+    // que já aplica o mapeamento Função + Unidade e a regra de demissão.
     const rs = await prisma.$queryRaw<any[]>`
       SELECT
-        COALESCE(alterdata_funcao::text,'') AS func,
-        COALESCE(nome_site::text,'')        AS site,
-        COALESCE(epi_item::text,'')         AS item,
-        COALESCE(quantidade::numeric,0)     AS qtd
-      FROM stg_epi_map
+        COALESCE(cpf::text, '')        AS cpf,
+        COALESCE(epi_nome::text, '')   AS item,
+        COALESCE(quantidade::numeric, 0) AS qtd
+      FROM vw_entregas_epi_unidade
     `;
+
     const map: Record<string, { item: string; qtd: number }[]> = {};
+
     for (const r of rs) {
-      const keyFunc = normKey(r.func);
-      const keySite = normKey(r.site);
-      if (keyFunc) {
-        if (!map[keyFunc]) map[keyFunc] = [];
-        map[keyFunc].push({ item: String(r.item || ''), qtd: Number(r.qtd || 0) });
+      const id = onlyDigits(r.cpf).slice(-11);
+      if (!id) continue;
+
+      const itemName = String(r.item || '').trim();
+      if (!itemName) continue;
+
+      const qtd = Number(r.qtd || 0) || 0;
+
+      if (!map[id]) {
+        map[id] = [];
       }
-      if (keySite) {
-        if (!map[keySite]) map[keySite] = [];
-        map[keySite].push({ item: String(r.item || ''), qtd: Number(r.qtd || 0) });
+      const existing = map[id].find(x => x.item === itemName);
+      if (!existing) {
+        map[id].push({ item: itemName, qtd });
+      } else if (qtd > existing.qtd) {
+        existing.qtd = qtd;
       }
     }
+
     KIT_MAP_CACHE = { map, ts: now };
     return map;
   } catch {
     return KIT_MAP_CACHE?.map || {};
   }
 }
-
 function formatKit(items?: {item:string,qtd:number}[] | undefined): string {
   if (!items || !items.length) return '—';
   return items
@@ -265,9 +275,7 @@ async function tryFastList(
         }
         const regOut = prettyRegional(reg);
 
-        const k1 = normFuncKey(func);
-        const k2 = normFuncKey(un);
-        const kitItems = (k1 && kitMap[k1]) || (k2 && kitMap[k2]) || undefined;
+        const kitItems = kitMap[id];
         const kitStr = formatKit(kitItems);
 
         return {
@@ -346,9 +354,7 @@ export async function GET(req: Request) {
         reg = (UNID_TO_REGIONAL as any)[canon] || unidDBMap[canon] || '';
       }
       const regOut = prettyRegional(reg);
-      const k1 = normFuncKey(func);
-      const k2 = normFuncKey(un);
-      const kitItems = (k1 && kitMap[k1]) || (k2 && kitMap[k2]) || undefined;
+      const kitItems = kitMap[id];
       const kitStr = formatKit(kitItems);
       return {
         id,
