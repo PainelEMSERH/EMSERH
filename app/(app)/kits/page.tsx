@@ -59,14 +59,23 @@ export default function KitsPage() {
         setTotal(typeof data?.total === 'number' ? data.total : novasLinhas.length);
 
         if (novasLinhas.length > 0) {
-          setSelectedFuncao((prev) => {
-            if (prev && novasLinhas.some((r) => r.funcao === prev)) {
-              return prev;
+          setSelectedKey((prev) => {
+            if (prev) {
+              const stillExists = novasLinhas.some((r) => {
+                const func = (r.funcao || '').trim();
+                const un = (r.unidade || '').trim();
+                const key = `${func}|||${un}`;
+                return key === prev;
+              });
+              if (stillExists) return prev;
             }
-            return novasLinhas[0].funcao;
+            const first = novasLinhas[0];
+            const func = (first.funcao || '').trim();
+            const un = (first.unidade || '').trim();
+            return `${func}|||${un}`;
           });
         } else {
-          setSelectedFuncao(null);
+          setSelectedKey(null);
         }
       } catch (err: any) {
         if (!cancelled) {
