@@ -13,7 +13,7 @@ export const revalidate = 3600;
 export const runtime = "nodejs";
 export const preferredRegion = "auto";
 
-const SOURCE = "stg_alterdata_v2"; // fonte principal; mv_alterdata_flat é opcional
+const SOURCE = "mv_alterdata_flat"; // fallback para stg_alterdata_v2 se necessário
 
 export async function POST(req: Request) {
   try {

@@ -233,7 +233,7 @@ async function tryFastList(
         unidade,
         regional,
         demissao
-      FROM stg_alterdata_v2
+      FROM mv_alterdata_flat
       ${whereSql}
       ORDER BY nome ASC
       LIMIT ${pageSize} OFFSET ${offset}
@@ -241,7 +241,7 @@ async function tryFastList(
 
     const countSql = `
       SELECT COUNT(*)::int AS total
-      FROM stg_alterdata_v2
+      FROM mv_alterdata_flat
       ${whereSql}
     `;
 
@@ -284,7 +284,7 @@ async function tryFastList(
 
     return { rows, total };
   } catch (e) {
-    console.error('entregas/fast-list error (stg_alterdata_v2)', e);
+    console.error('entregas/fast-list error (mv_alterdata_flat)', e);
     return null;
   }
 }
@@ -307,7 +307,7 @@ export async function GET(req: Request) {
           total: fast.total,
           page,
           pageSize,
-          source: 'stg_alterdata_v2',
+          source: 'mv_alterdata_flat',
         });
       }
     }

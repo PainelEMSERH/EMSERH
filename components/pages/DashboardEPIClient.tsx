@@ -175,13 +175,16 @@ export default function DashboardEPI(){
           </div>
         </div>
 
-        {/* KPI: Colaboradores e Itens */}
+        {/* KPI: Colaboradores, Itens, Pendências */}
         <div className="col-span-12 md:col-span-6 xl:col-span-3 rounded-2xl border border-neutral-200 dark:border-neutral-800 p-4">
           <div className="text-sm font-medium text-neutral-500">Colaboradores atendidos (mês)</div>
           <div className="text-2xl font-semibold">{formatThousands(data.kpis.colaboradoresAtendidos)}</div>
-          <div className="text-sm mt-2 text-neutral-500">
-            Itens entregues: <b>{formatThousands(data.kpis.itensEntregues)}</b>
-          </div>
+          <div className="text-sm mt-2 text-neutral-500">Itens entregues: <b>{formatThousands(data.kpis.itensEntregues)}</b></div>
+        </div>
+        <div className="col-span-12 md:col-span-6 xl:col-span-3 rounded-2xl border border-neutral-200 dark:border-neutral-800 p-4">
+          <div className="text-sm font-medium text-neutral-500">Pendências abertas</div>
+          <div className="text-2xl font-semibold">{formatThousands(data.kpis.pendenciasAbertas)}</div>
+          <div className="text-xs mt-1 text-neutral-500">Com prazo vencido: <b>{formatThousands(data.alertas.pendenciasVencidas)}</b></div>
         </div>
 
         {/* Série 12 meses: Entregas */}

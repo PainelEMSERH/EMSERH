@@ -99,14 +99,6 @@ export async function GET(req: Request) {
         FROM epi_entregas e
         CROSS JOIN LATERAL jsonb_array_elements(e.deliveries) elem
       ),
-      colab AS (
-        SELECT
-          cpf,
-          MAX(regional) AS regional,
-          MAX(unidade) AS unidade
-        FROM stg_alterdata_v2
-        GROUP BY cpf
-      ),
       joined AS (
         SELECT
           b.cpf,
@@ -115,7 +107,7 @@ export async function GET(req: Request) {
           COALESCE(f.regional, m.regional, '—') AS regional,
           COALESCE(f.unidade, m.unidade, '—') AS unidade
         FROM base b
-        LEFT JOIN colab f ON f.cpf = b.cpf
+        LEFT JOIN mv_alterdata_flat f ON f.cpf = b.cpf
         LEFT JOIN epi_manual_colab m ON m.cpf = b.cpf
       )
     `;

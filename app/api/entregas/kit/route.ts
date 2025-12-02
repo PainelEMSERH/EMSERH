@@ -1,3 +1,4 @@
+
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -14,6 +15,11 @@ function normKey(s: any): string {
     .toLowerCase();
 }
 
+function normFuncKey(s: any): string {
+  const raw = (s ?? '').toString();
+  const cleaned = raw.replace(/\(A\)/gi, '').replace(/\s+/g, ' ');
+  return normKey(cleaned);
+}
 
 function normUnidKey(s: any): string {
   const raw = (s ?? '')
@@ -22,16 +28,10 @@ function normUnidKey(s: any): string {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 
-  // remove palavras genéricas para aproximar variações de nome de unidade
-  const noStops = raw.replace(/\b(hospital|hosp|de|da|das|do|dos)\b/g, ' ');
-  return noStops.replace(/[^a-z0-9]/gi, '');
+  const withoutStops = raw.replace(/\b(hospital|hosp|de|da|das|do|dos)\b/g, ' ');
+  return withoutStops.replace(/[^a-z0-9]/gi, '');
 }
 
-function normFuncKey(s: any): string {
-  const raw = (s ?? '').toString();
-  const cleaned = raw.replace(/\(A\)/gi, '').replace(/\s+/g, ' ');
-  return normKey(cleaned);
-}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -53,31 +53,27 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, items: [] });
     }
 
-    // Lê toda a base de mapeamento de EPI.
-    // Usamos unidade_hospitalar quando disponível; se vier vazio,
-    // caímos para nome_site apenas para compatibilidade.
     const rows: any[] = await prisma.$queryRawUnsafe(
       `
       SELECT
-        COALESCE(alterdata_funcao::text, '')      AS func,
-        COALESCE(unidade_hospitalar::text, '')   AS unidade,
-        COALESCE(nome_site::text, '')            AS nome_site,
-        COALESCE(epi_item::text, '')             AS item,
-        COALESCE(quantidade::numeric, 1)         AS qtd
+        COALESCE(alterdata_funcao::text, '') AS func,
+        COALESCE(nome_site::text, '')        AS site,
+        COALESCE(epi_item::text, '')         AS item,
+        COALESCE(quantidade::numeric, 1)     AS qtd
       FROM stg_epi_map
-      `,
+      `
     );
 
     const all: KitRow[] = [];
-    const porUnidade: KitRow[] = [];
     const genericos: KitRow[] = [];
+    const porUnidade: KitRow[] = [];
 
     for (const r of rows) {
       const fKey = normFuncKey(r.func);
       if (!fKey || fKey !== funcKey) continue;
 
-      const unidadeBase = String(r.unidade || '').trim() || String(r.nome_site || '').trim();
-      const unidadeBaseKey = unidadeBase ? normUnidKey(unidadeBase) : '';
+      const site = String(r.site || '').trim();
+      const siteKey = site ? normUnidKey(site) : '';
 
       const itemName = String(r.item || '').trim();
       if (!itemName) continue;
@@ -87,30 +83,24 @@ export async function GET(req: NextRequest) {
       const base: KitRow = {
         item: itemName,
         quantidade: qtd,
-        nome_site: unidadeBase || null,
+        nome_site: site || null,
       };
 
       all.push(base);
 
-      // Mapeamento específico da unidade (função + unidade)
-      if (unidadeKey && unidadeBaseKey && unidadeBaseKey === unidadeKey) {
-        porUnidade.push(base);
-      } else if (!unidadeBaseKey) {
-        // Linhas genéricas (sem unidade definida) ficam como fallback.
+      if (!siteKey) {
         genericos.push(base);
+      } else if (unidadeKey && siteKey === unidadeKey) {
+        porUnidade.push(base);
       }
     }
 
     let fonte: KitRow[];
-
-    // 1) Se existir kit mapeado exatamente para Função + Unidade, usa ele.
     if (porUnidade.length > 0) {
       fonte = porUnidade;
     } else if (genericos.length > 0) {
-      // 2) Senão, usa apenas linhas genéricas da função.
       fonte = genericos;
     } else {
-      // 3) Último recurso: qualquer linha da função, independente da unidade.
       fonte = all;
     }
 
@@ -132,7 +122,7 @@ export async function GET(req: NextRequest) {
     }
 
     const items = Array.from(byItem.values()).sort((a, b) =>
-      a.item.localeCompare(b.item, 'pt-BR'),
+      a.item.localeCompare(b.item, 'pt-BR')
     );
 
     return NextResponse.json({ ok: true, items });
@@ -144,3 +134,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+

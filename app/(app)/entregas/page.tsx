@@ -316,27 +316,47 @@ async function openDeliver(row: Row) {
   }
 async function doDeliver() {
     if (!modal.row) return;
+    if (!deliverForm.item || deliverForm.qtd <= 0) return;
+
     const body = {
       cpf: modal.row.id,
       item: deliverForm.item,
       qty: deliverForm.qtd,
       date: deliverForm.data,
-      required: kit.find(k => k.item === deliverForm.item)?.quantidade || 1,
+      qty_required: kit.find(k => k.item === deliverForm.item)?.quantidade || 1,
     };
-    const { json } = await fetchJSON('/api/entregas/deliver', {
-      method: 'POST',
-      body: JSON.stringify(body),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (json?.ok) {
-      const { json: dJ } = await fetchJSON('/api/entregas/deliver?cpf=' + encodeURIComponent(modal.row.id), { cache: 'no-store' });
+
+    try {
+      const { ok, json } = await fetchJSON('/api/entregas/deliver', {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!ok || !json?.ok) {
+        console.error('Erro ao registrar entrega', json);
+        if (json?.error) {
+          alert(`Erro ao registrar entrega: ${json.error}`);
+        }
+        return;
+      }
+
+      const { json: dJ } = await fetchJSON(
+        '/api/entregas/deliver?cpf=' + encodeURIComponent(modal.row.id),
+        { cache: 'no-store' },
+      );
+
       setDeliv((dJ?.rows || []).map((r: any) => ({
         item: String(r.item || ''),
         qty_delivered: Number(r.qty_delivered || 0),
         qty_required: Number(r.qty_required || 0),
         deliveries: Array.isArray(r.deliveries) ? r.deliveries : [],
       })));
-      setDeliverForm({ ...deliverForm, qtd: 1 });
+
+      setDeliverForm(prev => ({ ...prev, qtd: 1 }));
+    } catch (e) {
+      console.error('Erro inesperado ao registrar entrega', e);
+      alert('Erro inesperado ao registrar entrega.');
     }
   }
 
