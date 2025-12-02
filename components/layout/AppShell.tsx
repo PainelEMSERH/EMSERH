@@ -17,7 +17,7 @@ import {
   AlertTriangle,
   Flame,
   FileText,
-  ShieldCog,
+  Shield,
   UploadCloud,
   Users,
 } from "lucide-react";
@@ -58,7 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Administração",
     items: [
-      { label: "Admin", href: "/admin", icon: ShieldCog },
+      { label: "Admin", href: "/admin", icon: Shield },
       { label: "Importar dados", href: "/admin/importar", icon: UploadCloud },
       { label: "Configurações", href: "/configuracoes", icon: Settings },
     ],
