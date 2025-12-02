@@ -7,7 +7,9 @@ import clsx from "clsx";
 import ThemeToggle from "@/components/components/ThemeToggle";
 import { UserButton } from '@clerk/nextjs';
 import ThemeSwitcherGeist from '@/components/components/ThemeSwitcherGeist';
-iconst NAV_GROUPS = [
+import { LayoutDashboard, Table2, PackageCheck, Boxes, ClipboardList, BarChart3, Settings, AlertTriangle, Flame, FileText, ShieldCog, UploadCloud, Users } from "lucide-react";
+
+const NAV_GROUPS = [
   {
     label: "Gestão de EPI",
     items: [

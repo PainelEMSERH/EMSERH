@@ -312,8 +312,6 @@ async function tryFastList(
   }
 }
 
-}
-
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const regional = url.searchParams.get('regional') || '';
