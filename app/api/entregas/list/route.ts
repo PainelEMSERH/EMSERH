@@ -321,19 +321,18 @@ export async function GET(req: Request) {
   const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
 
   try {
-    
-const fast = await tryFastList(regional, unidade, q, page, pageSize);
-if (fast && Array.isArray(fast.rows)) {
-  return NextResponse.json({
-    rows: fast.rows,
-    total: fast.total,
-    page,
-    pageSize,
-    source: 'mv_alterdata_flat',
-  });
-}
+    const fast = await tryFastList(regional, unidade, q, page, pageSize);
+    if (fast && Array.isArray(fast.rows)) {
+      return NextResponse.json({
+        rows: fast.rows,
+        total: fast.total,
+        page,
+        pageSize,
+        source: 'mv_alterdata_flat',
+      });
+    }
 
-// 1) Carrega todas as páginas do raw-rows (com cache em memória)
+    // 1) Carrega todas as páginas do raw-rows (com cache em memória)
     const mirror = await loadSafeRawRows(url.origin, req);
     let acc = mirror.rows.slice();
 
@@ -356,19 +355,24 @@ if (fast && Array.isArray(fast.rows)) {
     let rowsAll: InternalRow[] = acc.map((r: any) => {
       const idRaw = cpfKey ? (r as any)[cpfKey] : '';
       const id = onlyDigits(idRaw).slice(-11);
-      const nome = String((nomeKey && (r as any)[nomeKey]) ?? '');
-      const func = String((funcKey && (r as any)[funcKey]) ?? '');
-      const un   = String((unidKey && (r as any)[unidKey]) ?? '');
-      const demRaw = demKey ? String(((r as any)[demKey] ?? '') as any) : '';
-      // Regional por prioridade: coluna direta -> lib/unidReg -> tabela stg_unid_reg
-      let reg = String((regKey && (r as any)[regKey]) ?? '');
+
+      const nome = nomeKey ? String((r as any)[nomeKey] ?? '') : '';
+      const func = funcKey ? String((r as any)[funcKey] ?? '') : '';
+      const un = unidKey ? String((r as any)[unidKey] ?? '') : '';
+      const regFromData = regKey ? String((r as any)[regKey] ?? '') : '';
+
+      const demRaw = demKey ? String((r as any)[demKey] ?? '') : '';
+
+      let reg = regFromData;
       if (!reg) {
         const canon = canonUnidade(un);
         reg = (UNID_TO_REGIONAL as any)[canon] || unidDBMap[canon] || '';
       }
       const regOut = prettyRegional(reg);
-      const kitItems = kitMap[id];
+
+      const kitItems = id ? kitMap[id] : undefined;
       const kitStr = formatKit(kitItems);
+
       return {
         id,
         nome,
@@ -404,10 +408,11 @@ if (fast && Array.isArray(fast.rows)) {
 
     let rows: Row[] = rowsAll.filter(keepByDemissao).map(({ _demissao, ...rest }) => rest);
 
-    // 6) Filtros (regional leniente: aceita vazio/—)
+    // 6) Filtros finais em memória (regional/unidade/q) para segurança
     const nreg = normUp(regional);
     const nuni = normUp(unidade);
     const nq   = normUp(q);
+
     if (nreg) rows = rows.filter(r => !nreg || normUp(r.regional) === nreg || r.regional === '—');
     if (nuni) rows = rows.filter(r => normUp(r.unidade) === nuni);
     if (nq)   rows = rows.filter(r => normUp(r.nome).includes(nq) || normUp(r.id).includes(nq));
