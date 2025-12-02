@@ -110,6 +110,15 @@ export default function EntregasPage() {
   const [deliverForm, setDeliverForm] = useState<{ item: string; qtd: number; data: string }>({ item: '', qtd: 1, data: new Date().toISOString().substring(0, 10) });
 
 
+  function setFilter(patch: Partial<typeof state>) {
+    setState(prev => ({
+      ...prev,
+      ...patch,
+      page: patch.page !== undefined && patch.page !== null ? patch.page : 1,
+    }));
+  }
+
+
   // Carrega / persiste status dos colaboradores no localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -244,9 +253,6 @@ async function checkManualCpf(cpfRaw: string) {
     })();
     return () => { on = false };
   }, [state.regional, state.unidade, state.q, state.page, state.pageSize]);
-.page ? patch.page : 1 });
-  }
-
 
   function openStatusModal(row: Row) {
     const current = statusMap[row.id];
