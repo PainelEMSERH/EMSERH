@@ -183,7 +183,7 @@ export default function KitsPage() {
     : 'Nenhuma função selecionada';
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-6xl space-y-4">
       {/* Cabeçalho - seguindo padrão do Estoque */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -198,15 +198,15 @@ export default function KitsPage() {
       {/* Linha de separação para manter o mesmo alinhamento visual do Estoque */}
       <div className="border-b border-border" />
 
-      {/* Bloco principal: filtros, funções e kit selecionado */}
+            {/* Bloco principal: filtros, funções e kit selecionado */}
       <div className="space-y-4">
         {/* Filtros principais */}
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-panel p-4 text-xs">
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-panel p-4 text-xs md:flex-row md:items-end md:justify-between md:gap-4">
           <div className="flex flex-col gap-1">
             <span className="font-medium">Buscar função ou EPI</span>
             <input
               type="text"
-              className="w-80 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full max-w-xs rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
               placeholder="Digite parte da função (ex.: ENFERMEIRO) ou do EPI (ex.: MÁSCARA)..."
               value={q}
               onChange={(e) => {
@@ -220,7 +220,7 @@ export default function KitsPage() {
             <span className="font-medium">Filtrar por unidade (opcional)</span>
             <input
               type="text"
-              className="w-80 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full max-w-xs rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
               placeholder="Nome da unidade (ex.: HOSPITAL REGIONAL...)"
               value={unidade}
               onChange={(e) => {
@@ -230,7 +230,7 @@ export default function KitsPage() {
             />
           </div>
 
-          <div className="ml-auto flex flex-col items-end gap-0.5 text-[11px] text-muted">
+          <div className="flex flex-col gap-0.5 text-[11px] text-muted md:ml-auto md:items-end">
             <span>
               Funções com kit definido:{' '}
               <span className="font-semibold text-text">{funcoesResumo.comKit}</span>
@@ -248,7 +248,7 @@ export default function KitsPage() {
           </div>
         </div>
 
-        {/* Conteúdo principal: lista de funções e detalhes do kit */}
+{/* Conteúdo principal: lista de funções e detalhes do kit */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-4">
           {/* Funções com kit */}
           <div className="rounded-xl border border-border bg-panel text-xs lg:basis-7/12">
