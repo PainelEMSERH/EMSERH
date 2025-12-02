@@ -14,6 +14,19 @@ function normKey(s: any): string {
     .toLowerCase();
 }
 
+
+function normUnidKey(s: any): string {
+  const raw = (s ?? '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  // remove palavras genéricas para aproximar variações de nome de unidade
+  const noStops = raw.replace(/\b(hospital|hosp|de|da|das|do|dos)\b/g, ' ');
+  return noStops.replace(/[^a-z0-9]/gi, '');
+}
+
 function normFuncKey(s: any): string {
   const raw = (s ?? '').toString();
   const cleaned = raw.replace(/\(A\)/gi, '').replace(/\s+/g, ' ');
@@ -34,7 +47,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const funcKey = normFuncKey(funcaoRaw);
-    const unidadeKey = unidadeRaw ? normKey(unidadeRaw) : '';
+    const unidadeKey = unidadeRaw ? normUnidKey(unidadeRaw) : '';
 
     if (!funcKey) {
       return NextResponse.json({ ok: true, items: [] });
@@ -64,7 +77,7 @@ export async function GET(req: NextRequest) {
       if (!fKey || fKey !== funcKey) continue;
 
       const unidadeBase = String(r.unidade || '').trim() || String(r.nome_site || '').trim();
-      const unidadeBaseKey = unidadeBase ? normKey(unidadeBase) : '';
+      const unidadeBaseKey = unidadeBase ? normUnidKey(unidadeBase) : '';
 
       const itemName = String(r.item || '').trim();
       if (!itemName) continue;
