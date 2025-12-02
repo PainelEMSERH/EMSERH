@@ -13,7 +13,7 @@ import prisma from '@/lib/prisma';
  *
  * Query params:
  *  - q: string       (filtro por função OU item) [opcional]
- *  - unidade: string (filtra por nome_site)      [opcional]
+ *  - unidade: string (filtra por unidade_hospitalar) [opcional]
  *  - page, size: paginação                       [opcionais]
  *
  * Retorna linhas no formato:
@@ -41,7 +41,7 @@ export async function GET(req: Request) {
 
     if (unidade) {
       params.push(`%${unidade.toUpperCase()}%`);
-      where.push(`UPPER(m.nome_site) LIKE $${params.length}`);
+      where.push(`UPPER(m.unidade_hospitalar) LIKE $${params.length}`);
     }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -67,7 +67,7 @@ export async function GET(req: Request) {
               )
             )
           )::int                   AS quantidade,
-          TRIM(m.nome_site)        AS unidade
+          TRIM(m.unidade_hospitalar) AS unidade
         FROM stg_epi_map m
         ${whereSql}
       ) sub
@@ -86,13 +86,13 @@ export async function GET(req: Request) {
         SELECT
           TRIM(m.alterdata_funcao) AS funcao,
           TRIM(m.epi_item)         AS item,
-          TRIM(m.nome_site)        AS unidade
+          TRIM(m.unidade_hospitalar) AS unidade
         FROM stg_epi_map m
         ${whereSql}
         GROUP BY
           TRIM(m.alterdata_funcao),
           TRIM(m.epi_item),
-          TRIM(m.nome_site)
+          TRIM(m.unidade_hospitalar)
       ) sub
       `,
       ...params,

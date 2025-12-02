@@ -33,7 +33,7 @@ export default function KitsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedFuncao, setSelectedFuncao] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   // Carrega dados do mapa de kits
   useEffect(() => {
@@ -87,19 +87,33 @@ export default function KitsPage() {
   }, [q, unidade, page]);
 
   // Agrupa linhas por função
-  const gruposPorFuncao = useMemo(() => {
-    const map = new Map<string, KitMapRow[]>();
+  type GrupoFuncaoUnidade = {
+    key: string;
+    funcao: string;
+    unidade: string;
+    itens: KitMapRow[];
+  };
+
+  const gruposPorFuncao = useMemo<GrupoFuncaoUnidade[]>(() => {
+    const map = new Map<string, GrupoFuncaoUnidade>();
 
     for (const row of rows) {
-      const key = row.funcao || 'SEM FUNÇÃO';
+      const funcao = (row.funcao || 'SEM FUNÇÃO').trim();
+      const unidade = (row.unidade || '—').trim();
+      const key = `${funcao}|||${unidade}`;
+
       if (!map.has(key)) {
-        map.set(key, []);
+        map.set(key, { key, funcao, unidade, itens: [] });
       }
-      map.get(key)!.push(row);
+      map.get(key)!.itens.push(row);
     }
 
-    const entries = Array.from(map.entries());
-    entries.sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
+    const entries = Array.from(map.values());
+    entries.sort((a, b) => {
+      const byFunc = a.funcao.localeCompare(b.funcao, 'pt-BR');
+      if (byFunc !== 0) return byFunc;
+      return a.unidade.localeCompare(b.unidade, 'pt-BR');
+    });
 
     return entries;
   }, [rows]);
@@ -108,8 +122,8 @@ export default function KitsPage() {
     let comKit = 0;
     let apenasSemEpi = 0;
 
-    for (const [, itens] of gruposPorFuncao) {
-      const temEpiReal = itens.some((i) => {
+    for (const grupo of gruposPorFuncao) {
+      const temEpiReal = grupo.itens.some((i) => {
         const nome = (i.item || '').toUpperCase();
         const qtd = i.quantidade ?? 0;
         return nome !== 'SEM EPI' && qtd > 0;
@@ -131,18 +145,16 @@ export default function KitsPage() {
 
   const funcoesLista = useMemo(
     () =>
-      gruposPorFuncao.map(([funcao, itens]) => {
-        const qtdItens = itens.length;
-        const qtdTotal = itens.reduce((acc, it) => acc + (it.quantidade ?? 0), 0);
-        const unidades = Array.from(
-          new Set(itens.map((i) => (i.unidade || '').trim()).filter(Boolean)),
-        ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      gruposPorFuncao.map((grupo) => {
+        const qtdItens = grupo.itens.length;
+        const qtdTotal = grupo.itens.reduce((acc, it) => acc + (it.quantidade ?? 0), 0);
 
         return {
-          funcao,
+          key: grupo.key,
+          funcao: grupo.funcao,
+          unidade: grupo.unidade,
           qtdItens,
           qtdTotal,
-          unidades,
         };
       }),
     [gruposPorFuncao],
@@ -150,8 +162,16 @@ export default function KitsPage() {
 
   const totalPages = Math.max(1, Math.ceil((total || 0) / PAGE_SIZE) || 1);
 
-  const funcaoSelecionada =
-    selectedFuncao && gruposPorFuncao.find(([f]) => f === selectedFuncao)?.[1];
+  const grupoSelecionado = useMemo(
+    () => (selectedKey ? gruposPorFuncao.find((g) => g.key === selectedKey) || null : null),
+    [selectedKey, gruposPorFuncao],
+  );
+
+  const funcaoSelecionada = grupoSelecionado?.itens ?? null;
+
+  const selectedLabel = grupoSelecionado
+    ? `${grupoSelecionado.funcao} • ${grupoSelecionado.unidade || '—'}`
+    : 'Nenhuma função selecionada';
 
   return (
     <div className="space-y-4">
@@ -245,7 +265,7 @@ export default function KitsPage() {
                     <th className="sticky left-0 z-10 border-b border-border bg-muted/40 px-3 py-2 text-left">
                       Função
                     </th>
-                    <th className="border-b border-border px-3 py-2 text-left">Unidades</th>
+                    <th className="border-b border-border px-3 py-2 text-left">Unidade</th>
                     <th className="border-b border-border px-3 py-2 text-center">Itens</th>
                     <th className="border-b border-border px-3 py-2 text-center">Qtd total</th>
                     <th className="border-b border-border px-3 py-2 text-center">Ação</th>
@@ -253,27 +273,23 @@ export default function KitsPage() {
                 </thead>
                 <tbody>
                   {funcoesLista.map((linha) => {
-                    const selecionada = linha.funcao === selectedFuncao;
+                    const selecionada = linha.key === selectedKey;
                     return (
                       <tr
-                        key={linha.funcao}
+                        key={linha.key}
                         className={`cursor-pointer border-b border-border/60 text-[11px] ${
                           selecionada
                             ? 'bg-emerald-50/70 dark:bg-emerald-500/10'
                             : 'hover:bg-muted/40'
                         }`}
-                        onClick={() => setSelectedFuncao(linha.funcao)}
+                        onClick={() => setSelectedKey(linha.key)}
                       >
                         <td className="sticky left-0 z-10 bg-panel px-3 py-2 text-left">
                           <div className="max-w-xs truncate font-medium">{linha.funcao}</div>
                         </td>
                         <td className="px-3 py-2 text-left">
                           <div className="max-w-xs truncate">
-                            {linha.unidades.length === 0
-                              ? '—'
-                              : linha.unidades.length === 1
-                              ? linha.unidades[0]
-                              : `${linha.unidades[0]} + ${linha.unidades.length - 1} outras`}
+                            {linha.unidade || '—'}
                           </div>
                         </td>
                         <td className="px-3 py-2 text-center font-medium">{linha.qtdItens}</td>
@@ -288,7 +304,7 @@ export default function KitsPage() {
                             }`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedFuncao(linha.funcao);
+                              setSelectedKey(linha.key);
                             }}
                           >
                             {selecionada ? 'Selecionada' : 'Ver kit'}
@@ -352,10 +368,10 @@ export default function KitsPage() {
           <div className="rounded-xl border border-border bg-panel text-xs lg:basis-5/12">
             <div className="border-b border-border px-4 py-3">
               <h2 className="text-xs font-semibold">
-                {selectedFuncao || 'Nenhuma função selecionada'}
+                {selectedLabel}
               </h2>
               <p className="text-[11px] text-muted">
-                Lista completa de EPIs previstos para a função selecionada.
+                Lista completa de EPIs previstos para a função/unidade selecionada.
               </p>
             </div>
 
