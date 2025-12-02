@@ -7,22 +7,58 @@ import clsx from "clsx";
 import ThemeToggle from "@/components/components/ThemeToggle";
 import { UserButton } from '@clerk/nextjs';
 import ThemeSwitcherGeist from '@/components/components/ThemeSwitcherGeist';
-
-const NAV = [
-  { label: "Dashboard", href: "/" },
-  { label: "Alterdata (Completa)", href: "/colaboradores/alterdata" },
-  { label: "Entregas", href: "/entregas" },
-  { label: "Estoque", href: "/estoque" },
-  { label: "Kits", href: "/kits" },
-  { label: "Relatórios", href: "/relatorios" },
-  { label: "Admin", href: "/admin" },
-  { label: "Configurações", href: "/configuracoes" },
-];
-
-function Sidebar() {
+iconst NAV_GROUPS = [
+  {
+    label: "Gestão de EPI",
+    items: [
+      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Alterdata (Completa)", href: "/colaboradores/alterdata", icon: Table2 },
+      { label: "Entregas", href: "/entregas", icon: PackageCheck },
+      { label: "Estoque", href: "/estoque", icon: Boxes },
+      { label: "Kits", href: "/kifunction Sidebar() {
   const pathname = usePathname();
   return (
-    <aside className="w-64 shrink-0 border-r border-border bg-bg/50">
+    <aside className="w-72 shrink-0 border-r border-border bg-bg/50">
+      <div className="px-4 py-5 text-sm font-semibold tracking-wide text-text">
+        EMSERH • Gestão SSMA
+      </div>
+      <nav className="flex flex-col px-2 pb-6 gap-4">
+        {NAV_GROUPS.map((group) => (
+          <div key={group.label}>
+            <div className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted">
+              {group.label}
+            </div>
+            <div className="flex flex-col">
+              {group.items.map((item) => {
+                const active =
+                  (item.href === "/dashboard" && pathname === "/dashboard") ||
+                  (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={clsx(
+                      "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors",
+                      active
+                        ? "bg-panel text-text ring-1 ring-inset ring-border"
+                        : "text-muted hover:bg-panel hover:text-text"
+                    )}
+                  >
+                    {Icon && <Icon className="w-4 h-4 shrink-0" />}
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </nav>
+    </aside>
+  );
+}
+
+="w-64 shrink-0 border-r border-border bg-bg/50">
       <div className="px-4 py-5 text-sm font-semibold tracking-wide text-text">
         EMSERH • EPI
       </div>

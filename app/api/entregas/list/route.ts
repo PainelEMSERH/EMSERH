@@ -201,6 +201,7 @@ type FastListResult = { rows: Row[]; total: number };
 async function tryFastList(
   regional: string,
   unidade: string,
+  q: string,
   page: number,
   pageSize: number
 ): Promise<FastListResult | null> {
@@ -210,6 +211,7 @@ async function tryFastList(
     const wh: string[] = [];
     const regTrim = (regional || '').trim();
     const uniTrim = (unidade || '').trim();
+    const qTrim = (q || '').trim();
 
     if (regTrim) {
       wh.push(`regional = '${esc(regTrim)}'`);
@@ -220,6 +222,19 @@ async function tryFastList(
 
     // Aplica regra de demissão direto no banco: mantém sem demissão ou demitidos a partir de 2025
     wh.push(`(demissao IS NULL OR demissao = '' OR demissao >= '${DEMISSAO_LIMITE}')`);
+
+    // Filtro opcional por busca (nome, CPF, função ou cargo)
+    if (qTrim) {
+      const qEsc = esc(qTrim.toUpperCase());
+      wh.push(`
+        (
+          upper(coalesce(nome, ''))   LIKE '%' || '${qEsc}' || '%' OR
+          upper(coalesce(cpf, ''))    LIKE '%' || '${qEsc}' || '%' OR
+          upper(coalesce(funcao, '')) LIKE '%' || '${qEsc}' || '%' OR
+          upper(coalesce(cargo, ''))  LIKE '%' || '${qEsc}' || '%'
+        )
+      `);
+    }
 
     const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
     const offset = (page - 1) * pageSize;
@@ -297,6 +312,8 @@ async function tryFastList(
   }
 }
 
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const regional = url.searchParams.get('regional') || '';
@@ -306,21 +323,19 @@ export async function GET(req: Request) {
   const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
 
   try {
-    const hasQ = !!q.trim();
-    if (!hasQ) {
-      const fast = await tryFastList(regional, unidade, page, pageSize);
-      if (fast && Array.isArray(fast.rows)) {
-        return NextResponse.json({
-          rows: fast.rows,
-          total: fast.total,
-          page,
-          pageSize,
-          source: 'mv_alterdata_flat',
-        });
-      }
-    }
+    
+const fast = await tryFastList(regional, unidade, q, page, pageSize);
+if (fast && Array.isArray(fast.rows)) {
+  return NextResponse.json({
+    rows: fast.rows,
+    total: fast.total,
+    page,
+    pageSize,
+    source: 'mv_alterdata_flat',
+  });
+}
 
-    // 1) Carrega todas as páginas do raw-rows (com cache em memória)
+// 1) Carrega todas as páginas do raw-rows (com cache em memória)
     const mirror = await loadSafeRawRows(url.origin, req);
     let acc = mirror.rows.slice();
 

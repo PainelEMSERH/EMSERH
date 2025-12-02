@@ -136,12 +136,44 @@ export default function EntregasPage() {
 
   // ---- CADASTRO MANUAL (DECLARADO ANTES DO JSX) ----
   const [newColab, setNewColab] = useState<{ cpf: string; nome: string; funcao: string; unidade: string; regional: string; matricula?: string; admissao?: string; demissao?: string }>({ cpf: '', nome: '', funcao: '', unidade: '', regional: '' });
-  const [modalNew, setModalNew] = useState(false);
+const [modalNew, setModalNew] = useState(false);
+const [cpfCheck, setCpfCheck] = useState<{ loading: boolean; exists: boolean | null; source?: string | null }>({ loading: false, exists: null, source: null });
 
-  function openNewManual() {
-    setNewColab({ cpf: '', nome: '', funcao: '', unidade: state.unidade || '', regional: state.regional || '' });
-    setModalNew(true);
+
+
+function openNewManual() {
+  setNewColab({ cpf: '', nome: '', funcao: '', unidade: state.unidade || '', regional: state.regional || '' });
+  setCpfCheck({ loading: false, exists: null, source: null });
+  setModalNew(true);
+}
+
+
+async function checkManualCpf(cpfRaw: string) {
+  const digits = String(cpfRaw || '').replace(/\D/g, '').slice(-11);
+  if (!digits) {
+    setCpfCheck({ loading: false, exists: null, source: null });
+    return;
   }
+  try {
+    setCpfCheck(prev => ({ ...prev, loading: true }));
+    const { json } = await fetchJSON('/api/entregas/check-cpf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cpf: digits }),
+    });
+    if (json && typeof json === 'object' && 'ok' in json) {
+      setCpfCheck({
+        loading: false,
+        exists: !!json.exists,
+        source: (json.source as string | null) || null,
+      });
+    } else {
+      setCpfCheck({ loading: false, exists: null, source: null });
+    }
+  } catch {
+    setCpfCheck({ loading: false, exists: null, source: null });
+  }
+}
 
   async function saveNewManual() {
     const body: any = { ...newColab };
@@ -887,7 +919,34 @@ const visibleRows = useMemo(() => {
                   <div className="text-xs opacity-70">Use este cadastro quando o Alterdata ainda não refletiu a admissão.</div>
                 </div>
                 <div className="p-4 grid md:grid-cols-2 gap-3">
-                  <div><label className="text-xs block mb-1">CPF</label><input value={newColab.cpf} onChange={e=>setNewColab({...newColab, cpf: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" placeholder="000.000.000-00" /></div>
+                  
+<div className="md:col-span-2">
+  <label className="text-xs block mb-1">CPF</label>
+  <input
+    value={newColab.cpf}
+    onChange={e => {
+      setNewColab({ ...newColab, cpf: e.target.value });
+    }}
+    onBlur={e => checkManualCpf(e.target.value)}
+    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+    placeholder="000.000.000-00"
+  />
+  <div className="mt-1 text-[11px] min-h-[1rem]">
+    {cpfCheck.loading && (
+      <span className="text-neutral-500">Verificando CPF na base...</span>
+    )}
+    {!cpfCheck.loading && cpfCheck.exists === true && (
+      <span className="text-amber-600 dark:text-amber-400">
+        Este CPF já possui cadastro ({cpfCheck.source || 'base oficial/manual'}). Verifique antes de criar um novo registro.
+      </span>
+    )}
+    {!cpfCheck.loading && cpfCheck.exists === false && (
+      <span className="text-emerald-600 dark:text-emerald-400">
+        CPF não encontrado na base. Pode prosseguir com o cadastro manual.
+      </span>
+    )}
+  </div>
+</div>
                   <div><label className="text-xs block mb-1">Matrícula</label><input value={newColab.matricula||''} onChange={e=>setNewColab({...newColab, matricula: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" placeholder="(opcional)" /></div>
                   <div className="md:col-span-2"><label className="text-xs block mb-1">Nome</label><input value={newColab.nome} onChange={e=>setNewColab({...newColab, nome: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" /></div>
                   <div><label className="text-xs block mb-1">Função</label><input value={newColab.funcao} onChange={e=>setNewColab({...newColab, funcao: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" placeholder="Ex.: Enfermeiro UTI" /></div>
