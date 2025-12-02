@@ -39,7 +39,7 @@ export async function GET(req: Request) {
 
     const sql = `
       select source from (
-        select 'alterdata'::text as source from mv_alterdata_flat where cpf = $1 limit 1
+        select 'alterdata'::text as source from stg_alterdata_v2 where cpf = $1 limit 1
         union all
         select 'manual'::text   as source from epi_manual_colab   where cpf = $1 limit 1
       ) s

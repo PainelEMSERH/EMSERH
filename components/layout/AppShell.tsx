@@ -42,7 +42,6 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Entregas", href: "/entregas", icon: PackageCheck },
       { label: "Estoque", href: "/estoque", icon: Boxes },
       { label: "Kits", href: "/kits", icon: ClipboardList },
-      { label: "Pendências", href: "/pendencias", icon: AlertTriangle },
       { label: "Relatórios", href: "/relatorios", icon: BarChart3 },
     ],
   },
@@ -59,7 +58,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Administração",
     items: [
       { label: "Admin", href: "/admin", icon: Shield },
-      { label: "Importar dados", href: "/admin/importar", icon: UploadCloud },
       { label: "Configurações", href: "/configuracoes", icon: Settings },
     ],
   },
