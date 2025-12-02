@@ -250,8 +250,9 @@ export default function KitsPage() {
 
 {/* Conteúdo principal: lista de funções e detalhes do kit */}
         <div className="space-y-4">
-          {/* Funções com kit */}
-          <div className="rounded-xl border border-border bg-panel text-xs">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+            {/* Funções com kit */}
+            <div className="rounded-xl border border-border bg-panel text-xs lg:flex-1">
             <div className="border-b border-border px-4 py-3">
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -276,7 +277,6 @@ export default function KitsPage() {
                     </th>
                     <th className="border-b border-border px-3 py-2 text-left">Unidade</th>
                     <th className="border-b border-border px-3 py-2 text-center">Itens</th>
-                    <th className="border-b border-border px-3 py-2 text-center">Qtd total</th>
                     <th className="border-b border-border px-3 py-2 text-center">Ação</th>
                   </tr>
                 </thead>
@@ -302,7 +302,6 @@ export default function KitsPage() {
                           </div>
                         </td>
                         <td className="px-3 py-2 text-center font-medium">{linha.qtdItens}</td>
-                        <td className="px-3 py-2 text-center font-medium">{linha.qtdTotal}</td>
                         <td className="px-3 py-2 text-center">
                           <button
                             type="button"
@@ -326,7 +325,7 @@ export default function KitsPage() {
                   {funcoesLista.length === 0 && !loading && (
                     <tr>
                       <td
-                        colSpan={5}
+                        colSpan={4}
                         className="px-4 py-8 text-center text-[11px] text-muted"
                       >
                         Nenhuma função encontrada para os filtros informados.
@@ -374,7 +373,7 @@ export default function KitsPage() {
           </div>
 
           {/* Detalhes do kit da função selecionada */}
-          <div className="rounded-xl border border-border bg-panel text-xs">
+          <div className="rounded-xl border border-border bg-panel text-xs lg:w-80 lg:shrink-0 xl:w-96 2xl:w-[420px]">
             <div className="border-b border-border px-4 py-3">
               <h2 className="text-xs font-semibold">
                 {selectedLabel}
@@ -433,6 +432,7 @@ export default function KitsPage() {
             </div>
           </div>
         </div>
+      </div>
 
         {/* Estado de erro global */}
         {error && (
