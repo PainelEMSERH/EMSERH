@@ -1,4 +1,3 @@
-
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -21,7 +20,6 @@ function normFuncKey(s: any): string {
   return normKey(cleaned);
 }
 
-
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const funcaoRaw = (searchParams.get('funcao') || '').trim();
@@ -42,27 +40,31 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, items: [] });
     }
 
+    // Lê toda a base de mapeamento de EPI.
+    // Usamos unidade_hospitalar quando disponível; se vier vazio,
+    // caímos para nome_site apenas para compatibilidade.
     const rows: any[] = await prisma.$queryRawUnsafe(
       `
       SELECT
-        COALESCE(alterdata_funcao::text, '') AS func,
-        COALESCE(nome_site::text, '')        AS site,
-        COALESCE(epi_item::text, '')         AS item,
-        COALESCE(quantidade::numeric, 1)     AS qtd
+        COALESCE(alterdata_funcao::text, '')      AS func,
+        COALESCE(unidade_hospitalar::text, '')   AS unidade,
+        COALESCE(nome_site::text, '')            AS nome_site,
+        COALESCE(epi_item::text, '')             AS item,
+        COALESCE(quantidade::numeric, 1)         AS qtd
       FROM stg_epi_map
-      `
+      `,
     );
 
     const all: KitRow[] = [];
-    const genericos: KitRow[] = [];
     const porUnidade: KitRow[] = [];
+    const genericos: KitRow[] = [];
 
     for (const r of rows) {
       const fKey = normFuncKey(r.func);
       if (!fKey || fKey !== funcKey) continue;
 
-      const site = String(r.site || '').trim();
-      const siteKey = site ? normKey(site) : '';
+      const unidadeBase = String(r.unidade || '').trim() || String(r.nome_site || '').trim();
+      const unidadeBaseKey = unidadeBase ? normKey(unidadeBase) : '';
 
       const itemName = String(r.item || '').trim();
       if (!itemName) continue;
@@ -72,24 +74,30 @@ export async function GET(req: NextRequest) {
       const base: KitRow = {
         item: itemName,
         quantidade: qtd,
-        nome_site: site || null,
+        nome_site: unidadeBase || null,
       };
 
       all.push(base);
 
-      if (!siteKey) {
-        genericos.push(base);
-      } else if (unidadeKey && siteKey === unidadeKey) {
+      // Mapeamento específico da unidade (função + unidade)
+      if (unidadeKey && unidadeBaseKey && unidadeBaseKey === unidadeKey) {
         porUnidade.push(base);
+      } else if (!unidadeBaseKey) {
+        // Linhas genéricas (sem unidade definida) ficam como fallback.
+        genericos.push(base);
       }
     }
 
     let fonte: KitRow[];
+
+    // 1) Se existir kit mapeado exatamente para Função + Unidade, usa ele.
     if (porUnidade.length > 0) {
       fonte = porUnidade;
     } else if (genericos.length > 0) {
+      // 2) Senão, usa apenas linhas genéricas da função.
       fonte = genericos;
     } else {
+      // 3) Último recurso: qualquer linha da função, independente da unidade.
       fonte = all;
     }
 
@@ -111,7 +119,7 @@ export async function GET(req: NextRequest) {
     }
 
     const items = Array.from(byItem.values()).sort((a, b) =>
-      a.item.localeCompare(b.item, 'pt-BR')
+      a.item.localeCompare(b.item, 'pt-BR'),
     );
 
     return NextResponse.json({ ok: true, items });
@@ -123,4 +131,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-
