@@ -4,12 +4,36 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import ThemeToggle from "@/components/components/ThemeToggle";
-import { UserButton } from '@clerk/nextjs';
-import ThemeSwitcherGeist from '@/components/components/ThemeSwitcherGeist';
-import { LayoutDashboard, Table2, PackageCheck, Boxes, ClipboardList, BarChart3, Settings, AlertTriangle, Flame, FileText, ShieldCog, UploadCloud, Users } from "lucide-react";
+import { UserButton } from "@clerk/nextjs";
+import ThemeSwitcherGeist from "@/components/components/ThemeSwitcherGeist";
+import {
+  LayoutDashboard,
+  Table2,
+  PackageCheck,
+  Boxes,
+  ClipboardList,
+  BarChart3,
+  Settings,
+  AlertTriangle,
+  Flame,
+  FileText,
+  ShieldCog,
+  UploadCloud,
+  Users,
+} from "lucide-react";
 
-const NAV_GROUPS = [
+type NavItem = {
+  label: string;
+  href: string;
+  icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+};
+
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
+const NAV_GROUPS: NavGroup[] = [
   {
     label: "Gestão de EPI",
     items: [
@@ -17,8 +41,33 @@ const NAV_GROUPS = [
       { label: "Alterdata (Completa)", href: "/colaboradores/alterdata", icon: Table2 },
       { label: "Entregas", href: "/entregas", icon: PackageCheck },
       { label: "Estoque", href: "/estoque", icon: Boxes },
-      { label: "Kits", href: "/kifunction Sidebar() {
+      { label: "Kits", href: "/kits", icon: ClipboardList },
+      { label: "Pendências", href: "/pendencias", icon: AlertTriangle },
+      { label: "Relatórios", href: "/relatorios", icon: BarChart3 },
+    ],
+  },
+  {
+    label: "Segurança do Trabalho",
+    items: [
+      { label: "Acidentes", href: "/acidentes", icon: AlertTriangle },
+      { label: "SPCI / Extintores", href: "/spci-extintores", icon: Flame },
+      { label: "CIPA", href: "/cipa", icon: Users },
+      { label: "Ordens de Serviço", href: "/ordens-de-servico", icon: FileText },
+    ],
+  },
+  {
+    label: "Administração",
+    items: [
+      { label: "Admin", href: "/admin", icon: ShieldCog },
+      { label: "Importar dados", href: "/admin/importar", icon: UploadCloud },
+      { label: "Configurações", href: "/configuracoes", icon: Settings },
+    ],
+  },
+];
+
+function Sidebar() {
   const pathname = usePathname();
+
   return (
     <aside className="w-72 shrink-0 border-r border-border bg-bg/50">
       <div className="px-4 py-5 text-sm font-semibold tracking-wide text-text">
@@ -60,38 +109,6 @@ const NAV_GROUPS = [
   );
 }
 
-="w-64 shrink-0 border-r border-border bg-bg/50">
-      <div className="px-4 py-5 text-sm font-semibold tracking-wide text-text">
-        EMSERH • EPI
-      </div>
-      <div className="px-4 pb-2 text-[10px] uppercase tracking-wider text-muted">
-        Geral
-      </div>
-      <nav className="flex flex-col px-2 pb-6">
-        {NAV.map((n) => {
-          const active =
-            (n.href === "/" && pathname === "/") ||
-            (n.href !== "/" && pathname.startsWith(n.href));
-          return (
-            <Link
-              key={n.href}
-              href={n.href}
-              className={clsx(
-                "rounded-md px-3 py-2 text-sm transition-colors",
-                active
-                  ? "bg-panel text-text ring-1 ring-inset ring-border"
-                  : "text-muted hover:bg-panel hover:text-text"
-              )}
-            >
-              {n.label}
-            </Link>
-          );
-        })}
-      </nav>
-    </aside>
-  );
-}
-
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-bg text-text">
@@ -100,7 +117,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-10 w-full border-b border-border bg-panel/80 backdrop-blur px-5 py-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-emerald-400">● Conectado</span>
-            <div className="flex items-center gap-3"><ThemeSwitcherGeist /><UserButton afterSignOutUrl="/" /></div>
+            <div className="flex items-center gap-3">
+              <ThemeSwitcherGeist />
+              <UserButton afterSignOutUrl="/" />
+            </div>
           </div>
         </header>
         <div className="p-6 max-w-full overflow-x-hidden">{children}</div>
