@@ -255,10 +255,7 @@ async function tryFastList(
       return { rows: [], total: 0 };
     }
 
-    const [unidDBMap, kitMap] = await Promise.all([
-      loadUnidMapFromDB(),
-      loadKitMap(),
-    ]);
+    const unidDBMap = await loadUnidMapFromDB();
 
     const rows: Row[] = (rowsRaw as any[])
       .map((r: any) => {
@@ -275,17 +272,12 @@ async function tryFastList(
         }
         const regOut = prettyRegional(reg);
 
-        const kitItems = kitMap[id];
-        const kitStr = formatKit(kitItems);
-
         return {
           id,
           nome,
           funcao: func,
           unidade: un,
           regional: regOut,
-          kit: kitStr,
-          kitEsperado: kitStr,
         } as Row;
       })
       .filter((r) => r.id || r.nome || r.unidade);
@@ -332,10 +324,10 @@ export async function GET(req: Request) {
     const regKey  = pickKeyByName(acc, ['regi','regional','gerencia']); // se existir direto no dataset
     const demKey  = pickKeyByName(acc, ['demissao','demiss','dt_demissao','demissao_colab']);
 
-    // 3) Carrega mapas auxiliares
-    const [unidDBMap, kitMap] = await Promise.all([loadUnidMapFromDB(), loadKitMap()]);
+    // 3) Carrega mapa auxiliar unidade -> regional
+    const unidDBMap = await loadUnidMapFromDB();
 
-    // 4) Mapeia linhas + regional + kit + captura demissão
+    // 4) Mapeia linhas + regional + captura demissão (sem kit aqui para manter a lista leve)
     type InternalRow = Row & { _demissao?: string };
 
     const DEMISSAO_LIMITE = '2025-01-01';
@@ -354,17 +346,12 @@ export async function GET(req: Request) {
         reg = (UNID_TO_REGIONAL as any)[canon] || unidDBMap[canon] || '';
       }
       const regOut = prettyRegional(reg);
-      const kitItems = kitMap[id];
-      const kitStr = formatKit(kitItems);
       return {
         id,
         nome,
         funcao: func,
         unidade: un,
         regional: regOut,
-        kit: kitStr,
-        kitEsperado: kitStr,
-        kit_esperado: kitStr,
         _demissao: demRaw,
       };
     }).filter(x => x.id || x.nome || x.unidade);
