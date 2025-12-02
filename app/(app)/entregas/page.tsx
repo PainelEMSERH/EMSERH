@@ -215,25 +215,36 @@ async function checkManualCpf(cpfRaw: string) {
   useEffect(() => {
     let on = true;
     (async () => {
-      if (!state.regional) { setRows([]); setTotal(0); return; }
+      if (!state.regional) {
+        setRows([]);
+        setTotal(0);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
-      const params = new URLSearchParams();
-      params.set('regional', state.regional);
-      if (state.unidade) params.set('unidade', state.unidade);
-      if (state.q) params.set('q', state.q);
-      params.set('page', String(state.page));
-      params.set('pageSize', String(state.pageSize));
-      const { json } = await fetchJSON('/api/entregas/list?' + params.toString(), { cache: 'no-store' });
-      if (!on) return;
-      setRows((json.rows || []) as Row[]);
-      setTotal(Number(json.total || 0));
-      setLoading(false);
+      try {
+        const params = new URLSearchParams();
+        params.set('regional', state.regional);
+        if (state.unidade) params.set('unidade', state.unidade);
+        if (state.q) params.set('q', state.q);
+        params.set('page', String(state.page));
+        params.set('pageSize', String(state.pageSize));
+        const { json } = await fetchJSON('/api/entregas/list?' + params.toString(), { cache: 'no-store' });
+        if (!on) return;
+        setRows((json.rows || []) as Row[]);
+        setTotal(Number(json.total || 0));
+      } catch (e) {
+        if (!on) return;
+        console.error('Erro ao carregar entregas', e);
+        setRows([]);
+        setTotal(0);
+      } finally {
+        if (on) setLoading(false);
+      }
     })();
     return () => { on = false };
   }, [state.regional, state.unidade, state.q, state.page, state.pageSize]);
-
-  function setFilter(patch: Partial<typeof state>) {
-    setState({ ...state, ...patch, page: patch.page ? patch.page : 1 });
+.page ? patch.page : 1 });
   }
 
 

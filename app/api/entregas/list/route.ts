@@ -322,7 +322,7 @@ export async function GET(req: Request) {
 
   try {
     const fast = await tryFastList(regional, unidade, q, page, pageSize);
-    if (fast && Array.isArray(fast.rows)) {
+    if (fast && Array.isArray(fast.rows) && fast.total > 0) {
       return NextResponse.json({
         rows: fast.rows,
         total: fast.total,
