@@ -269,15 +269,15 @@ export default function KitsPage() {
             </div>
 
             <div className="max-h-[440px] overflow-auto">
-              <table className="min-w-full border-separate border-spacing-0">
+              <table className="w-full table-fixed border-separate border-spacing-0 text-[11px]">
                 <thead className="bg-muted/40 text-[11px] uppercase text-muted">
                   <tr>
-                    <th className="sticky left-0 z-10 border-b border-border bg-muted/40 px-3 py-2 text-left">
+                    <th className="sticky left-0 z-10 w-[32%] border-b border-border bg-muted/40 px-3 py-2 text-left">
                       Função
                     </th>
-                    <th className="border-b border-border px-3 py-2 text-left">Unidade</th>
-                    <th className="border-b border-border px-3 py-2 text-center">Itens</th>
-                    <th className="border-b border-border px-3 py-2 text-center">Ação</th>
+                    <th className="w-[40%] border-b border-border px-3 py-2 text-left">Unidade</th>
+                    <th className="w-[8%] border-b border-border px-3 py-2 text-center">Itens</th>
+                    <th className="w-[20%] border-b border-border px-3 py-2 text-center">Ação</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -293,11 +293,11 @@ export default function KitsPage() {
                         }`}
                         onClick={() => setSelectedKey(linha.key)}
                       >
-                        <td className="sticky left-0 z-10 bg-panel px-3 py-2 text-left">
-                          <div className="max-w-xs truncate font-medium">{linha.funcao}</div>
+                        <td className="sticky left-0 z-10 bg-panel px-3 py-2 text-left align-top">
+                          <div className="whitespace-normal break-words font-medium">{linha.funcao}</div>
                         </td>
-                        <td className="px-3 py-2 text-left">
-                          <div className="max-w-xs truncate">
+                        <td className="px-3 py-2 text-left align-top">
+                          <div className="whitespace-normal break-words text-[11px]">
                             {linha.unidade || '—'}
                           </div>
                         </td>
@@ -397,7 +397,7 @@ export default function KitsPage() {
               )}
 
               {!loading && funcaoSelecionada && (
-                <table className="min-w-full border-separate border-spacing-0">
+                <table className="w-full table-fixed border-separate border-spacing-0 text-[11px]">
                   <thead className="bg-muted/40 text-[11px] uppercase text-muted">
                     <tr>
                       <th className="border-b border-border px-3 py-2 text-left">EPI</th>
