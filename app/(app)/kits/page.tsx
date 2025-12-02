@@ -183,7 +183,7 @@ export default function KitsPage() {
     : 'Nenhuma função selecionada';
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="space-y-4">
       {/* Cabeçalho - seguindo padrão do Estoque */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -249,9 +249,9 @@ export default function KitsPage() {
         </div>
 
 {/* Conteúdo principal: lista de funções e detalhes do kit */}
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-4">
+        <div className="space-y-4">
           {/* Funções com kit */}
-          <div className="rounded-xl border border-border bg-panel text-xs lg:basis-7/12">
+          <div className="rounded-xl border border-border bg-panel text-xs">
             <div className="border-b border-border px-4 py-3">
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -374,7 +374,7 @@ export default function KitsPage() {
           </div>
 
           {/* Detalhes do kit da função selecionada */}
-          <div className="rounded-xl border border-border bg-panel text-xs lg:basis-5/12">
+          <div className="rounded-xl border border-border bg-panel text-xs">
             <div className="border-b border-border px-4 py-3">
               <h2 className="text-xs font-semibold">
                 {selectedLabel}
