@@ -136,7 +136,8 @@ export default function OrdemServicoPage() {
 
   const [metaReal, setMetaReal] = useState<MetaRealData | null>(null);
   const [metaRealLoading, setMetaRealLoading] = useState(false);
-  const [anoMetaReal, setAnoMetaReal] = useState<string>('2026');
+  /** Exercício fixo da OS (sem seletor de ano na tela). */
+  const ANO_OS = 2026;
 
   const [regionais, setRegionais] = useState<string[]>([]);
   const [unidades, setUnidades] = useState<Array<{ unidade: string; regional: string }>>([]);
@@ -175,7 +176,7 @@ export default function OrdemServicoPage() {
   // Carrega Meta vs Real
   useEffect(() => {
     loadMetaReal();
-  }, [regional, anoMetaReal]);
+  }, [regional]);
 
   const loadData = async () => {
     setLoading(true);
@@ -224,7 +225,6 @@ export default function OrdemServicoPage() {
     try {
       const params = new URLSearchParams();
       if (regional) params.set('regional', regional);
-      params.set('ano', anoMetaReal);
 
       const data: any = await fetchJSON(`/api/ordem-servico/meta-real?${params.toString()}`);
       setMetaReal(data);
@@ -371,13 +371,13 @@ export default function OrdemServicoPage() {
           </p>
           <h1 className="mt-1 text-lg font-semibold">Ordem de Serviço</h1>
           <p className="mt-1 text-xs text-muted">
-            Colaboradores ativos em {anoMetaReal} - Controle de entrega de Ordem de Serviço
+            Coorte {ANO_OS}: na folha em 01/01/{ANO_OS} — OS pode ter sido assinada em qualquer ano
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="hidden md:flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs text-muted">
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-            <span>Colaboradores ativos em {anoMetaReal}</span>
+            <span>Exercício OS {ANO_OS}</span>
           </div>
           <button
             onClick={exportarExcel}
@@ -418,16 +418,13 @@ export default function OrdemServicoPage() {
       ) : metaReal ? (
         <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="text-sm font-semibold">Meta vs Real - Ordem de Serviço</h2>
-            <select
-              value={anoMetaReal}
-              onChange={(e) => setAnoMetaReal(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-border bg-bg text-xs"
-            >
-              {[2024, 2025, 2026, 2027].map((a) => (
-                <option key={a} value={String(a)}>{a}</option>
-              ))}
-            </select>
+            <div>
+              <h2 className="text-sm font-semibold">Meta vs Real - Ordem de Serviço</h2>
+              <p className="text-[10px] text-muted mt-0.5">Acompanhamento {ANO_OS} • real inclui assinaturas anteriores</p>
+            </div>
+            <span className="rounded-lg border border-border bg-bg px-3 py-1.5 text-xs font-semibold tabular-nums">
+              {ANO_OS}
+            </span>
           </div>
 
           <div className="space-y-2">
@@ -494,7 +491,7 @@ export default function OrdemServicoPage() {
                 <span className="font-semibold text-text">{Number(metaReal.totalMeta || 0)}</span> OS entregues
               </div>
               <div>
-                {Number(metaReal.totalColaboradores || 0)} colaborador(es) ativo(s) em {anoMetaReal}
+                {Number(metaReal.totalColaboradores || 0)} na coorte (folha em 01/01/{ANO_OS})
               </div>
             </div>
           </div>
@@ -551,10 +548,9 @@ export default function OrdemServicoPage() {
               aria-label="Filtrar por situação de entrega"
             >
               <option value="">Todos</option>
-              <option value="sim">Concluído (entregue ou recusa)</option>
-              <option value="entregue">Entregue (assinou OS)</option>
-              <option value="recusado">Recusado (termo)</option>
-              <option value="nao">Pendente</option>
+              <option value="entregues">Entregues</option>
+              <option value="pendentes">Pendentes</option>
+              <option value="termo_recusa">Termo de recusa</option>
             </select>
           </div>
           <div>
@@ -600,7 +596,7 @@ export default function OrdemServicoPage() {
           <div className="text-center py-8">
             <div className="text-muted mb-2">Nenhum registro encontrado</div>
             <div className="text-xs text-muted mt-1">
-              {total === 0 ? 'Não há colaboradores ativos em 2026' : 'Tente ajustar os filtros'}
+              {total === 0 ? 'Nenhum registro com os filtros atuais (coorte 2026)' : 'Tente ajustar os filtros'}
             </div>
           </div>
         ) : (

@@ -1,9 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
+const INI_EXERCICIO = '2026-01-01';
+
+const demDataExpr = `(
+  CASE
+    WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+    WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+    WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+    ELSE NULL
+  END
+)`;
+
+const admDataExpr = `(
+  CASE
+    WHEN a.admissao IS NULL OR TRIM(COALESCE(a.admissao::text, '')) = '' THEN NULL
+    WHEN TRIM(a.admissao::text) ~ '^\\d+$' THEN (DATE '1899-12-30' + TRIM(a.admissao::text)::int)
+    WHEN TRIM(a.admissao::text) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.admissao::text), 1, 10)::date
+    WHEN TRIM(a.admissao::text) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.admissao::text), 1, 10), 'DD/MM/YYYY')
+    ELSE NULL
+  END
+)`;
+
+/** Coorte: na folha em 01/01/2026 (admissão até a data; demissão antes de 2026 exclui). */
+const coorte2026Sql = `(
+  (
+    a.admissao IS NULL
+    OR TRIM(COALESCE(a.admissao::text, '')) = ''
+    OR (${admDataExpr}) IS NULL
+    OR (${admDataExpr}) <= DATE '${INI_EXERCICIO}'
+  )
+  AND (
+    a.demissao IS NULL
+    OR TRIM(a.demissao) = ''
+    OR (${demDataExpr}) IS NULL
+    OR (${demDataExpr}) >= DATE '${INI_EXERCICIO}'
+  )
+)`;
+
+function statusOsSql(entregueParam: string): string {
+  const st = entregueParam.trim().toLowerCase();
+  if (!st || st === 'todos' || st === 'all') return '';
+  if (st === 'pendentes' || st === 'pendente' || st === 'nao') {
+    return 'AND (os.colaborador_cpf IS NULL OR os.entregue IS NOT TRUE)';
+  }
+  if (st === 'entregues' || st === 'entregue') {
+    return 'AND os.entregue = true AND COALESCE(os.termo_recusa, false) = false';
+  }
+  if (st === 'termo_recusa' || st === 'recusa' || st === 'recusado') {
+    return 'AND os.entregue = true AND COALESCE(os.termo_recusa, false) = true';
+  }
+  if (st === 'sim' || st === 'concluidos') {
+    return 'AND os.entregue = true';
+  }
+  return '';
+}
+
 export async function GET(req: NextRequest) {
   try {
-    // Garante que a tabela ordem_servico existe
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS ordem_servico (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -39,9 +93,7 @@ export async function GET(req: NextRequest) {
     const sortDir = url.searchParams.get('sortDir') || 'asc';
 
     const offset = (page - 1) * pageSize;
-    const DEMISSAO_ANO_MINIMO = 2026;
 
-    // Verifica se stg_alterdata_v2 existe
     const hasTable: any[] = await prisma.$queryRawUnsafe(`
       SELECT EXISTS (
         SELECT 1 FROM pg_catalog.pg_class c
@@ -49,12 +101,11 @@ export async function GET(req: NextRequest) {
         WHERE c.relkind IN ('r','v','m') AND n.nspname = 'public' AND c.relname = 'stg_alterdata_v2'
       ) AS exists
     `);
-    
+
     if (!hasTable?.[0]?.exists) {
       return NextResponse.json({ ok: true, rows: [], total: 0 });
     }
 
-    // Verifica se stg_unid_reg existe
     const hasUnidReg: any[] = await prisma.$queryRawUnsafe(`
       SELECT EXISTS (
         SELECT 1 FROM pg_catalog.pg_class c
@@ -64,37 +115,9 @@ export async function GET(req: NextRequest) {
     `);
     const useJoin = hasUnidReg?.[0]?.exists;
 
-    // Monta condições WHERE - EXATAMENTE como entregas
     const wh: string[] = [];
+    wh.push(coorte2026Sql);
 
-    // Filtro de demissão:
-    // - inclui: vazio (NULL / '' / espaços)
-    // - inclui: demissão em 2026 OU depois
-    // Observação: `a.demissao` vem como texto e pode estar no formato "número do Excel" (ex: 46831).
-    //            Excel serial date => DATE '1899-12-30' + N dias.
-    wh.push(`(
-      a.demissao IS NULL
-      OR a.demissao = ''
-      OR TRIM(a.demissao) = ''
-      OR (
-        CASE
-          WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
-          WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
-          WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
-          ELSE NULL
-        END
-      ) IS NOT NULL
-      AND EXTRACT(YEAR FROM (
-        CASE
-          WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
-          WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
-          WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
-          ELSE NULL
-        END
-      ))::int >= ${DEMISSAO_ANO_MINIMO}
-    )`);
-
-    // Filtro de regional
     if (regional && useJoin) {
       const escReg = regional.replace(/'/g, "''");
       wh.push(`(UPPER(TRIM(COALESCE(u.regional_responsavel, ''))) = UPPER(TRIM('${escReg}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) IN (
@@ -102,7 +125,6 @@ export async function GET(req: NextRequest) {
       ))`);
     }
 
-    // Filtro de unidade
     if (unidade) {
       const escUni = unidade.replace(/'/g, "''");
       if (useJoin) {
@@ -112,7 +134,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Filtro de busca
     if (search) {
       const escSearch = search.replace(/'/g, "''");
       wh.push(`(
@@ -122,11 +143,25 @@ export async function GET(req: NextRequest) {
       )`);
     }
 
-    const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
+    wh.push(`COALESCE(a.cpf, '') != ''`);
+    wh.push(`COALESCE(a.funcao, '') != ''`);
 
-    // Uma linha por CPF (DISTINCT ON). stg_alterdata_v2 pode ter várias linhas por pessoa.
-    const orderExpr = sortBy === 'nome' ? 'sub.nome' : sortBy === 'unidade' ? 'sub.unidade' : sortBy === 'regional' ? 'sub.regional' : sortBy === 'dataAdmissao' ? 'sub."dataAdmissao"' : 'sub.nome';
-    const rowsSql = useJoin ? `
+    const statusExtra = statusOsSql(entregue);
+    const whereCore = `WHERE ${wh.join(' AND ')} ${statusExtra}`;
+
+    const orderExpr =
+      sortBy === 'nome'
+        ? 'sub.nome'
+        : sortBy === 'unidade'
+          ? 'sub.unidade'
+          : sortBy === 'regional'
+            ? 'sub.regional'
+            : sortBy === 'dataAdmissao'
+              ? 'sub."dataAdmissao"'
+              : 'sub.nome';
+
+    const rowsSql = useJoin
+      ? `
       SELECT sub.* FROM (
         SELECT DISTINCT ON (a.cpf)
           COALESCE(a.cpf, '') AS cpf,
@@ -146,14 +181,13 @@ export async function GET(req: NextRequest) {
         FROM stg_alterdata_v2 a
         LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
         LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
-        ${whereSql}
-        AND COALESCE(a.cpf, '') != ''
-        AND COALESCE(a.funcao, '') != ''
+        ${whereCore}
         ORDER BY a.cpf, a.colaborador
       ) sub
       ORDER BY ${orderExpr} ${sortDir.toUpperCase()}
       LIMIT ${pageSize} OFFSET ${offset}
-    ` : `
+    `
+      : `
       SELECT sub.* FROM (
         SELECT DISTINCT ON (a.cpf)
           COALESCE(a.cpf, '') AS cpf,
@@ -172,30 +206,26 @@ export async function GET(req: NextRequest) {
           os.responsavel AS "responsavelEntrega"
         FROM stg_alterdata_v2 a
         LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
-        ${whereSql}
-        AND COALESCE(a.cpf, '') != ''
-        AND COALESCE(a.funcao, '') != ''
+        ${whereCore}
         ORDER BY a.cpf, a.colaborador
       ) sub
       ORDER BY ${orderExpr} ${sortDir.toUpperCase()}
       LIMIT ${pageSize} OFFSET ${offset}
     `;
 
-    // Um colaborador por CPF (stg_alterdata_v2 pode ter várias linhas por pessoa)
-    // EXATAMENTE como entregas: filtra CPF e função não vazios
-    const countSql = useJoin ? `
+    const countSql = useJoin
+      ? `
       SELECT COUNT(DISTINCT a.cpf)::int AS total
       FROM stg_alterdata_v2 a
       LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
-      ${whereSql}
-      AND COALESCE(a.cpf, '') != ''
-      AND COALESCE(a.funcao, '') != ''
-    ` : `
+      LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
+      ${whereCore}
+    `
+      : `
       SELECT COUNT(DISTINCT a.cpf)::int AS total
       FROM stg_alterdata_v2 a
-      ${whereSql}
-      AND COALESCE(a.cpf, '') != ''
-      AND COALESCE(a.funcao, '') != ''
+      LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
+      ${whereCore}
     `;
 
     const [rowsResult, totalResult] = await Promise.all([
@@ -206,19 +236,7 @@ export async function GET(req: NextRequest) {
     const rowsRaw = Array.isArray(rowsResult) ? rowsResult : [];
     const total = Number((totalResult as any)?.[0]?.total ?? 0);
 
-    // Filtra por status: entregue (assinou OS), recusado (termo), pendente, sim = qualquer concluído
-    let filteredRows = rowsRaw;
-    if (entregue === 'sim') {
-      filteredRows = rowsRaw.filter((r: any) => r.osEntregue === true);
-    } else if (entregue === 'entregue') {
-      filteredRows = rowsRaw.filter((r: any) => r.osEntregue === true && !r.termoRecusa);
-    } else if (entregue === 'recusado') {
-      filteredRows = rowsRaw.filter((r: any) => r.osEntregue === true && r.termoRecusa === true);
-    } else if (entregue === 'nao' || entregue === 'pendente') {
-      filteredRows = rowsRaw.filter((r: any) => !r.osEntregue);
-    }
-
-    const rowsFinal = filteredRows.map((r: any) => ({
+    const rowsFinal = rowsRaw.map((r: any) => ({
       id: String(r.cpf || ''),
       nome: String(r.nome || ''),
       cpf: String(r.cpf || ''),
@@ -236,7 +254,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       rows: rowsFinal,
-      total: entregue ? filteredRows.length : total,
+      total,
     });
   } catch (e: any) {
     console.error('[ordem-servico/list] error', e);

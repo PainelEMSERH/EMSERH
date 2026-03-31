@@ -2,17 +2,55 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
 /**
- * API para Meta e Real de Ordem de Serviço
+ * Meta vs Real — exercício 2026 (fixo).
  *
- * META = colaboradores ativos no ano filtrado (mesma meta em todos os meses).
+ * Coorte (META): colaboradores que estavam na folha em 01/01/2026 — admissão até essa data
+ * e sem demissão antes de 01/01/2026 (quem saiu depois em 2026 continua contando).
  *
- * REAL acumulado (por mês do ano selecionado) = quantos desses colaboradores já tinham
- * OS entregue até o último dia daquele mês, em qualquer ano (a OS é única por CPF).
- * Assim, 2026 “herda” entregas feitas em 2024/2025 sem apagar ou relançar registros.
- *
- * REAL mensal (`real`) = novas entregas apenas naquele mês/calendário do ano filtrado
- * (útil para consumidores da API); a tela principal usa `realAcumulado`.
+ * REAL: quem da coorte já tem OS registrada (entrega ou termo), com data_entrega até o fim
+ * de cada mês de 2026 no gráfico; a data da assinatura pode ser de qualquer ano.
  */
+
+const ANO_OS = 2026;
+const INI_EXERCICIO = `${ANO_OS}-01-01`;
+
+/** Expressão SQL: data parseada de a.demissao (mesmo padrão já usado no projeto). */
+const demDataExpr = `(
+  CASE
+    WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+    WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+    WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+    ELSE NULL
+  END
+)`;
+
+/** Expressão SQL: data parseada de a.admissao */
+const admDataExpr = `(
+  CASE
+    WHEN a.admissao IS NULL OR TRIM(COALESCE(a.admissao::text, '')) = '' THEN NULL
+    WHEN TRIM(a.admissao::text) ~ '^\\d+$' THEN (DATE '1899-12-30' + TRIM(a.admissao::text)::int)
+    WHEN TRIM(a.admissao::text) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.admissao::text), 1, 10)::date
+    WHEN TRIM(a.admissao::text) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.admissao::text), 1, 10), 'DD/MM/YYYY')
+    ELSE NULL
+  END
+)`;
+
+/** Na folha em 01/01/2026 */
+const coorte2026Sql = `(
+  (
+    a.admissao IS NULL
+    OR TRIM(COALESCE(a.admissao::text, '')) = ''
+    OR (${admDataExpr}) IS NULL
+    OR (${admDataExpr}) <= DATE '${INI_EXERCICIO}'
+  )
+  AND (
+    a.demissao IS NULL
+    OR TRIM(a.demissao) = ''
+    OR (${demDataExpr}) IS NULL
+    OR (${demDataExpr}) >= DATE '${INI_EXERCICIO}'
+  )
+)`;
+
 export async function GET(req: NextRequest) {
   try {
     await prisma.$executeRawUnsafe(`
@@ -41,36 +79,6 @@ export async function GET(req: NextRequest) {
 
     const url = new URL(req.url);
     const regional = url.searchParams.get('regional') || '';
-    const ano = url.searchParams.get('ano') || String(new Date().getFullYear());
-
-    const anoAtual = parseInt(ano, 10);
-    if (!Number.isFinite(anoAtual) || anoAtual < 2000 || anoAtual > 2100) {
-      return NextResponse.json({ ok: false, error: 'Ano inválido' }, { status: 400 });
-    }
-
-    const DEMISSAO_ANO_MINIMO = anoAtual;
-
-    const demissaoFiltro = `(
-      a.demissao IS NULL
-      OR a.demissao = ''
-      OR TRIM(a.demissao) = ''
-      OR (
-        CASE
-          WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
-          WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
-          WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
-          ELSE NULL
-        END
-      ) IS NOT NULL
-      AND EXTRACT(YEAR FROM (
-        CASE
-          WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
-          WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
-          WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
-          ELSE NULL
-        END
-      ))::int >= ${DEMISSAO_ANO_MINIMO}
-    )`;
 
     const regionalFiltro = regional
       ? `AND COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
@@ -78,7 +86,7 @@ export async function GET(req: NextRequest) {
                         LIMIT 1),'') = '${regional.replace(/'/g, "''")}'`
       : '';
 
-    const whereClause = `WHERE ${demissaoFiltro} ${regionalFiltro}`;
+    const whereClause = `WHERE ${coorte2026Sql} ${regionalFiltro}`;
 
     const totalMetaQuery = `
       SELECT COUNT(DISTINCT a.cpf) as total
@@ -105,7 +113,6 @@ export async function GET(req: NextRequest) {
       '12': totalMeta,
     };
 
-    /** OS já entregues com data estritamente antes do ano visualizado (não conta data_entrega NULL). */
     const beforeYearQuery = `
       SELECT COUNT(DISTINCT a.cpf) AS total
       FROM stg_alterdata_v2 a
@@ -115,12 +122,11 @@ export async function GET(req: NextRequest) {
       AND COALESCE(a.funcao, '') != ''
       AND os.entregue = true
       AND os.data_entrega IS NOT NULL
-      AND os.data_entrega < DATE '${anoAtual}-01-01'
+      AND os.data_entrega < DATE '${INI_EXERCICIO}'
     `;
     const beforeYearResult: any[] = await prisma.$queryRawUnsafe(beforeYearQuery);
     const beforeYearCount = parseInt(beforeYearResult[0]?.total || '0', 10);
 
-    /** REAL acumulado até o fim de cada mês do ano (qualquer ano da data_entrega). */
     const realAcumuladoQuery = `
       SELECT mes.m AS mes,
         (
@@ -133,7 +139,7 @@ export async function GET(req: NextRequest) {
           AND os.entregue = true
           AND (
             os.data_entrega IS NULL
-            OR os.data_entrega < (make_date(${anoAtual}, mes.m::int, 1) + interval '1 month')::date
+            OR os.data_entrega < (make_date(${ANO_OS}, mes.m::int, 1) + interval '1 month')::date
           )
         ) AS total
       FROM generate_series(1, 12) AS mes(m)
@@ -196,7 +202,7 @@ export async function GET(req: NextRequest) {
       totalColaboradores: totalMeta,
       totalMeta: totalMeta,
       totalReal: totalReal,
-      ano: anoAtual,
+      ano: ANO_OS,
     });
   } catch (e: any) {
     console.error('[ordem-servico/meta-real] error', e);

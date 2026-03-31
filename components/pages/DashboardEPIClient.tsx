@@ -219,8 +219,8 @@ export default function DashboardEPI() {
           `/api/acidentes/stats?ano=${ano}` +
           (regionalSelecionada ? `&regional=${encodeURIComponent(regionalSelecionada)}` : '')
         const osUrl =
-          `/api/ordem-servico/meta-real?ano=${ano}` +
-          (regionalSelecionada ? `&regional=${encodeURIComponent(regionalSelecionada)}` : '')
+          '/api/ordem-servico/meta-real' +
+          (regionalSelecionada ? `?regional=${encodeURIComponent(regionalSelecionada)}` : '')
         const spciUrl = '/api/spci/stats' + (regionalSelecionada ? `?regional=${encodeURIComponent(regionalSelecionada)}` : '')
 
         const [epiRes, acRes, osRes, spciRes] = await Promise.all([
