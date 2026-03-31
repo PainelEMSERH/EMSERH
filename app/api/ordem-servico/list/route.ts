@@ -38,11 +38,23 @@ const coorte2026Sql = `(
   )
 )`;
 
+/** Mesmo critério de meta-real: casa CPF só com dígitos. */
+const joinOrdemServicoOn = `regexp_replace(TRIM(COALESCE(os.colaborador_cpf, '')), '[^0-9]', '', 'g')
+  = regexp_replace(TRIM(COALESCE(a.cpf, '')), '[^0-9]', '', 'g')
+  AND length(regexp_replace(TRIM(COALESCE(a.cpf, '')), '[^0-9]', '', 'g')) >= 11`;
+
+/** OS já consta no sistema (import antigo pode ter só data ou termo). */
+const osJaLancadaSql = `(
+  COALESCE(os.entregue, false)
+  OR os.data_entrega IS NOT NULL
+  OR COALESCE(os.termo_recusa, false)
+)`;
+
 function statusOsSql(entregueParam: string): string {
   const st = entregueParam.trim().toLowerCase();
   if (!st || st === 'todos' || st === 'all') return '';
   if (st === 'pendentes' || st === 'pendente' || st === 'nao') {
-    return 'AND (os.colaborador_cpf IS NULL OR os.entregue IS NOT TRUE)';
+    return `AND (os.colaborador_cpf IS NULL OR NOT ${osJaLancadaSql})`;
   }
   if (st === 'entregues' || st === 'entregue') {
     return 'AND os.entregue = true AND COALESCE(os.termo_recusa, false) = false';
@@ -51,7 +63,7 @@ function statusOsSql(entregueParam: string): string {
     return 'AND os.entregue = true AND COALESCE(os.termo_recusa, false) = true';
   }
   if (st === 'sim' || st === 'concluidos') {
-    return 'AND os.entregue = true';
+    return `AND ${osJaLancadaSql}`;
   }
   return '';
 }
@@ -180,7 +192,7 @@ export async function GET(req: NextRequest) {
           os.responsavel AS "responsavelEntrega"
         FROM stg_alterdata_v2 a
         LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
-        LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
+        LEFT JOIN ordem_servico os ON ${joinOrdemServicoOn}
         ${whereCore}
         ORDER BY a.cpf, a.colaborador
       ) sub
@@ -205,7 +217,7 @@ export async function GET(req: NextRequest) {
           os.data_entrega::text AS "dataEntregaOS",
           os.responsavel AS "responsavelEntrega"
         FROM stg_alterdata_v2 a
-        LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
+        LEFT JOIN ordem_servico os ON ${joinOrdemServicoOn}
         ${whereCore}
         ORDER BY a.cpf, a.colaborador
       ) sub
@@ -218,13 +230,13 @@ export async function GET(req: NextRequest) {
       SELECT COUNT(DISTINCT a.cpf)::int AS total
       FROM stg_alterdata_v2 a
       LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
-      LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
+      LEFT JOIN ordem_servico os ON ${joinOrdemServicoOn}
       ${whereCore}
     `
       : `
       SELECT COUNT(DISTINCT a.cpf)::int AS total
       FROM stg_alterdata_v2 a
-      LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
+      LEFT JOIN ordem_servico os ON ${joinOrdemServicoOn}
       ${whereCore}
     `;
 
@@ -245,7 +257,10 @@ export async function GET(req: NextRequest) {
       regional: String(r.regional || ''),
       funcao: String(r.funcao || ''),
       dataAdmissao: r.dataAdmissao ? String(r.dataAdmissao) : null,
-      osEntregue: Boolean(r.osEntregue),
+      osEntregue:
+        Boolean(r.osEntregue) ||
+        Boolean(r.termoRecusa) ||
+        !!(r.dataEntregaOS != null && String(r.dataEntregaOS).trim() !== ''),
       termoRecusa: Boolean(r.termoRecusa),
       dataEntregaOS: r.dataEntregaOS ? String(r.dataEntregaOS) : null,
       responsavelEntrega: r.responsavelEntrega ? String(r.responsavelEntrega) : null,

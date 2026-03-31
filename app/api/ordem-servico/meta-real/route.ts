@@ -7,9 +7,9 @@ import { prisma } from '@/lib/db';
  * Coorte (META): na folha em 01/01/2026 (admissão até essa data; demissão antes de 01/01/2026 exclui).
  * Quem foi demitido depois em 2026 continua na coorte.
  *
- * REAL: na coorte, qualquer registro em ordem_servico com entregue = true conta como concluído,
- * independentemente da data da assinatura (2024, 2025, 2026 ou data_entrega nula).
- * O gráfico mensal repete o mesmo acumulado (foco: quantos já têm OS lançada vs meta).
+ * REAL: na coorte, linha em ordem_servico com entregue, data_entrega ou termo_recusa indica OS lançada
+ * (importações antigas podem ter só data ou só flag). CPF casa só com dígitos (ignora máscara).
+ * Filtro regional = mesma regra da list (JOIN por UPPER/TRIM + unidades da regional).
  */
 
 const ANO_OS = 2026;
@@ -49,6 +49,16 @@ const coorte2026Sql = `(
   )
 )`;
 
+/** CPF só dígitos — mesmo critério do JOIN em list. */
+const cpfDigits = (col: string) =>
+  `NULLIF(regexp_replace(TRIM(COALESCE(${col}, '')), '[^0-9]', '', 'g'), '')`;
+
+const osLancadaSql = `(
+  os.entregue IS TRUE
+  OR os.data_entrega IS NOT NULL
+  OR COALESCE(os.termo_recusa, false) = true
+)`;
+
 export async function GET(req: NextRequest) {
   try {
     await prisma.$executeRawUnsafe(`
@@ -76,14 +86,56 @@ export async function GET(req: NextRequest) {
     `);
 
     const url = new URL(req.url);
-    const regional = url.searchParams.get('regional') || '';
+    const regional = (url.searchParams.get('regional') || '').trim();
+
+    const hasStg: any[] = await prisma.$queryRawUnsafe(`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind IN ('r','v','m') AND n.nspname = 'public' AND c.relname = 'stg_alterdata_v2'
+      ) AS exists
+    `);
+    if (!hasStg?.[0]?.exists) {
+      const z = Object.fromEntries(
+        ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((m) => [m, 0])
+      );
+      return NextResponse.json({
+        ok: true,
+        meta: z,
+        metaMensal: z,
+        real: z,
+        realAcumulado: z,
+        totalColaboradores: 0,
+        totalMeta: 0,
+        totalReal: 0,
+        ano: ANO_OS,
+      });
+    }
+
+    const hasUnidReg: any[] = await prisma.$queryRawUnsafe(`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind IN ('r','v','m') AND n.nspname = 'public' AND c.relname = 'stg_unid_reg'
+      ) AS exists
+    `);
+    const useUnidReg = hasUnidReg?.[0]?.exists;
 
     const escReg = regional.replace(/'/g, "''");
-    const regionalFiltro = regional
-      ? `AND UPPER(TRIM(COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
-                        WHERE ur.nmdepartamento = a.unidade_hospitalar 
-                        LIMIT 1),''))) = UPPER(TRIM('${escReg}'))`
-      : '';
+    const regionalFiltro =
+      regional && useUnidReg
+        ? `AND (
+            UPPER(TRIM(COALESCE((
+              SELECT ur.regional_responsavel FROM stg_unid_reg ur
+              WHERE UPPER(TRIM(ur.nmdepartamento)) = UPPER(TRIM(COALESCE(a.unidade_hospitalar, '')))
+              LIMIT 1
+            ), ''))) = UPPER(TRIM('${escReg}'))
+            OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) IN (
+              SELECT UPPER(TRIM(nmdepartamento)) FROM stg_unid_reg
+              WHERE UPPER(TRIM(regional_responsavel)) = UPPER(TRIM('${escReg}'))
+            )
+          )`
+        : '';
 
     const whereClause = `WHERE ${coorte2026Sql} ${regionalFiltro}`;
 
@@ -112,15 +164,19 @@ export async function GET(req: NextRequest) {
       '12': totalMeta,
     };
 
-    /** REAL = coorte com OS concluída (entrega ou termo), sem filtrar por ano da data_entrega. */
+    const cpfA = cpfDigits('a.cpf');
+    const joinOs = `INNER JOIN ordem_servico os ON ${cpfA} IS NOT NULL AND length(${cpfA}) >= 11
+      AND ${cpfA} = ${cpfDigits('os.colaborador_cpf')}`;
+
+    /** REAL = coorte com OS já registrada (qualquer ano / import legado). */
     const totalRealQuery = `
       SELECT COUNT(DISTINCT a.cpf)::int AS total
       FROM stg_alterdata_v2 a
-      INNER JOIN ordem_servico os ON TRIM(os.colaborador_cpf) = TRIM(a.cpf)
+      ${joinOs}
       ${whereClause}
       AND COALESCE(a.cpf, '') != ''
       AND COALESCE(a.funcao, '') != ''
-      AND os.entregue = true
+      AND ${osLancadaSql}
     `;
     const totalRealResult: any[] = await prisma.$queryRawUnsafe(totalRealQuery);
     const totalReal = parseInt(totalRealResult[0]?.total || '0', 10);
