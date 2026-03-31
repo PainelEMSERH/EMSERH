@@ -4,17 +4,17 @@ import { prisma } from '@/lib/db';
 /**
  * Meta vs Real — exercício 2026 (fixo).
  *
- * Coorte (META): colaboradores que estavam na folha em 01/01/2026 — admissão até essa data
- * e sem demissão antes de 01/01/2026 (quem saiu depois em 2026 continua contando).
+ * Coorte (META): na folha em 01/01/2026 (admissão até essa data; demissão antes de 01/01/2026 exclui).
+ * Quem foi demitido depois em 2026 continua na coorte.
  *
- * REAL: quem da coorte já tem OS registrada (entrega ou termo), com data_entrega até o fim
- * de cada mês de 2026 no gráfico; a data da assinatura pode ser de qualquer ano.
+ * REAL: na coorte, qualquer registro em ordem_servico com entregue = true conta como concluído,
+ * independentemente da data da assinatura (2024, 2025, 2026 ou data_entrega nula).
+ * O gráfico mensal repete o mesmo acumulado (foco: quantos já têm OS lançada vs meta).
  */
 
 const ANO_OS = 2026;
 const INI_EXERCICIO = `${ANO_OS}-01-01`;
 
-/** Expressão SQL: data parseada de a.demissao (mesmo padrão já usado no projeto). */
 const demDataExpr = `(
   CASE
     WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
@@ -24,7 +24,6 @@ const demDataExpr = `(
   END
 )`;
 
-/** Expressão SQL: data parseada de a.admissao */
 const admDataExpr = `(
   CASE
     WHEN a.admissao IS NULL OR TRIM(COALESCE(a.admissao::text, '')) = '' THEN NULL
@@ -35,7 +34,6 @@ const admDataExpr = `(
   END
 )`;
 
-/** Na folha em 01/01/2026 */
 const coorte2026Sql = `(
   (
     a.admissao IS NULL
@@ -80,10 +78,11 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const regional = url.searchParams.get('regional') || '';
 
+    const escReg = regional.replace(/'/g, "''");
     const regionalFiltro = regional
-      ? `AND COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
+      ? `AND UPPER(TRIM(COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
                         WHERE ur.nmdepartamento = a.unidade_hospitalar 
-                        LIMIT 1),'') = '${regional.replace(/'/g, "''")}'`
+                        LIMIT 1),''))) = UPPER(TRIM('${escReg}'))`
       : '';
 
     const whereClause = `WHERE ${coorte2026Sql} ${regionalFiltro}`;
@@ -113,85 +112,26 @@ export async function GET(req: NextRequest) {
       '12': totalMeta,
     };
 
-    const beforeYearQuery = `
-      SELECT COUNT(DISTINCT a.cpf) AS total
+    /** REAL = coorte com OS concluída (entrega ou termo), sem filtrar por ano da data_entrega. */
+    const totalRealQuery = `
+      SELECT COUNT(DISTINCT a.cpf)::int AS total
       FROM stg_alterdata_v2 a
-      INNER JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
+      INNER JOIN ordem_servico os ON TRIM(os.colaborador_cpf) = TRIM(a.cpf)
       ${whereClause}
       AND COALESCE(a.cpf, '') != ''
       AND COALESCE(a.funcao, '') != ''
       AND os.entregue = true
-      AND os.data_entrega IS NOT NULL
-      AND os.data_entrega < DATE '${INI_EXERCICIO}'
     `;
-    const beforeYearResult: any[] = await prisma.$queryRawUnsafe(beforeYearQuery);
-    const beforeYearCount = parseInt(beforeYearResult[0]?.total || '0', 10);
+    const totalRealResult: any[] = await prisma.$queryRawUnsafe(totalRealQuery);
+    const totalReal = parseInt(totalRealResult[0]?.total || '0', 10);
 
-    const realAcumuladoQuery = `
-      SELECT mes.m AS mes,
-        (
-          SELECT COUNT(DISTINCT a.cpf)::int
-          FROM stg_alterdata_v2 a
-          INNER JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
-          ${whereClause}
-          AND COALESCE(a.cpf, '') != ''
-          AND COALESCE(a.funcao, '') != ''
-          AND os.entregue = true
-          AND (
-            os.data_entrega IS NULL
-            OR os.data_entrega < (make_date(${ANO_OS}, mes.m::int, 1) + interval '1 month')::date
-          )
-        ) AS total
-      FROM generate_series(1, 12) AS mes(m)
-      ORDER BY mes.m
-    `;
-    const realAcumRows: any[] = await prisma.$queryRawUnsafe(realAcumuladoQuery);
-
-    const realAcumulado: Record<string, number> = {
-      '01': 0,
-      '02': 0,
-      '03': 0,
-      '04': 0,
-      '05': 0,
-      '06': 0,
-      '07': 0,
-      '08': 0,
-      '09': 0,
-      '10': 0,
-      '11': 0,
-      '12': 0,
-    };
-
-    realAcumRows.forEach((r) => {
-      const mes = String(r.mes).padStart(2, '0');
-      if (realAcumulado[mes] !== undefined) {
-        realAcumulado[mes] = parseInt(r.total || '0', 10);
-      }
+    const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+    const realAcumulado: Record<string, number> = {};
+    const realMeses: Record<string, number> = {};
+    meses.forEach((m) => {
+      realAcumulado[m] = totalReal;
+      realMeses[m] = 0;
     });
-
-    const realMeses: Record<string, number> = {
-      '01': 0,
-      '02': 0,
-      '03': 0,
-      '04': 0,
-      '05': 0,
-      '06': 0,
-      '07': 0,
-      '08': 0,
-      '09': 0,
-      '10': 0,
-      '11': 0,
-      '12': 0,
-    };
-
-    realMeses['01'] = Math.max(0, (realAcumulado['01'] || 0) - beforeYearCount);
-    for (let mes = 2; mes <= 12; mes++) {
-      const mesStr = String(mes).padStart(2, '0');
-      const prev = String(mes - 1).padStart(2, '0');
-      realMeses[mesStr] = Math.max(0, (realAcumulado[mesStr] || 0) - (realAcumulado[prev] || 0));
-    }
-
-    const totalReal = realAcumulado['12'] || 0;
 
     return NextResponse.json({
       ok: true,
