@@ -24,6 +24,10 @@ export async function GET(req: NextRequest) {
       CREATE INDEX IF NOT EXISTS idx_ordem_servico_data_entrega ON ordem_servico(data_entrega);
     `);
 
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE ordem_servico ADD COLUMN IF NOT EXISTS termo_recusa BOOLEAN NOT NULL DEFAULT false;
+    `);
+
     const url = new URL(req.url);
     const regional = (url.searchParams.get('regional') || '').trim();
     const unidade = (url.searchParams.get('unidade') || '').trim();
@@ -136,6 +140,7 @@ export async function GET(req: NextRequest) {
             ELSE a.admissao::text
           END AS "dataAdmissao",
           COALESCE(os.entregue, false) AS "osEntregue",
+          COALESCE(os.termo_recusa, false) AS "termoRecusa",
           os.data_entrega::text AS "dataEntregaOS",
           os.responsavel AS "responsavelEntrega"
         FROM stg_alterdata_v2 a
@@ -162,6 +167,7 @@ export async function GET(req: NextRequest) {
             ELSE a.admissao::text
           END AS "dataAdmissao",
           COALESCE(os.entregue, false) AS "osEntregue",
+          COALESCE(os.termo_recusa, false) AS "termoRecusa",
           os.data_entrega::text AS "dataEntregaOS",
           os.responsavel AS "responsavelEntrega"
         FROM stg_alterdata_v2 a
@@ -200,15 +206,18 @@ export async function GET(req: NextRequest) {
     const rowsRaw = Array.isArray(rowsResult) ? rowsResult : [];
     const total = Number((totalResult as any)?.[0]?.total ?? 0);
 
-    // Filtra por status de entrega se necessário
+    // Filtra por status: entregue (assinou OS), recusado (termo), pendente, sim = qualquer concluído
     let filteredRows = rowsRaw;
     if (entregue === 'sim') {
       filteredRows = rowsRaw.filter((r: any) => r.osEntregue === true);
-    } else if (entregue === 'nao') {
+    } else if (entregue === 'entregue') {
+      filteredRows = rowsRaw.filter((r: any) => r.osEntregue === true && !r.termoRecusa);
+    } else if (entregue === 'recusado') {
+      filteredRows = rowsRaw.filter((r: any) => r.osEntregue === true && r.termoRecusa === true);
+    } else if (entregue === 'nao' || entregue === 'pendente') {
       filteredRows = rowsRaw.filter((r: any) => !r.osEntregue);
     }
 
-    // Retorna exatamente como a query retorna - sem transformações complexas
     const rowsFinal = filteredRows.map((r: any) => ({
       id: String(r.cpf || ''),
       nome: String(r.nome || ''),
@@ -219,6 +228,7 @@ export async function GET(req: NextRequest) {
       funcao: String(r.funcao || ''),
       dataAdmissao: r.dataAdmissao ? String(r.dataAdmissao) : null,
       osEntregue: Boolean(r.osEntregue),
+      termoRecusa: Boolean(r.termoRecusa),
       dataEntregaOS: r.dataEntregaOS ? String(r.dataEntregaOS) : null,
       responsavelEntrega: r.responsavelEntrega ? String(r.responsavelEntrega) : null,
     }));

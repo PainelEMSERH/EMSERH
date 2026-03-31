@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { CheckCircle2, XCircle, Info, Search, Filter, RefreshCw, Download } from 'lucide-react';
+import { CheckCircle2, XCircle, Info, Search, Filter, RefreshCw, Download, FileText } from 'lucide-react';
 
 type Toast = { id: string; message: string; type: 'success' | 'error' | 'info' };
 function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast: (id: string) => void }) {
@@ -40,6 +40,7 @@ type Row = {
   funcao: string;
   dataAdmissao: string | null;
   osEntregue: boolean;
+  termoRecusa: boolean;
   dataEntregaOS: string | null;
   responsavelEntrega: string | null;
 };
@@ -143,6 +144,7 @@ export default function OrdemServicoPage() {
   const [modalConfirmacao, setModalConfirmacao] = useState<{ open: boolean; row: Row | null }>({ open: false, row: null });
   const [saving, setSaving] = useState(false);
   const [dataEntrega, setDataEntrega] = useState<string>('');
+  const [tipoLancamento, setTipoLancamento] = useState<'entregue' | 'recusado'>('entregue');
   const [toasts, setToasts] = useState<Toast[]>([]);
   const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now().toString() + Math.random().toString(36).slice(2);
@@ -201,6 +203,7 @@ export default function OrdemServicoPage() {
         funcao: String(r.funcao || ''),
         dataAdmissao: r.dataAdmissao ? String(r.dataAdmissao) : null,
         osEntregue: Boolean(r.osEntregue),
+        termoRecusa: Boolean(r.termoRecusa),
         dataEntregaOS: r.dataEntregaOS ? String(r.dataEntregaOS) : null,
         responsavelEntrega: r.responsavelEntrega ? String(r.responsavelEntrega) : null,
       }));
@@ -255,11 +258,13 @@ export default function OrdemServicoPage() {
   const abrirModalConfirmacao = (row: Row) => {
     setModalConfirmacao({ open: true, row });
     setDataEntrega(row.dataEntregaOS || new Date().toISOString().split('T')[0]);
+    setTipoLancamento('entregue');
   };
 
   const fecharModalConfirmacao = () => {
     setModalConfirmacao({ open: false, row: null });
     setDataEntrega('');
+    setTipoLancamento('entregue');
   };
 
   const salvarConfirmacao = async () => {
@@ -275,13 +280,17 @@ export default function OrdemServicoPage() {
           entregue: true,
           dataEntrega: dataEntrega,
           responsavel: responsavelLogado,
+          termoRecusa: tipoLancamento === 'recusado',
         }),
       });
 
       fecharModalConfirmacao();
       loadData();
       loadMetaReal();
-      showToast('Entrega confirmada com sucesso.', 'success');
+      showToast(
+        tipoLancamento === 'recusado' ? 'Termo de recusa registrado.' : 'Entrega da OS confirmada.',
+        'success'
+      );
     } catch (error: any) {
       showToast('Erro ao salvar: ' + (error.message || 'Erro desconhecido'), 'error');
     } finally {
@@ -327,9 +336,9 @@ export default function OrdemServicoPage() {
       'Regional',
       'Função',
       'Data Admissão',
-      'OS Entregue',
-      'Data Entrega OS',
-      'Responsável Entrega',
+      'Situação',
+      'Data (OS ou termo)',
+      'Responsável',
     ];
 
     const data = rows.map((r) => [
@@ -340,7 +349,7 @@ export default function OrdemServicoPage() {
       r.regional,
       r.funcao,
       formatDate(r.dataAdmissao),
-      r.osEntregue ? 'Sim' : 'Não',
+      !r.osEntregue ? 'Pendente' : r.termoRecusa ? 'Recusado (termo)' : 'Entregue',
       formatDate(r.dataEntregaOS),
       r.responsavelEntrega || '',
     ]);
@@ -542,8 +551,10 @@ export default function OrdemServicoPage() {
               aria-label="Filtrar por situação de entrega"
             >
               <option value="">Todos</option>
-              <option value="sim">OS Entregue</option>
-              <option value="nao">OS Pendente</option>
+              <option value="sim">Concluído (entregue ou recusa)</option>
+              <option value="entregue">Entregue (assinou OS)</option>
+              <option value="recusado">Recusado (termo)</option>
+              <option value="nao">Pendente</option>
             </select>
           </div>
           <div>
@@ -633,15 +644,23 @@ export default function OrdemServicoPage() {
                       <td className="px-4 py-3 text-center text-[11px]">{row.funcao}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{formatDate(row.dataAdmissao)}</td>
                       <td className="px-4 py-3 text-center">
-                        {row.osEntregue ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded text-[11px] font-medium bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/50">
-                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                            Entregue
-                          </span>
-                        ) : (
+                        {!row.osEntregue ? (
                           <span className="inline-flex items-center px-2 py-1 rounded text-[11px] font-medium bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/50">
                             <XCircle className="w-3 h-3 mr-1" />
                             Pendente
+                          </span>
+                        ) : row.termoRecusa ? (
+                          <span
+                            className="inline-flex items-center px-2 py-1 rounded text-[11px] font-medium bg-amber-50 dark:bg-amber-500/15 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-500/40"
+                            title="Assinou termo de recusa da OS — contabilizado como concluído"
+                          >
+                            <FileText className="w-3 h-3 mr-1 shrink-0" />
+                            Recusado
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-[11px] font-medium bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/50">
+                            <CheckCircle2 className="w-3 h-3 mr-1" />
+                            Entregue
                           </span>
                         )}
                       </td>
@@ -722,7 +741,10 @@ export default function OrdemServicoPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="border-b border-border bg-card px-6 py-4 flex-shrink-0">
-              <h2 className="text-lg font-semibold">Confirmar Entrega de Ordem de Serviço</h2>
+              <h2 className="text-lg font-semibold">Registrar Ordem de Serviço</h2>
+              <p className="text-xs text-muted mt-1">
+                Entregue ou termo de recusa — ambos contam no acompanhamento; o status na lista diferencia cada caso.
+              </p>
             </div>
 
             <div className="p-6 space-y-4">
@@ -740,8 +762,42 @@ export default function OrdemServicoPage() {
                 <div className="text-xs text-muted mt-0.5">Regional: {modalConfirmacao.row.regional}</div>
               </div>
 
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium text-muted mb-2 block">Situação</legend>
+                <label className="flex items-start gap-2 cursor-pointer rounded-lg border border-border bg-bg/50 px-3 py-2 has-[:checked]:border-emerald-500/50 has-[:checked]:bg-emerald-500/5">
+                  <input
+                    type="radio"
+                    name="tipo-os"
+                    className="mt-1"
+                    checked={tipoLancamento === 'entregue'}
+                    onChange={() => setTipoLancamento('entregue')}
+                  />
+                  <span>
+                    <span className="text-sm font-medium text-text block">Entregue</span>
+                    <span className="text-xs text-muted">Colaborador assinou a ordem de serviço.</span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer rounded-lg border border-border bg-bg/50 px-3 py-2 has-[:checked]:border-amber-500/50 has-[:checked]:bg-amber-500/5">
+                  <input
+                    type="radio"
+                    name="tipo-os"
+                    className="mt-1"
+                    checked={tipoLancamento === 'recusado'}
+                    onChange={() => setTipoLancamento('recusado')}
+                  />
+                  <span>
+                    <span className="text-sm font-medium text-text block">Recusado (termo de recusa)</span>
+                    <span className="text-xs text-muted">
+                      Assinou apenas o termo de recusa; conta como concluído e aparece como &quot;Recusado&quot; na lista.
+                    </span>
+                  </span>
+                </label>
+              </fieldset>
+
               <div>
-                <label className="text-sm font-medium text-muted block mb-1.5">Data de Entrega</label>
+                <label className="text-sm font-medium text-muted block mb-1.5">
+                  {tipoLancamento === 'recusado' ? 'Data do termo de recusa' : 'Data da entrega / assinatura da OS'}
+                </label>
                 <input
                   type="date"
                   value={dataEntrega}
@@ -763,7 +819,7 @@ export default function OrdemServicoPage() {
                 disabled={saving || !dataEntrega}
                 className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {saving ? 'Salvando...' : 'Confirmar Entrega'}
+                {saving ? 'Salvando...' : tipoLancamento === 'recusado' ? 'Registrar termo' : 'Confirmar entrega'}
               </button>
             </div>
           </div>

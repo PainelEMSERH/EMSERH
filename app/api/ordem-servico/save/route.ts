@@ -7,7 +7,7 @@ import { prisma } from '@/lib/db';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { colaboradorCpf, entregue, dataEntrega, responsavel } = body;
+    const { colaboradorCpf, entregue, dataEntrega, responsavel, termoRecusa } = body;
 
     if (!colaboradorCpf) {
       return NextResponse.json(
@@ -38,6 +38,10 @@ export async function POST(req: NextRequest) {
       CREATE INDEX IF NOT EXISTS idx_ordem_servico_data_entrega ON ordem_servico(data_entrega);
     `);
 
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE ordem_servico ADD COLUMN IF NOT EXISTS termo_recusa BOOLEAN NOT NULL DEFAULT false;
+    `);
+
     const dataEntregaDate = dataEntrega ? new Date(dataEntrega) : null;
     if (dataEntregaDate && isNaN(dataEntregaDate.getTime())) {
       return NextResponse.json(
@@ -49,24 +53,29 @@ export async function POST(req: NextRequest) {
     // Insere ou atualiza
     // Forçamos o cast explícito de $3 para DATE para evitar o erro:
     // "column \"data_entrega\" is of type date but expression is of type text"
+    const entregueBool = entregue === true || entregue === 'true';
+    const termoRecusaBool = entregueBool && (termoRecusa === true || termoRecusa === 'true');
+
     const query = `
-      INSERT INTO ordem_servico (colaborador_cpf, entregue, data_entrega, responsavel, updated_at)
-      VALUES ($1, $2, $3::date, $4, NOW())
+      INSERT INTO ordem_servico (colaborador_cpf, entregue, data_entrega, responsavel, termo_recusa, updated_at)
+      VALUES ($1, $2, $3::date, $4, $5, NOW())
       ON CONFLICT (colaborador_cpf) 
       DO UPDATE SET
         entregue = EXCLUDED.entregue,
         data_entrega = EXCLUDED.data_entrega,
         responsavel = EXCLUDED.responsavel,
+        termo_recusa = EXCLUDED.termo_recusa,
         updated_at = NOW()
-      RETURNING id, colaborador_cpf, entregue, data_entrega::text as data_entrega, responsavel
+      RETURNING id, colaborador_cpf, entregue, data_entrega::text as data_entrega, responsavel, termo_recusa
     `;
 
     const result: any[] = await prisma.$queryRawUnsafe(
       query,
       colaboradorCpf,
-      entregue === true || entregue === 'true',
+      entregueBool,
       dataEntregaDate ? dataEntregaDate.toISOString().split('T')[0] : null,
-      responsavel || null
+      responsavel || null,
+      termoRecusaBool
     );
 
     return NextResponse.json({
