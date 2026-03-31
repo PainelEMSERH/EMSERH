@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { sqlOrdemServicoJoinOn } from '@/lib/ordem-servico-sql';
 
 const INI_EXERCICIO = '2026-01-01';
 
@@ -22,7 +23,10 @@ const admDataExpr = `(
   END
 )`;
 
-/** Coorte: na folha em 01/01/2026 (admissão até a data; demissão antes de 2026 exclui). */
+/**
+ * Coorte: na folha em 01/01/2026.
+ * Demissão antes de 01/01/2026 = fora. Demitido em 2026 ou sem demissão = entra na meta.
+ */
 const coorte2026Sql = `(
   (
     a.admissao IS NULL
@@ -38,23 +42,21 @@ const coorte2026Sql = `(
   )
 )`;
 
-/** Mesmo critério de meta-real: casa CPF só com dígitos. */
-const joinOrdemServicoOn = `regexp_replace(TRIM(COALESCE(os.colaborador_cpf, '')), '[^0-9]', '', 'g')
-  = regexp_replace(TRIM(COALESCE(a.cpf, '')), '[^0-9]', '', 'g')
-  AND length(regexp_replace(TRIM(COALESCE(a.cpf, '')), '[^0-9]', '', 'g')) >= 11`;
+const joinOrdemServicoOn = sqlOrdemServicoJoinOn('a.cpf', 'os.colaborador_cpf');
 
-/** OS já consta no sistema (import antigo pode ter só data ou termo). */
+/** OS já lançada / registrada (alinha com meta-real). */
 const osJaLancadaSql = `(
   COALESCE(os.entregue, false)
   OR os.data_entrega IS NOT NULL
   OR COALESCE(os.termo_recusa, false)
+  OR (os.responsavel IS NOT NULL AND length(trim(os.responsavel)) > 0)
 )`;
 
 function statusOsSql(entregueParam: string): string {
   const st = entregueParam.trim().toLowerCase();
   if (!st || st === 'todos' || st === 'all') return '';
   if (st === 'pendentes' || st === 'pendente' || st === 'nao') {
-    return `AND (os.colaborador_cpf IS NULL OR NOT ${osJaLancadaSql})`;
+    return `AND (os.id IS NULL OR NOT ${osJaLancadaSql})`;
   }
   if (st === 'entregues' || st === 'entregue') {
     return 'AND os.entregue = true AND COALESCE(os.termo_recusa, false) = false';
@@ -260,7 +262,8 @@ export async function GET(req: NextRequest) {
       osEntregue:
         Boolean(r.osEntregue) ||
         Boolean(r.termoRecusa) ||
-        !!(r.dataEntregaOS != null && String(r.dataEntregaOS).trim() !== ''),
+        !!(r.dataEntregaOS != null && String(r.dataEntregaOS).trim() !== '') ||
+        !!(r.responsavelEntrega != null && String(r.responsavelEntrega).trim() !== ''),
       termoRecusa: Boolean(r.termoRecusa),
       dataEntregaOS: r.dataEntregaOS ? String(r.dataEntregaOS) : null,
       responsavelEntrega: r.responsavelEntrega ? String(r.responsavelEntrega) : null,

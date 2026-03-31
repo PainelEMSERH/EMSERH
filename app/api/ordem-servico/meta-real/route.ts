@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { sqlOrdemServicoJoinOn } from '@/lib/ordem-servico-sql';
 
 /**
- * Meta vs Real — exercício 2026 (fixo).
+ * Meta vs Real — exercício 2026.
  *
- * Coorte (META): na folha em 01/01/2026 (admissão até essa data; demissão antes de 01/01/2026 exclui).
- * Quem foi demitido depois em 2026 continua na coorte.
+ * Coorte (META): estava na folha em 01/01/2026.
+ * - Admissão até 01/01/2026 (ou sem data de admissão preenchida = mantém na base como folha).
+ * - Demissão antes de 01/01/2026 = fora. Demissão em 2026 ou em branco = continua na coorte.
  *
- * REAL: na coorte, linha em ordem_servico com entregue, data_entrega ou termo_recusa indica OS lançada
- * (importações antigas podem ter só data ou só flag). CPF casa só com dígitos (ignora máscara).
- * Filtro regional = mesma regra da list (JOIN por UPPER/TRIM + unidades da regional).
+ * REAL: colaboradores da coorte que têm linha em ordem_servico (painel/import).
+ * Qualquer data de assinatura (2024, 2025, 2026) vale para o exercício atual — não filtra por ano.
+ * CPF: normalização com zero à esquerda e últimos 11 dígitos (igual à list).
  */
 
 const ANO_OS = 2026;
@@ -47,16 +49,6 @@ const coorte2026Sql = `(
     OR (${demDataExpr}) IS NULL
     OR (${demDataExpr}) >= DATE '${INI_EXERCICIO}'
   )
-)`;
-
-/** CPF só dígitos — mesmo critério do JOIN em list. */
-const cpfDigits = (col: string) =>
-  `NULLIF(regexp_replace(TRIM(COALESCE(${col}, '')), '[^0-9]', '', 'g'), '')`;
-
-const osLancadaSql = `(
-  os.entregue IS TRUE
-  OR os.data_entrega IS NOT NULL
-  OR COALESCE(os.termo_recusa, false) = true
 )`;
 
 export async function GET(req: NextRequest) {
@@ -164,11 +156,19 @@ export async function GET(req: NextRequest) {
       '12': totalMeta,
     };
 
-    const cpfA = cpfDigits('a.cpf');
-    const joinOs = `INNER JOIN ordem_servico os ON ${cpfA} IS NOT NULL AND length(${cpfA}) >= 11
-      AND ${cpfA} = ${cpfDigits('os.colaborador_cpf')}`;
+    const joinOs = `INNER JOIN ordem_servico os ON ${sqlOrdemServicoJoinOn('a.cpf', 'os.colaborador_cpf')}`;
 
-    /** REAL = coorte com OS já registrada (qualquer ano / import legado). */
+    /**
+     * REAL: existe registro em ordem_servico (import ou painel), sem filtrar por data.
+     * Inclui linha só com flags antigos, data em 24/25/26 ou responsável preenchido.
+     */
+    const osContaComoLancadaSql = `(
+      os.entregue IS TRUE
+      OR os.data_entrega IS NOT NULL
+      OR COALESCE(os.termo_recusa, false) = true
+      OR (os.responsavel IS NOT NULL AND length(trim(os.responsavel)) > 0)
+    )`;
+
     const totalRealQuery = `
       SELECT COUNT(DISTINCT a.cpf)::int AS total
       FROM stg_alterdata_v2 a
@@ -176,7 +176,7 @@ export async function GET(req: NextRequest) {
       ${whereClause}
       AND COALESCE(a.cpf, '') != ''
       AND COALESCE(a.funcao, '') != ''
-      AND ${osLancadaSql}
+      AND ${osContaComoLancadaSql}
     `;
     const totalRealResult: any[] = await prisma.$queryRawUnsafe(totalRealQuery);
     const totalReal = parseInt(totalRealResult[0]?.total || '0', 10);
