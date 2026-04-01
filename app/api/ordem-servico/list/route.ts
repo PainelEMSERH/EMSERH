@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { sqlOrdemServicoJoinOn } from '@/lib/ordem-servico-sql';
+import { sqlIsAbandonoEmprego, sqlOrdemServicoJoinOn } from '@/lib/ordem-servico-sql';
 
 const INI_EXERCICIO = '2026-01-01';
 
@@ -64,6 +64,9 @@ function statusOsSql(entregueParam: string): string {
   if (st === 'termo_recusa' || st === 'recusa' || st === 'recusado') {
     return 'AND os.entregue = true AND COALESCE(os.termo_recusa, false) = true';
   }
+  if (st === 'abandono' || st === 'abandono_emprego') {
+    return `AND ${sqlIsAbandonoEmprego('os')}`;
+  }
   if (st === 'sim' || st === 'concluidos') {
     return `AND ${osJaLancadaSql}`;
   }
@@ -94,6 +97,9 @@ export async function GET(req: NextRequest) {
 
     await prisma.$executeRawUnsafe(`
       ALTER TABLE ordem_servico ADD COLUMN IF NOT EXISTS termo_recusa BOOLEAN NOT NULL DEFAULT false;
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE ordem_servico ADD COLUMN IF NOT EXISTS situacao_colaborador TEXT;
     `);
 
     const url = new URL(req.url);
@@ -191,7 +197,8 @@ export async function GET(req: NextRequest) {
           COALESCE(os.entregue, false) AS "osEntregue",
           COALESCE(os.termo_recusa, false) AS "termoRecusa",
           os.data_entrega::text AS "dataEntregaOS",
-          os.responsavel AS "responsavelEntrega"
+          os.responsavel AS "responsavelEntrega",
+          os.situacao_colaborador AS "situacaoColaborador"
         FROM stg_alterdata_v2 a
         LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
         LEFT JOIN ordem_servico os ON ${joinOrdemServicoOn}
@@ -217,7 +224,8 @@ export async function GET(req: NextRequest) {
           COALESCE(os.entregue, false) AS "osEntregue",
           COALESCE(os.termo_recusa, false) AS "termoRecusa",
           os.data_entrega::text AS "dataEntregaOS",
-          os.responsavel AS "responsavelEntrega"
+          os.responsavel AS "responsavelEntrega",
+          os.situacao_colaborador AS "situacaoColaborador"
         FROM stg_alterdata_v2 a
         LEFT JOIN ordem_servico os ON ${joinOrdemServicoOn}
         ${whereCore}
@@ -250,24 +258,28 @@ export async function GET(req: NextRequest) {
     const rowsRaw = Array.isArray(rowsResult) ? rowsResult : [];
     const total = Number((totalResult as any)?.[0]?.total ?? 0);
 
-    const rowsFinal = rowsRaw.map((r: any) => ({
-      id: String(r.cpf || ''),
-      nome: String(r.nome || ''),
-      cpf: String(r.cpf || ''),
-      matricula: String(r.matricula || ''),
-      unidade: String(r.unidade || ''),
-      regional: String(r.regional || ''),
-      funcao: String(r.funcao || ''),
-      dataAdmissao: r.dataAdmissao ? String(r.dataAdmissao) : null,
-      osEntregue:
-        Boolean(r.osEntregue) ||
-        Boolean(r.termoRecusa) ||
-        !!(r.dataEntregaOS != null && String(r.dataEntregaOS).trim() !== '') ||
-        !!(r.responsavelEntrega != null && String(r.responsavelEntrega).trim() !== ''),
-      termoRecusa: Boolean(r.termoRecusa),
-      dataEntregaOS: r.dataEntregaOS ? String(r.dataEntregaOS) : null,
-      responsavelEntrega: r.responsavelEntrega ? String(r.responsavelEntrega) : null,
-    }));
+    const rowsFinal = rowsRaw.map((r: any) => {
+      const situacaoColaborador = r.situacaoColaborador != null ? String(r.situacaoColaborador).trim() : '';
+      return {
+        id: String(r.cpf || ''),
+        nome: String(r.nome || ''),
+        cpf: String(r.cpf || ''),
+        matricula: String(r.matricula || ''),
+        unidade: String(r.unidade || ''),
+        regional: String(r.regional || ''),
+        funcao: String(r.funcao || ''),
+        dataAdmissao: r.dataAdmissao ? String(r.dataAdmissao) : null,
+        situacaoColaborador: situacaoColaborador || null,
+        osEntregue:
+          Boolean(r.osEntregue) ||
+          Boolean(r.termoRecusa) ||
+          !!(r.dataEntregaOS != null && String(r.dataEntregaOS).trim() !== '') ||
+          !!(r.responsavelEntrega != null && String(r.responsavelEntrega).trim() !== ''),
+        termoRecusa: Boolean(r.termoRecusa),
+        dataEntregaOS: r.dataEntregaOS ? String(r.dataEntregaOS) : null,
+        responsavelEntrega: r.responsavelEntrega ? String(r.responsavelEntrega) : null,
+      };
+    });
 
     return NextResponse.json({
       ok: true,

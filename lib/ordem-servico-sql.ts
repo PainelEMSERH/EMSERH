@@ -21,3 +21,21 @@ export function sqlOrdemServicoJoinOn(aCpf = 'a.cpf', osCpf = 'os.colaborador_cp
   const ko = sqlCpfJoinKey(osCpf);
   return `${ka} IS NOT NULL AND ${ka} = ${ko}`;
 }
+
+/** Valor gravado em ordem_servico.situacao_colaborador — fora da meta (coorte). */
+export const SITUACAO_ABANDONO_EMPREGO = 'Abandono de emprego';
+
+export function sqlIsAbandonoEmprego(osAlias: string): string {
+  const esc = SITUACAO_ABANDONO_EMPREGO.replace(/'/g, "''");
+  return `lower(trim(COALESCE(${osAlias}.situacao_colaborador, ''))) = lower('${esc}')`;
+}
+
+/** Exclui da meta quem tem abandono registrado na ordem_servico. */
+export function sqlNotInMetaPorAbandono(aCpf = 'a.cpf'): string {
+  const exc = 'os_exc_meta';
+  return `NOT EXISTS (
+    SELECT 1 FROM ordem_servico ${exc}
+    WHERE ${sqlOrdemServicoJoinOn(aCpf, `${exc}.colaborador_cpf`)}
+    AND ${sqlIsAbandonoEmprego(exc)}
+  )`;
+}

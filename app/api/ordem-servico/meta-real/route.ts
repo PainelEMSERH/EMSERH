@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { sqlOrdemServicoJoinOn } from '@/lib/ordem-servico-sql';
+import { sqlNotInMetaPorAbandono, sqlOrdemServicoJoinOn } from '@/lib/ordem-servico-sql';
 
 /**
  * Meta vs Real — exercício 2026.
@@ -9,7 +9,9 @@ import { sqlOrdemServicoJoinOn } from '@/lib/ordem-servico-sql';
  * - Admissão até 01/01/2026 (ou sem data de admissão preenchida = mantém na base como folha).
  * - Demissão antes de 01/01/2026 = fora. Demissão em 2026 ou em branco = continua na coorte.
  *
- * REAL: colaboradores da coorte que têm linha em ordem_servico (painel/import).
+ * Abandono de emprego (situacao_colaborador): sai da meta; continua na lista.
+ *
+ * REAL: colaboradores da coorte (já sem abandono na meta) que têm linha em ordem_servico (painel/import).
  * Qualquer data de assinatura (2024, 2025, 2026) vale para o exercício atual — não filtra por ano.
  * CPF: normalização com zero à esquerda e últimos 11 dígitos (igual à list).
  */
@@ -76,6 +78,9 @@ export async function GET(req: NextRequest) {
     await prisma.$executeRawUnsafe(`
       ALTER TABLE ordem_servico ADD COLUMN IF NOT EXISTS termo_recusa BOOLEAN NOT NULL DEFAULT false;
     `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE ordem_servico ADD COLUMN IF NOT EXISTS situacao_colaborador TEXT;
+    `);
 
     const url = new URL(req.url);
     const regional = (url.searchParams.get('regional') || '').trim();
@@ -129,7 +134,7 @@ export async function GET(req: NextRequest) {
           )`
         : '';
 
-    const whereClause = `WHERE ${coorte2026Sql} ${regionalFiltro}`;
+    const whereClause = `WHERE ${coorte2026Sql} ${regionalFiltro} AND ${sqlNotInMetaPorAbandono('a.cpf')}`;
 
     const totalMetaQuery = `
       SELECT COUNT(DISTINCT a.cpf) as total

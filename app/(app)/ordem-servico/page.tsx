@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { CheckCircle2, XCircle, Info, Search, Filter, RefreshCw, Download, FileText } from 'lucide-react';
+import { SITUACAO_ABANDONO_EMPREGO } from '@/lib/ordem-servico-sql';
 
 type Toast = { id: string; message: string; type: 'success' | 'error' | 'info' };
 function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast: (id: string) => void }) {
@@ -43,6 +44,7 @@ type OrdemServicoRow = {
   termoRecusa: boolean;
   dataEntregaOS: string | null;
   responsavelEntrega: string | null;
+  situacaoColaborador?: string | null;
 };
 
 type MetaRealData = {
@@ -154,7 +156,7 @@ export default function OrdemServicoPage() {
   }>({ open: false, row: null });
   const [saving, setSaving] = useState(false);
   const [dataEntrega, setDataEntrega] = useState<string>('');
-  const [tipoLancamento, setTipoLancamento] = useState<'entregue' | 'recusado'>('entregue');
+  const [tipoLancamento, setTipoLancamento] = useState<'entregue' | 'recusado' | 'abandono'>('entregue');
   const [toasts, setToasts] = useState<Toast[]>([]);
   const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now().toString() + Math.random().toString(36).slice(2);
@@ -259,30 +261,50 @@ export default function OrdemServicoPage() {
     setTipoLancamento('entregue');
   };
 
+  const isAbandonoRow = (r: OrdemServicoRow) =>
+    String(r.situacaoColaborador || '').trim().toLowerCase() === SITUACAO_ABANDONO_EMPREGO.toLowerCase();
+
   const salvarConfirmacao = async () => {
     if (!modalConfirmacao.row) return;
 
     setSaving(true);
     try {
-      await fetchJSON('/api/ordem-servico/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          colaboradorCpf: modalConfirmacao.row.cpf,
-          entregue: true,
-          dataEntrega: dataEntrega,
-          responsavel: responsavelLogado,
-          termoRecusa: tipoLancamento === 'recusado',
-        }),
-      });
+      if (tipoLancamento === 'abandono') {
+        await fetchJSON('/api/ordem-servico/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            colaboradorCpf: modalConfirmacao.row.cpf,
+            entregue: false,
+            dataEntrega: null,
+            responsavel: responsavelLogado,
+            termoRecusa: false,
+            situacaoColaborador: SITUACAO_ABANDONO_EMPREGO,
+          }),
+        });
+        showToast('Abandono de emprego registrado — colaborador sai da meta.', 'success');
+      } else {
+        await fetchJSON('/api/ordem-servico/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            colaboradorCpf: modalConfirmacao.row.cpf,
+            entregue: true,
+            dataEntrega: dataEntrega,
+            responsavel: responsavelLogado,
+            termoRecusa: tipoLancamento === 'recusado',
+            situacaoColaborador: null,
+          }),
+        });
+        showToast(
+          tipoLancamento === 'recusado' ? 'Termo de recusa registrado.' : 'Entrega da OS confirmada.',
+          'success'
+        );
+      }
 
       fecharModalConfirmacao();
       loadData();
       loadMetaReal();
-      showToast(
-        tipoLancamento === 'recusado' ? 'Termo de recusa registrado.' : 'Entrega da OS confirmada.',
-        'success'
-      );
     } catch (error: any) {
       showToast('Erro ao salvar: ' + (error.message || 'Erro desconhecido'), 'error');
     } finally {
@@ -303,6 +325,7 @@ export default function OrdemServicoPage() {
           entregue: false,
           dataEntrega: null,
           responsavel: null,
+          situacaoColaborador: null,
         }),
       });
 
@@ -341,7 +364,13 @@ export default function OrdemServicoPage() {
       r.regional,
       r.funcao,
       formatDate(r.dataAdmissao),
-      !r.osEntregue ? 'Pendente' : r.termoRecusa ? 'Recusado (termo)' : 'Entregue',
+      isAbandonoRow(r)
+        ? SITUACAO_ABANDONO_EMPREGO
+        : !r.osEntregue
+          ? 'Pendente'
+          : r.termoRecusa
+            ? 'Recusado (termo)'
+            : 'Entregue',
       formatDate(r.dataEntregaOS),
       r.responsavelEntrega || '',
     ]);
@@ -492,7 +521,7 @@ export default function OrdemServicoPage() {
                   <span className="font-semibold text-text">{metaTotal}</span> OS entregues
                 </div>
                 <div>
-                  {metaReal.totalColaboradores} na coorte (folha em 01/01/{ANO_OS})
+                  {metaReal.totalColaboradores} na meta (folha em 01/01/{ANO_OS}; sem abandono de emprego)
                 </div>
               </div>
             </div>
@@ -565,6 +594,7 @@ export default function OrdemServicoPage() {
               <option value="entregues">Entregues</option>
               <option value="pendentes">Pendentes</option>
               <option value="termo_recusa">Termo de recusa</option>
+              <option value="abandono">Abandono de emprego</option>
             </select>
           </div>
 
@@ -656,7 +686,15 @@ export default function OrdemServicoPage() {
                       <td className="px-4 py-3 text-center text-[11px]">{row.funcao}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{formatDate(row.dataAdmissao)}</td>
                       <td className="px-4 py-3 text-center">
-                        {!row.osEntregue ? (
+                        {isAbandonoRow(row) ? (
+                          <span
+                            className="inline-flex items-center px-2 py-1 rounded text-[11px] font-medium bg-slate-100 dark:bg-slate-500/20 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-500/40"
+                            title="Fora da meta do exercício"
+                          >
+                            <XCircle className="w-3 h-3 mr-1" />
+                            Abandono
+                          </span>
+                        ) : !row.osEntregue ? (
                           <span className="inline-flex items-center px-2 py-1 rounded text-[11px] font-medium bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/50">
                             <XCircle className="w-3 h-3 mr-1" />
                             Pendente
@@ -690,9 +728,13 @@ export default function OrdemServicoPage() {
                             <button
                               onClick={() => abrirModalConfirmacao(row)}
                               className="px-2 py-1 rounded text-[10px] bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
-                              title="Confirmar entrega da OS"
+                              title={
+                                isAbandonoRow(row)
+                                  ? 'Registrar entrega ou alterar situação'
+                                  : 'Confirmar entrega da OS'
+                              }
                             >
-                              Confirmar
+                              {isAbandonoRow(row) ? 'Alterar' : 'Confirmar'}
                             </button>
                           )}
                         </div>
@@ -755,7 +797,7 @@ export default function OrdemServicoPage() {
             <div className="border-b border-border bg-card px-6 py-4 flex-shrink-0">
               <h2 className="text-lg font-semibold">Registrar Ordem de Serviço</h2>
               <p className="text-xs text-muted mt-1">
-                Entregue ou termo de recusa — ambos contam no acompanhamento; o status na lista diferencia cada caso.
+                Entregue, termo de recusa ou abandono de emprego. Abandono retira o colaborador da meta do exercício.
               </p>
             </div>
 
@@ -804,19 +846,36 @@ export default function OrdemServicoPage() {
                     </span>
                   </span>
                 </label>
+                <label className="flex items-start gap-2 cursor-pointer rounded-lg border border-border bg-bg/50 px-3 py-2 has-[:checked]:border-slate-500/50 has-[:checked]:bg-slate-500/5">
+                  <input
+                    type="radio"
+                    name="tipo-os-ordem"
+                    className="mt-1"
+                    checked={tipoLancamento === 'abandono'}
+                    onChange={() => setTipoLancamento('abandono')}
+                  />
+                  <span>
+                    <span className="text-sm font-medium text-text block">Abandono de emprego</span>
+                    <span className="text-xs text-muted">
+                      O colaborador deixa de entrar na meta (coorte) do exercício; continua visível na lista com este status.
+                    </span>
+                  </span>
+                </label>
               </fieldset>
 
-              <div>
-                <label className="text-sm font-medium text-muted block mb-1.5">
-                  {tipoLancamento === 'recusado' ? 'Data do termo de recusa' : 'Data da entrega / assinatura da OS'}
-                </label>
-                <input
-                  type="date"
-                  value={dataEntrega}
-                  onChange={(e) => setDataEntrega(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                />
-              </div>
+              {tipoLancamento !== 'abandono' && (
+                <div>
+                  <label className="text-sm font-medium text-muted block mb-1.5">
+                    {tipoLancamento === 'recusado' ? 'Data do termo de recusa' : 'Data da entrega / assinatura da OS'}
+                  </label>
+                  <input
+                    type="date"
+                    value={dataEntrega}
+                    onChange={(e) => setDataEntrega(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="border-t border-border bg-card px-6 py-4 flex items-center justify-end gap-3 flex-shrink-0">
@@ -828,10 +887,16 @@ export default function OrdemServicoPage() {
               </button>
               <button
                 onClick={salvarConfirmacao}
-                disabled={saving || !dataEntrega}
+                disabled={saving || (tipoLancamento !== 'abandono' && !dataEntrega)}
                 className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {saving ? 'Salvando...' : tipoLancamento === 'recusado' ? 'Registrar termo' : 'Confirmar entrega'}
+                {saving
+                  ? 'Salvando...'
+                  : tipoLancamento === 'abandono'
+                    ? 'Registrar abandono'
+                    : tipoLancamento === 'recusado'
+                      ? 'Registrar termo'
+                      : 'Confirmar entrega'}
               </button>
             </div>
           </div>
