@@ -3,20 +3,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { REGIONALS } from '@/lib/unidReg';
 import {
-  AlertTriangle,
   BarChart3,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
   ClipboardList,
-  Eye,
-  EyeOff,
   FileSpreadsheet,
   Filter,
   FolderOpen,
   LayoutDashboard,
-  Plus,
   Search,
   ShieldAlert,
   Table2,
@@ -938,7 +934,7 @@ export default function AcidentesView() {
               <div>
                 <h2 className="text-base font-bold text-foreground">Resumo do período filtrado</h2>
                 <p className="mt-1 text-xs text-muted">
-                  Totais alinhados à regional e ao ano selecionados nos filtros (exceto &quot;Todos os anos&quot;, que usa o ano do filtro de estatística).
+                  Totais conforme os filtros <strong className="text-foreground">Regional</strong> e <strong className="text-foreground">Ano (lista)</strong> acima.
                 </p>
               </div>
             </div>
@@ -1524,87 +1520,111 @@ export default function AcidentesView() {
                   })}
               </tbody>
             </table>
-          </div>
+        </div>
 
-          {/* Paginação */}
-          <div className="flex items-center justify-between gap-2 text-[11px]">
-            <div>
-              Página <span className="font-semibold">{page} / {totalPages}</span>
-            </div>
-            <div className="inline-flex items-center gap-1">
-              <button
-                type="button"
-                className="rounded border border-border px-2 py-1 disabled:opacity-40"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                Anterior
-              </button>
-              <button
-                type="button"
-                className="rounded border border-border px-2 py-1 disabled:opacity-40"
-                onClick={() => setPage((p) => (p < totalPages ? p + 1 : p))}
-                disabled={page >= totalPages}
-              >
-                Próxima
-              </button>
-            </div>
+        <div className="flex flex-col gap-3 border-t border-border/60 bg-muted/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-8">
+          <p className="text-xs text-muted">{listRangeLabel}</p>
+          <div className="inline-flex items-center gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-lg border border-border/80 bg-background px-3 py-2 text-xs font-semibold shadow-sm transition hover:border-amber-500/40 disabled:pointer-events-none disabled:opacity-40"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+              Anterior
+            </button>
+            <span className="px-2 text-xs font-medium tabular-nums text-muted">
+              {page} / {totalPages}
+            </span>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-lg border border-border/80 bg-background px-3 py-2 text-xs font-semibold shadow-sm transition hover:border-amber-500/40 disabled:pointer-events-none disabled:opacity-40"
+              onClick={() => setPage((p) => (p < totalPages ? p + 1 : p))}
+              disabled={page >= totalPages}
+            >
+              Próxima
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </button>
           </div>
-      </div>
+        </div>
+      </section>
 
-      {/* Painel Investigação do acidente (RIAT, CAT, SINAN) */}
       {investigacaoRow && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/50" onClick={closeInvestigacao} aria-hidden />
-          <div className="relative w-full max-w-4xl overflow-y-auto bg-panel border-l border-border shadow-xl flex flex-col max-h-full">
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
-              <h2 className="text-sm font-semibold">Investigação do acidente (conforme RIAT)</h2>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={closeInvestigacao} aria-hidden />
+          <div className="relative flex h-full w-full max-w-xl flex-col overflow-hidden border-l border-border/80 bg-card shadow-2xl md:max-w-2xl">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border/80 bg-gradient-to-r from-amber-500/10 via-card to-card px-5 py-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-800 dark:text-amber-300">
+                  Investigação SST
+                </p>
+                <h2 className="mt-1 truncate text-base font-bold text-foreground">RIAT, CAT e SINAN</h2>
+                <p className="mt-0.5 truncate text-xs text-muted">{investigacaoRow.nome}</p>
+              </div>
               <button
                 type="button"
                 onClick={closeInvestigacao}
-                className="rounded border border-border px-2 py-1 text-[10px] hover:bg-panel"
+                className="shrink-0 rounded-lg border border-border/80 bg-background p-2 text-muted transition hover:bg-muted hover:text-foreground"
+                aria-label="Fechar painel"
               >
-                Fechar
+                <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="flex-1 p-4 space-y-6 text-xs">
-              {/* Resumo do acidente (somente leitura) */}
-              <section className="rounded-lg border border-border bg-card/50 p-4">
-                <h3 className="text-[11px] font-semibold uppercase text-muted mb-3">Acidente</h3>
-                <div className="grid gap-2 md:grid-cols-2">
-                  <p><span className="font-medium text-muted">Nome:</span> {investigacaoRow.nome}</p>
-                  <p><span className="font-medium text-muted">Data/Hora:</span> {formatDate(investigacaoRow.data)} {investigacaoRow.hora || ''}</p>
-                  <p><span className="font-medium text-muted">Unidade:</span> {investigacaoRow.unidadeHospitalar}</p>
-                  <p><span className="font-medium text-muted">Regional:</span> {investigacaoRow.regional || '—'}</p>
-                  <p><span className="font-medium text-muted">CAT:</span> {investigacaoRow.numeroCAT || '—'}</p>
-                  <p><span className="font-medium text-muted">Tipo:</span> {TIPOS_ACIDENTE.find((t) => t.value === investigacaoRow.tipo)?.label || investigacaoRow.tipo}</p>
-                </div>
+            <div className="flex-1 space-y-6 overflow-y-auto p-5 text-xs md:p-6">
+              <section className="rounded-xl border border-border/80 bg-muted/20 p-4 md:p-5">
+                <h3 className="mb-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-muted">
+                  <ClipboardList className="h-4 w-4" aria-hidden />
+                  Dados do acidente (leitura)
+                </h3>
+                <dl className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    ['Trabalhador', investigacaoRow.nome],
+                    ['Data / hora', `${formatDate(investigacaoRow.data)} ${investigacaoRow.hora || ''}`.trim()],
+                    ['Unidade', investigacaoRow.unidadeHospitalar],
+                    ['Regional', investigacaoRow.regional || '—'],
+                    ['CAT', investigacaoRow.numeroCAT || '—'],
+                    [
+                      'Tipo',
+                      TIPOS_ACIDENTE.find((t) => t.value === investigacaoRow.tipo)?.label || investigacaoRow.tipo,
+                    ],
+                  ].map(([k, v]) => (
+                    <div key={String(k)} className="min-w-0">
+                      <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted">{k}</dt>
+                      <dd className="mt-0.5 break-words text-sm text-foreground">{v}</dd>
+                    </div>
+                  ))}
+                </dl>
               </section>
 
-              {/* Formulário investigação */}
-              <section className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/30 dark:bg-amber-900/10 p-4 space-y-4">
-                <h3 className="text-[11px] font-semibold uppercase text-amber-800 dark:text-amber-200">Investigação — RIAT, CAT e SINAN</h3>
-                <p className="text-[11px] text-muted">
-                  Anexe os documentos: informe o <strong>link</strong> do arquivo (ex.: Google Drive, OneDrive ou URL direta) e, se quiser, um nome para exibição.
-                </p>
+              <section className="space-y-4 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-4 md:p-5 dark:bg-amber-950/20">
+                <div>
+                  <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-amber-950 dark:text-amber-200">
+                    <FileSpreadsheet className="h-4 w-4" aria-hidden />
+                    Documentos e status
+                  </h3>
+                  <p className="mt-2 text-[11px] leading-relaxed text-muted">
+                    Informe o <strong className="text-foreground">link</strong> de cada arquivo (Google Drive, OneDrive ou URL direta) e, se quiser, um nome para exibição.
+                  </p>
+                </div>
                 {investigacaoLoading ? (
                   <p className="text-muted">Carregando...</p>
                 ) : (
                   <>
-                    <div className="flex flex-col gap-2 pb-3 border-b border-border">
-                      <p className="text-[10px] text-muted">
-                        Baixe o modelo RIAT <strong>em branco</strong> (arquivo do GitHub, sem preenchimento automático). Na
-                        primeira investigação do acidente o download dispara sozinho; use o botão para baixar de novo.
-                        Depois de preencher, salve na pasta do Google Drive e cole o link do arquivo no campo RIAT abaixo.
+                    <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-background/80 p-4">
+                      <p className="text-[11px] leading-relaxed text-muted">
+                        Baixe o modelo RIAT <strong className="text-foreground">em branco</strong>. Na primeira investigação o
+                        download pode iniciar automaticamente; use o botão para baixar novamente. Depois de preencher, envie à
+                        pasta do Drive e cole o link no campo RIAT.
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={downloadRiatPreenchida}
                           disabled={investigacaoRiatDownloading}
-                          className="rounded border border-emerald-600 bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                          className="rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-500 disabled:opacity-50"
                         >
-                          {investigacaoRiatDownloading ? 'Baixando...' : 'Baixar modelo RIAT (riat.xlsx)'}
+                          {investigacaoRiatDownloading ? 'Baixando…' : 'Baixar modelo RIAT'}
                         </button>
                         <a
                           href={RIAT_GOOGLE_DRIVE_FOLDER_URL}
@@ -1622,11 +1642,13 @@ export default function AcidentesView() {
                     </div>
 
                     <div>
-                      <label className="block font-medium text-muted mb-1">Status da investigação</label>
+                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted">
+                        Status da investigação
+                      </label>
                       <select
                         value={investigacaoForm.statusInvestigacao}
                         onChange={(e) => setInvestigacaoForm((f) => ({ ...f, statusInvestigacao: e.target.value }))}
-                        className="w-full rounded border border-border bg-background px-3 py-2 text-xs"
+                        className="w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm shadow-sm outline-none focus:ring-2 focus:ring-amber-500/25"
                       >
                         <option value="">Selecione</option>
                         <option value="em_andamento">Em andamento</option>
@@ -1634,22 +1656,22 @@ export default function AcidentesView() {
                       </select>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-1">
-                      <div className="rounded border border-border bg-background p-3 space-y-2">
-                        <span className="font-semibold text-muted">RIAT (Registro de Investigação de Acidente de Trabalho)</span>
+                    <div className="grid gap-4">
+                      <div className="space-y-2 rounded-xl border border-border/80 bg-background p-4 shadow-sm">
+                        <span className="text-xs font-bold text-foreground">RIAT</span>
                         <input
                           type="url"
-                          placeholder="Link do documento RIAT (ex.: Drive, OneDrive)"
+                          placeholder="https://… (link do arquivo)"
                           value={investigacaoForm.riatUrl}
                           onChange={(e) => setInvestigacaoForm((f) => ({ ...f, riatUrl: e.target.value }))}
-                          className="w-full rounded border border-border bg-background px-3 py-2 text-xs"
+                          className="w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
                         />
                         <input
                           type="text"
                           placeholder="Nome do arquivo (opcional)"
                           value={investigacaoForm.riatNome}
                           onChange={(e) => setInvestigacaoForm((f) => ({ ...f, riatNome: e.target.value }))}
-                          className="w-full rounded border border-border bg-background px-3 py-2 text-xs"
+                          className="w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
                         />
                         {investigacaoForm.riatUrl && (
                           <a href={investigacaoForm.riatUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline">
@@ -1657,21 +1679,21 @@ export default function AcidentesView() {
                           </a>
                         )}
                       </div>
-                      <div className="rounded border border-border bg-background p-3 space-y-2">
-                        <span className="font-semibold text-muted">CAT (Comunicação de Acidente de Trabalho)</span>
+                      <div className="space-y-2 rounded-xl border border-border/80 bg-background p-4 shadow-sm">
+                        <span className="text-xs font-bold text-foreground">CAT</span>
                         <input
                           type="url"
-                          placeholder="Link do documento CAT (ex.: Drive, OneDrive)"
+                          placeholder="https://… (link do arquivo)"
                           value={investigacaoForm.catUrl}
                           onChange={(e) => setInvestigacaoForm((f) => ({ ...f, catUrl: e.target.value }))}
-                          className="w-full rounded border border-border bg-background px-3 py-2 text-xs"
+                          className="w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
                         />
                         <input
                           type="text"
                           placeholder="Nome do arquivo (opcional)"
                           value={investigacaoForm.catNome}
                           onChange={(e) => setInvestigacaoForm((f) => ({ ...f, catNome: e.target.value }))}
-                          className="w-full rounded border border-border bg-background px-3 py-2 text-xs"
+                          className="w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
                         />
                         {investigacaoForm.catUrl && (
                           <a href={investigacaoForm.catUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline">
@@ -1679,21 +1701,21 @@ export default function AcidentesView() {
                           </a>
                         )}
                       </div>
-                      <div className="rounded border border-border bg-background p-3 space-y-2">
-                        <span className="font-semibold text-muted">SINAN (Sistema de Informação de Agravos de Notificação)</span>
+                      <div className="space-y-2 rounded-xl border border-border/80 bg-background p-4 shadow-sm">
+                        <span className="text-xs font-bold text-foreground">SINAN</span>
                         <input
                           type="url"
-                          placeholder="Link do documento SINAN (ex.: Drive, OneDrive)"
+                          placeholder="https://… (link do arquivo)"
                           value={investigacaoForm.sinanUrl}
                           onChange={(e) => setInvestigacaoForm((f) => ({ ...f, sinanUrl: e.target.value }))}
-                          className="w-full rounded border border-border bg-background px-3 py-2 text-xs"
+                          className="w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
                         />
                         <input
                           type="text"
                           placeholder="Nome do arquivo (opcional)"
                           value={investigacaoForm.sinanNome}
                           onChange={(e) => setInvestigacaoForm((f) => ({ ...f, sinanNome: e.target.value }))}
-                          className="w-full rounded border border-border bg-background px-3 py-2 text-xs"
+                          className="w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
                         />
                         {investigacaoForm.sinanUrl && (
                           <a href={investigacaoForm.sinanUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline">
@@ -1704,21 +1726,23 @@ export default function AcidentesView() {
                     </div>
 
                     <div>
-                      <label className="block font-medium text-muted mb-1">Observações da investigação</label>
+                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted">
+                        Observações
+                      </label>
                       <textarea
-                        placeholder="Observações, conclusões, medidas tomadas..."
+                        placeholder="Conclusões, medidas, pendências…"
                         value={investigacaoForm.observacoes}
                         onChange={(e) => setInvestigacaoForm((f) => ({ ...f, observacoes: e.target.value }))}
-                        className="w-full min-h-[100px] rounded border border-border bg-background px-3 py-2 text-xs"
+                        className="w-full min-h-[100px] rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
                         rows={4}
                       />
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border">
+                    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-4">
                       <button
                         type="button"
                         onClick={closeInvestigacao}
-                        className="rounded border border-border px-4 py-2 text-xs font-medium hover:bg-card"
+                        className="rounded-lg border border-border/80 bg-background px-4 py-2.5 text-xs font-semibold shadow-sm transition hover:bg-muted"
                       >
                         Cancelar
                       </button>
@@ -1726,13 +1750,13 @@ export default function AcidentesView() {
                         type="button"
                         onClick={saveInvestigacao}
                         disabled={investigacaoSaving}
-                        className="rounded bg-amber-600 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-500 disabled:opacity-50"
+                        className="rounded-lg bg-amber-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-50"
                       >
-                        {investigacaoSaving ? 'Salvando...' : 'Salvar investigação'}
+                        {investigacaoSaving ? 'Salvando…' : 'Salvar investigação'}
                       </button>
                     </div>
-                    <p className="text-[10px] text-muted pt-1">
-                      Após preencher o modelo no Excel, você pode usar o Gov.br Assinador para assinatura digital.
+                    <p className="text-[10px] leading-relaxed text-muted">
+                      Após preencher o Excel, a assinatura digital pode ser feita com o Gov.br Assinador.
                     </p>
                   </>
                 )}
