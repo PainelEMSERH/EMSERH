@@ -33,8 +33,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const regEsc = String(regional).replace(/'/g, "''");
-    const uniEsc = String(unidade).replace(/'/g, "''");
+    // IMPORTANTE:
+    // Como usamos parâmetros ($1, $2, ...), NÃO devemos "escapar" manualmente apóstrofos,
+    // senão nomes como "OLHO D'ÁGUA" viram "OLHO D''ÁGUA" e o UPDATE não encontra a linha.
+    const regParam = String(regional).trim();
+    const uniParam = String(unidade).trim();
     const anoNum = parseInt(String(ano_gestao), 10);
     const codNum = parseInt(String(atividade_codigo), 10);
 
@@ -52,14 +55,14 @@ export async function POST(req: NextRequest) {
         `
           UPDATE cronograma_cipa
           SET data_conclusao = $1::date
-          WHERE TRIM(regional) = $2
-            AND TRIM(unidade) = $3
+          WHERE UPPER(TRIM(regional)) = UPPER(TRIM($2))
+            AND UPPER(TRIM(unidade)) = UPPER(TRIM($3))
             AND ano_gestao = $4
             AND atividade_codigo = $5
         `,
         dataConclusaoDate,
-        regEsc,
-        uniEsc,
+        regParam,
+        uniParam,
         anoNum,
         codNum,
       );
@@ -68,13 +71,13 @@ export async function POST(req: NextRequest) {
         `
           UPDATE cronograma_cipa
           SET data_conclusao = NULL
-          WHERE TRIM(regional) = $1
-            AND TRIM(unidade) = $2
+          WHERE UPPER(TRIM(regional)) = UPPER(TRIM($1))
+            AND UPPER(TRIM(unidade)) = UPPER(TRIM($2))
             AND ano_gestao = $3
             AND atividade_codigo = $4
         `,
-        regEsc,
-        uniEsc,
+        regParam,
+        uniParam,
         anoNum,
         codNum,
       );
@@ -89,14 +92,14 @@ export async function POST(req: NextRequest) {
                data_conclusao::text AS data_conclusao,
                data_posse_gestao::text AS data_posse_gestao
         FROM cronograma_cipa
-        WHERE TRIM(regional) = $1
-          AND TRIM(unidade) = $2
+        WHERE UPPER(TRIM(regional)) = UPPER(TRIM($1))
+          AND UPPER(TRIM(unidade)) = UPPER(TRIM($2))
           AND ano_gestao = $3
           AND atividade_codigo = $4
         LIMIT 1
       `,
-      regEsc,
-      uniEsc,
+      regParam,
+      uniParam,
       anoNum,
       codNum,
     );

@@ -139,8 +139,9 @@ export async function GET(req: NextRequest) {
     const realPercentAcumulado: Record<string, number> = {};
     const evolucaoMensal: Record<string, number> = {};
 
-    let metaAcum = 0;
-    let realAcum = 0;
+    /** Acumulado por soma de % mensais arredondados pode passar de 100% (ex.: 100,01%). Usar contagens. */
+    let metaQtdAcum = 0;
+    let realQtdAcum = 0;
     meses.forEach((mes) => {
       const metaVal = metaMeses[mes] ?? 0;
       const realVal = realMeses[mes] ?? 0;
@@ -152,24 +153,26 @@ export async function GET(req: NextRequest) {
       // % do real do mês = (atividades executadas no mês / total atividades) * 100
       realPercent[mes] = totalMeta > 0 ? Math.round((realVal / totalMeta) * 10000) / 100 : 0;
 
-      // Acumulado: fev = fev + jan, mar = mar + anterior... até 100%
-      metaAcum += metaPercent[mes];
-      realAcum += realPercent[mes];
-      metaPercentAcumulado[mes] = Math.round(metaAcum * 100) / 100;
-      // Real acumulado nunca passa de 100%
-      realPercentAcumulado[mes] = Math.min(100, Math.round(realAcum * 100) / 100);
+      metaQtdAcum += metaVal;
+      realQtdAcum += realVal;
+      metaPercentAcumulado[mes] =
+        totalMeta > 0
+          ? Math.min(100, Math.round((metaQtdAcum / totalMeta) * 10000) / 100)
+          : 0;
+      realPercentAcumulado[mes] =
+        totalMeta > 0
+          ? Math.min(100, Math.round((realQtdAcum / totalMeta) * 10000) / 100)
+          : 0;
 
       // Evolução = % real do mês (contribuição mensal)
       evolucaoMensal[mes] = realPercent[mes];
     });
 
-    // Garante que o último mês (dezembro) mostre 100% na meta acumulada (evita 99,99% por arredondamento)
     if (totalMeta > 0 && meses.length > 0) {
       metaPercentAcumulado['12'] = 100;
-    }
-    // Real acumulado em dezembro: 100% quando total concluído >= meta (evita 100,01%)
-    if (totalMeta > 0 && totalReal >= totalMeta) {
-      realPercentAcumulado['12'] = 100;
+      if (totalReal >= totalMeta) {
+        realPercentAcumulado['12'] = 100;
+      }
     }
 
     const percentTotal = totalMeta > 0 ? Math.round((totalReal / totalMeta) * 100) : 0;
