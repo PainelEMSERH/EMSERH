@@ -138,148 +138,6 @@ type InvestigacaoForm = {
   observacoes: string;
 };
 
-type PlanoAcaoItem = {
-  descricao: string;
-  responsavel: string;
-  prazoSugestao: string;
-};
-
-function gerarPlanoAcao(tipo: string): PlanoAcaoItem[] {
-  const t = (tipo || '').toLowerCase();
-
-  if (t.includes('queda')) {
-    return [
-      {
-        descricao: 'Realizar inspeção detalhada do local do acidente (piso, desníveis, corrimãos, escadas e rotas de fuga).',
-        responsavel: 'Engenharia / Manutenção predial',
-        prazoSugestao: '30 dias',
-      },
-      {
-        descricao: 'Avaliar necessidade de correção de piso, nivelamento, instalação de sinalização e antiderrapantes.',
-        responsavel: 'Engenharia / SESMT',
-        prazoSugestao: '45 dias',
-      },
-      {
-        descricao: 'Revisar a iluminação do ambiente e pontos críticos de circulação.',
-        responsavel: 'Engenharia / Manutenção elétrica',
-        prazoSugestao: '30 dias',
-      },
-      {
-        descricao: 'Realizar treinamento de prevenção de quedas e adoção de condutas seguras no deslocamento interno.',
-        responsavel: 'SESMT / Educação Corporativa',
-        prazoSugestao: '60 dias',
-      },
-      {
-        descricao: 'Revisar EPCs disponíveis (corrimãos, guarda-corpos, fitas de isolamento, sinalização de degraus).',
-        responsavel: 'SESMT / Engenharia',
-        prazoSugestao: '45 dias',
-      },
-    ];
-  }
-
-  if (t.includes('trajeto') || t.includes('transito')) {
-    return [
-      {
-        descricao: 'Analisar o deslocamento a serviço (trajeto, tempo de percurso, meios de transporte utilizados).',
-        responsavel: 'SESMT / Gestão de Pessoas',
-        prazoSugestao: '30 dias',
-      },
-      {
-        descricao: 'Verificar jornada de trabalho, intervalos e possível fadiga relacionada ao acidente.',
-        responsavel: 'Gestão de Pessoas / Chefia imediata',
-        prazoSugestao: '30 dias',
-      },
-      {
-        descricao: 'Planejar e executar treinamento de direção defensiva para trabalhadores que utilizam veículo a serviço.',
-        responsavel: 'SESMT / Coordenação de Frota',
-        prazoSugestao: '90 dias',
-      },
-      {
-        descricao: 'Avaliar necessidade de atualização de política interna de transporte e deslocamento a serviço.',
-        responsavel: 'Diretoria / Gestão de Pessoas',
-        prazoSugestao: '120 dias',
-      },
-    ];
-  }
-
-  if (t.includes('biologico') || t.includes('perfuro') || t.includes('cortante')) {
-    return [
-      {
-        descricao: 'Reforçar treinamento em boas práticas de biossegurança e NR-32 para a equipe envolvida.',
-        responsavel: 'SESMT / Educação Permanente',
-        prazoSugestao: '60 dias',
-      },
-      {
-        descricao: 'Revisar fluxos de descarte de materiais perfurocortantes e recipientes coletores.',
-        responsavel: 'SESMT / Controle de Infecção',
-        prazoSugestao: '45 dias',
-      },
-      {
-        descricao: 'Avaliar dispositivos de segurança disponíveis (agulhas com sistema de proteção, coletores adequados).',
-        responsavel: 'Engenharia Clínica / Compras',
-        prazoSugestao: '60 dias',
-      },
-      {
-        descricao: 'Monitorar situação vacinal e imunização dos trabalhadores expostos.',
-        responsavel: 'Saúde Ocupacional',
-        prazoSugestao: '30 dias',
-      },
-      {
-        descricao: 'Garantir notificação em sistema oficial (ex.: SINAN) quando aplicável.',
-        responsavel: 'Vigilância em Saúde / SESMT',
-        prazoSugestao: 'Imediato',
-      },
-    ];
-  }
-
-  // Plano genérico para outros tipos
-  return [
-    {
-      descricao: 'Realizar análise detalhada do evento com participação do SESMT, gestor local e trabalhador envolvido.',
-      responsavel: 'SESMT / Chefia imediata',
-      prazoSugestao: '30 dias',
-    },
-    {
-      descricao: 'Identificar causas imediatas, causas raiz e fatores contribuintes (ambiente, processo e comportamento).',
-      responsavel: 'SESMT',
-      prazoSugestao: '30 dias',
-    },
-    {
-      descricao: 'Definir e registrar ações corretivas e preventivas específicas para eliminar ou mitigar o risco.',
-      responsavel: 'SESMT / Gestão / Engenharia',
-      prazoSugestao: '60 dias',
-    },
-    {
-      descricao: 'Monitorar a implementação das ações definidas, com registro de evidências e datas de conclusão.',
-      responsavel: 'SESMT',
-      prazoSugestao: '90 dias',
-    },
-  ];
-}
-
-function StatusPill({ status }: { status: 'pendente' | 'andamento' | 'concluido' }) {
-  const map = {
-    pendente: {
-      label: 'Pendente',
-      className: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-800',
-    },
-    andamento: {
-      label: 'Em andamento',
-      className: 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-900/20 dark:text-sky-200 dark:border-sky-800',
-    },
-    concluido: {
-      label: 'Concluído',
-      className: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-200 dark:border-emerald-800',
-    },
-  }[status];
-
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${map.className}`}>
-      {map.label}
-    </span>
-  );
-}
-
 export default function AcidentesView() {
   // Filtros
   const [regional, setRegional] = useState<string>('');
@@ -635,9 +493,16 @@ export default function AcidentesView() {
         className="rounded-xl border-2 border-amber-500/50 bg-gradient-to-b from-amber-500/5 to-panel p-4 shadow-md space-y-4 scroll-mt-4"
       >
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-amber-500/20 pb-3">
-          <h2 className="text-sm font-extrabold uppercase tracking-wide text-foreground">
-            Indicadores de acidentes — EMSERH
-          </h2>
+          <div>
+            <h2 className="text-sm font-extrabold uppercase tracking-wide text-foreground">
+              Indicadores de acidentes — EMSERH
+            </h2>
+            <p className="mt-1.5 text-[10px] text-muted max-w-2xl leading-relaxed">
+              <strong>Taxa de frequência total EMSERH</strong> e <strong>números por regional</strong> (Norte, Leste, Centro, Sul)
+              são calculados automaticamente a partir da base importada — não há campos para digitar esses totais aqui.
+              Atualize a planilha/base e use o ano acima para ver os consolidados.
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-semibold text-muted uppercase">Ano</span>
             <select
@@ -1408,140 +1273,31 @@ export default function AcidentesView() {
                         </tr>
                         {isExpanded && (
                           <tr>
-                            <td colSpan={14} className="px-3 py-3 bg-panel/50">
-                              <div className="space-y-3 text-[11px]">
-                                <div className="grid gap-3 md:grid-cols-3">
-                                  <div className="space-y-1">
-                                    <div className="font-semibold mb-1">Identificação do acidente</div>
-                                    <p className="text-muted">
-                                      <span className="font-medium text-text">Data/Hora: </span>
-                                      {formatDate(row.data)} {row.hora || ''}
-                                    </p>
-                                    <p className="text-muted">
-                                      <span className="font-medium text-text">Unidade: </span>
-                                      {row.unidadeHospitalar}
-                                    </p>
-                                    <p className="text-muted">
-                                      <span className="font-medium text-text">Regional: </span>
-                                      {row.regional || 'Não informada'}
-                                    </p>
-                                    {row.setor && (
-                                      <p className="text-muted">
-                                        <span className="font-medium text-text">Setor: </span>
-                                        {row.setor}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <div className="space-y-1">
-                                    <div className="font-semibold mb-1">Perfil do trabalhador</div>
-                                    <p className="text-muted">
-                                      <span className="font-medium text-text">Nome: </span>
-                                      {row.nome}
-                                    </p>
-                                    {row.funcaoTrabalhador && (
-                                      <p className="text-muted">
-                                        <span className="font-medium text-text">Função: </span>
-                                        {row.funcaoTrabalhador}
-                                      </p>
-                                    )}
-                                    {row.tipoVinculo && (
-                                      <p className="text-muted">
-                                        <span className="font-medium text-text">Tipo de vínculo: </span>
-                                        {row.tipoVinculo}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <div className="space-y-1">
-                                    <div className="font-semibold mb-1">Análise técnica</div>
-                                    {row.causaImediata && (
-                                      <p className="text-muted">
-                                        <span className="font-medium text-text">Causa imediata: </span>
-                                        {row.causaImediata}
-                                      </p>
-                                    )}
-                                    {row.causaRaiz && (
-                                      <p className="text-muted">
-                                        <span className="font-medium text-text">Causa raiz: </span>
-                                        {row.causaRaiz}
-                                      </p>
-                                    )}
-                                    {row.fatoresContrib && (
-                                      <p className="text-muted">
-                                        <span className="font-medium text-text">Fatores contribuintes: </span>
-                                        {row.fatoresContrib}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <div className="font-semibold mb-1">Descrição detalhada do acidente</div>
-                                  <p className="mb-2 text-muted">
-                                    Descreva de forma objetiva: o que aconteceu, como aconteceu, onde ocorreu,
-                                    por que ocorreu, quais atividades eram executadas, se havia EPI, se o trabalhador
-                                    recebeu treinamento e se foram identificados atos ou condições inseguras.
-                                  </p>
-                                  <div className="whitespace-pre-wrap text-[11px] bg-bg/60 rounded-lg p-3 border border-dashed border-border">
-                                    {row.descricao || 'Sem descrição detalhada informada.'}
-                                  </div>
-                                </div>
-
-                                <div className="pt-2 border-t border-border">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <div className="font-semibold">Plano de Ação Automático</div>
-                                    <button
-                                      type="button"
-                                      className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-[10px] font-semibold hover:bg-card"
-                                      onClick={() => {
-                                        // A geração é automática com base no tipo; este botão existe para tornar
-                                        // a regra explícita para o usuário.
-                                        alert(
-                                          'O plano de ação foi gerado automaticamente com base na classificação do acidente e pode ser ajustado pelo SESMT.',
-                                        );
-                                      }}
-                                    >
-                                      Gerar Plano de Ação
-                                    </button>
-                                  </div>
-                                  <p className="mb-2 text-muted">
-                                    Ações sugeridas automaticamente com base na classificação do acidente. O SESMT pode
-                                    revisar, complementar e registrar as evidências de conclusão de cada etapa.
-                                  </p>
-                                  <div className="overflow-x-auto">
-                                    <table className="min-w-full text-[11px]">
-                                      <thead>
-                                        <tr className="text-left text-muted uppercase">
-                                          <th className="py-1 pr-2">Ação recomendada</th>
-                                          <th className="py-1 pr-2">Responsável</th>
-                                          <th className="py-1 pr-2">Prazo sugerido</th>
-                                          <th className="py-1 pr-2 text-center">Status</th>
-                                          <th className="py-1 pr-2">Evidência</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {gerarPlanoAcao(row.tipo).map((acao, idxAcao) => (
-                                          <tr key={idxAcao} className="border-t border-border/40">
-                                            <td className="py-1 pr-2 align-top">
-                                              <span className="text-xs text-text">{acao.descricao}</span>
-                                            </td>
-                                            <td className="py-1 pr-2 align-top">
-                                              <span className="text-xs text-muted">{acao.responsavel}</span>
-                                            </td>
-                                            <td className="py-1 pr-2 align-top">
-                                              <span className="text-xs text-muted">{acao.prazoSugestao}</span>
-                                            </td>
-                                            <td className="py-1 pr-2 text-center align-top">
-                                              <StatusPill status="pendente" />
-                                            </td>
-                                            <td className="py-1 pr-2 align-top text-muted">
-                                              Campo para registro das evidências de conclusão da ação.
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                </div>
+                            <td colSpan={14} className="px-3 py-2 bg-muted/15 border-t border-border/60">
+                              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[10px]">
+                                <span className="text-muted">
+                                  <span className="font-semibold text-foreground">Data/Hora: </span>
+                                  {formatDate(row.data)} {row.hora || ''}
+                                </span>
+                                <span className="text-muted">
+                                  <span className="font-semibold text-foreground">Unidade: </span>
+                                  {row.unidadeHospitalar}
+                                </span>
+                                <span className="text-muted">
+                                  <span className="font-semibold text-foreground">Regional: </span>
+                                  {row.regional || '—'}
+                                </span>
+                                <span className="text-muted">
+                                  <span className="font-semibold text-foreground">Função: </span>
+                                  {row.funcaoTrabalhador || '—'}
+                                </span>
+                                <span className="text-muted">
+                                  <span className="font-semibold text-foreground">CAT: </span>
+                                  {row.numeroCAT || '—'}
+                                </span>
+                                <span className="w-full text-[9px] text-muted italic border-t border-border/40 pt-1.5 mt-0.5 sm:border-0 sm:pt-0 sm:mt-0 sm:w-auto">
+                                  Descrição, causas e plano de ação: use a RIAT (Excel) após baixar o modelo em Investigar.
+                                </span>
                               </div>
                             </td>
                           </tr>
@@ -1606,9 +1362,6 @@ export default function AcidentesView() {
                   <p><span className="font-medium text-muted">CAT:</span> {investigacaoRow.numeroCAT || '—'}</p>
                   <p><span className="font-medium text-muted">Tipo:</span> {TIPOS_ACIDENTE.find((t) => t.value === investigacaoRow.tipo)?.label || investigacaoRow.tipo}</p>
                 </div>
-                {investigacaoRow.descricao && (
-                  <p className="mt-2 pt-2 border-t border-border text-muted"><span className="font-medium">Descrição:</span> {investigacaoRow.descricao}</p>
-                )}
               </section>
 
               {/* Formulário investigação */}
