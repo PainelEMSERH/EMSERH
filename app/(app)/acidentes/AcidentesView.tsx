@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { REGIONALS } from '@/lib/unidReg';
+import RiatWebForm from '@/components/acidentes/RiatWebForm';
 import { AlertTriangle, ChevronDown, ChevronUp, Eye, EyeOff, Plus, Search } from 'lucide-react';
 
 type AcidenteRow = {
@@ -50,6 +51,20 @@ type MetaRealData = {
   real: Record<string, number>;
   total: number;
   ano: number;
+};
+
+type PainelIndicadoresData = {
+  ok?: boolean;
+  ano: number;
+  taxaFrequenciaAnualEmserh: number | null;
+  totalAcidentesAno: number;
+  acidentesPorRegional: Record<string, number>;
+  investigadosNoAno: number;
+  investigadosPorRegional: Record<string, number>;
+  aderenciaPlanoAcaoPercent: number | null;
+  aderenciaPorRegional: Record<string, number | null>;
+  notaAderencia?: string;
+  fonteAtivosTF?: string;
 };
 
 async function fetchJSON<T = unknown>(url: string, init?: RequestInit): Promise<T> {
@@ -310,10 +325,16 @@ export default function AcidentesView() {
   const [investigacaoLoading, setInvestigacaoLoading] = useState(false);
   const [investigacaoSaving, setInvestigacaoSaving] = useState(false);
   const [investigacaoRiatDownloading, setInvestigacaoRiatDownloading] = useState(false);
+  const [riatDraft, setRiatDraft] = useState<Record<string, string>>({});
+  const [riatNumeroSinan, setRiatNumeroSinan] = useState('');
 
   // Visão Geral
   const [stats, setStats] = useState<StatsData | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+
+  const [painelAno, setPainelAno] = useState(String(new Date().getFullYear()));
+  const [painelData, setPainelData] = useState<PainelIndicadoresData | null>(null);
+  const [painelLoading, setPainelLoading] = useState(false);
 
   // Taxa de Frequência (TF) - edição anual (12 meses)
   const [tfAno, setTfAno] = useState<string>(String(new Date().getFullYear() - 1));
@@ -438,6 +459,20 @@ export default function AcidentesView() {
       .finally(() => setStatsLoading(false));
   }, [regional, ano]);
 
+  useEffect(() => {
+    setPainelLoading(true);
+    const y = parseInt(painelAno, 10);
+    if (Number.isNaN(y)) {
+      setPainelData(null);
+      setPainelLoading(false);
+      return;
+    }
+    fetchJSON<PainelIndicadoresData>(`/api/acidentes/painel-indicadores?ano=${y}`)
+      .then((d) => setPainelData(d))
+      .catch(() => setPainelData(null))
+      .finally(() => setPainelLoading(false));
+  }, [painelAno]);
+
   const unidadesDaRegional = useMemo(() => {
     if (!regional) return opts.unidades;
     return opts.unidades.filter((u) => u.regional === regional);
@@ -461,8 +496,51 @@ export default function AcidentesView() {
     return total > 0 ? Math.ceil(total / pageSize) : 1;
   }, [total]);
 
+  async function downloadRiatForRow(
+    row: AcidenteRow,
+    observacoes: string,
+    draft: Record<string, string>,
+    numeroSinan: string
+  ) {
+    setInvestigacaoRiatDownloading(true);
+    try {
+      const res = await fetch('/api/acidentes/riat-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          acidente: row,
+          observacoes,
+          riatOverrides: draft,
+          numeroSinan,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || `Erro ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download =
+        res.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1] ||
+        `RIAT_${(row.nome || 'acidente').slice(0, 30)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (e: any) {
+      alert(e?.message || 'Erro ao baixar RIAT');
+    } finally {
+      setInvestigacaoRiatDownloading(false);
+    }
+  }
+
   async function openInvestigacao(row: AcidenteRow) {
+    const shouldAutoRiat = !row.hasInvestigacao;
     setInvestigacaoRow(row);
+    setRiatDraft({});
+    setRiatNumeroSinan('');
     const ref = acidenteRef(row);
     setInvestigacaoLoading(true);
     setInvestigacaoForm({
@@ -475,9 +553,13 @@ export default function AcidentesView() {
       sinanNome: '',
       observacoes: '',
     });
+    let obsCarregada = '';
     try {
-      const res = await fetchJSON<{ ok: boolean; investigacao: any }>(`/api/acidentes/investigacao?ref=${encodeURIComponent(ref)}`);
+      const res = await fetchJSON<{ ok: boolean; investigacao: any }>(
+        `/api/acidentes/investigacao?ref=${encodeURIComponent(ref)}`
+      );
       if (res.investigacao) {
+        obsCarregada = res.investigacao.observacoes || '';
         setInvestigacaoForm({
           statusInvestigacao: res.investigacao.statusInvestigacao || '',
           riatUrl: res.investigacao.riatUrl || '',
@@ -494,42 +576,25 @@ export default function AcidentesView() {
     } finally {
       setInvestigacaoLoading(false);
     }
+    if (shouldAutoRiat) {
+      void downloadRiatForRow(row, obsCarregada, {}, '');
+    }
   }
 
   function closeInvestigacao() {
     setInvestigacaoRow(null);
+    setRiatDraft({});
+    setRiatNumeroSinan('');
   }
 
   async function downloadRiatPreenchida() {
     if (!investigacaoRow) return;
-    setInvestigacaoRiatDownloading(true);
-    try {
-      const res = await fetch('/api/acidentes/riat-download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          acidente: investigacaoRow,
-          observacoes: investigacaoForm.observacoes || '',
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || `Erro ${res.status}`);
-      }
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = res.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1] || `RIAT_${(investigacaoRow.nome || 'acidente').slice(0, 30)}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      a.remove();
-    } catch (e: any) {
-      alert(e?.message || 'Erro ao baixar RIAT');
-    } finally {
-      setInvestigacaoRiatDownloading(false);
-    }
+    await downloadRiatForRow(
+      investigacaoRow,
+      investigacaoForm.observacoes || '',
+      riatDraft,
+      riatNumeroSinan
+    );
   }
 
   const saveInvestigacao = async () => {
@@ -577,7 +642,7 @@ export default function AcidentesView() {
           </p>
         </div>
         <span className="rounded-full border border-border bg-panel px-3 py-1.5 text-[11px] text-muted">
-          Somente leitura (importe em Admin â†’ Importar bases)
+          Somente leitura (importe em Admin → Importar bases)
         </span>
       </div>
 
@@ -719,9 +784,9 @@ export default function AcidentesView() {
         </>
       </div>
 
-      {/* VISÃO GERAL â€“ blocos institucionais */}
+      {/* VISÃO GERAL – blocos institucionais */}
       <div className="space-y-4">
-        {/* Bloco 0: Estatísticas â€“ uma linha compacta */}
+        {/* Bloco 0: Estatísticas – uma linha compacta */}
         <section className="rounded-xl border border-border bg-panel p-3 shadow-sm">
           {statsLoading ? (
             <p className="text-sm text-muted">Carregando...</p>
@@ -752,7 +817,7 @@ export default function AcidentesView() {
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Por Regional</p>
                 <div className="flex flex-nowrap gap-x-3 gap-y-0 overflow-x-auto">
                   {!stats.porRegional?.length ? (
-                    <span className="text-muted">â€”</span>
+                    <span className="text-muted">—</span>
                   ) : (
                     (stats.porRegional ?? []).map((r) => (
                       <span key={r.regional} className="flex items-baseline gap-1.5 shrink-0 whitespace-nowrap" title={r.regional}>
@@ -767,7 +832,7 @@ export default function AcidentesView() {
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Por Tipo</p>
                 <div className="flex flex-nowrap gap-x-3 gap-y-0 overflow-x-auto">
                   {!stats.porTipo?.length ? (
-                    <span className="text-muted">â€”</span>
+                    <span className="text-muted">—</span>
                   ) : (
                     (stats.porTipo ?? []).map((t) => (
                       <span key={t.tipo} className="flex items-baseline gap-1.5 shrink-0 whitespace-nowrap" title={TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}>
@@ -808,6 +873,118 @@ export default function AcidentesView() {
             </>
           ) : (
             <p className="text-[10px] text-muted">Nenhuma estatística disponível.</p>
+          )}
+        </section>
+
+        {/* Painel institucional (TF anual EMSERH, regionais, investigações, aderência) */}
+        <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-foreground">Indicadores institucionais (ano)</h2>
+            <select
+              className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/50"
+              value={painelAno}
+              onChange={(e) => setPainelAno(e.target.value)}
+              disabled={painelLoading}
+            >
+              {[
+                ...new Set([
+                  new Date().getFullYear(),
+                  new Date().getFullYear() - 1,
+                  new Date().getFullYear() - 2,
+                  new Date().getFullYear() - 3,
+                  parseInt(painelAno, 10),
+                ]),
+              ]
+                .filter((y) => !Number.isNaN(y))
+                .sort((a, b) => b - a)
+                .map((y) => (
+                  <option key={y} value={String(y)}>
+                    {y}
+                  </option>
+                ))}
+            </select>
+          </div>
+          {painelLoading ? (
+            <p className="text-xs text-muted">Carregando indicadores...</p>
+          ) : painelData ? (
+            <div className="space-y-3 text-xs">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg border border-border bg-bg px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted">TF anual (EMSERH)</p>
+                  <p className="text-lg font-bold tabular-nums">
+                    {painelData.taxaFrequenciaAnualEmserh != null
+                      ? painelData.taxaFrequenciaAnualEmserh.toFixed(2)
+                      : '—'}
+                  </p>
+                  <p className="text-[10px] text-muted mt-0.5">
+                    {painelData.totalAcidentesAno} acidentes no ano
+                    {painelData.fonteAtivosTF === 'alterdata' ? ' · ativos: Alterdata' : ''}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-bg px-3 py-2 sm:col-span-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted mb-1">Acidentes por regional</p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {REGIONALS.map((r) => (
+                      <span key={r} className="tabular-nums">
+                        <span className="text-muted">{r}:</span>{' '}
+                        <span className="font-semibold">{painelData.acidentesPorRegional?.[r] ?? 0}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-bg px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted">Investigados (no ano)</p>
+                  <p className="text-lg font-bold tabular-nums">{painelData.investigadosNoAno ?? 0}</p>
+                </div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2">
+                  <p className="text-[10px] font-semibold text-amber-800 dark:text-amber-200 mb-1">
+                    Investigados por regional (ano)
+                  </p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                    {REGIONALS.map((r) => (
+                      <span key={r} className="tabular-nums text-[11px]">
+                        {r}: <span className="font-medium">{painelData.investigadosPorRegional?.[r] ?? 0}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2">
+                  <p className="text-[10px] font-semibold text-emerald-800 dark:text-emerald-200 mb-1">
+                    Aderência (investigações concluídas)
+                  </p>
+                  <p className="text-lg font-bold tabular-nums">
+                    {painelData.aderenciaPlanoAcaoPercent != null
+                      ? `${painelData.aderenciaPlanoAcaoPercent.toFixed(1)}%`
+                      : '—'}
+                  </p>
+                  <p className="text-[10px] text-muted mt-1 leading-relaxed">
+                    {painelData.notaAderencia ||
+                      'Proporção de registros com status Concluída entre investigações ligadas a acidentes do ano.'}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
+                    {REGIONALS.map((r) => {
+                      const p = painelData.aderenciaPorRegional?.[r];
+                      return (
+                        <span key={r}>
+                          {r}: {p != null ? `${p.toFixed(0)}%` : '—'}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2 text-[11px] text-muted leading-relaxed">
+                <span className="font-medium text-foreground">Divulgação — programas legais (NRs, PGR, etc.)</span>
+                <p className="mt-1">
+                  Espaço reservado para cartazes, campanhas internas e referências legais. Conteúdo a definir pela
+                  comunicação/SESMT.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-[10px] text-muted">Indicadores indisponíveis.</p>
           )}
         </section>
 
@@ -1385,7 +1562,7 @@ export default function AcidentesView() {
       {investigacaoRow && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/50" onClick={closeInvestigacao} aria-hidden />
-          <div className="relative w-full max-w-2xl overflow-y-auto bg-panel border-l border-border shadow-xl flex flex-col max-h-full">
+          <div className="relative w-full max-w-4xl overflow-y-auto bg-panel border-l border-border shadow-xl flex flex-col max-h-full">
             <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
               <h2 className="text-sm font-semibold">Investigação do acidente (conforme RIAT)</h2>
               <button
@@ -1404,8 +1581,8 @@ export default function AcidentesView() {
                   <p><span className="font-medium text-muted">Nome:</span> {investigacaoRow.nome}</p>
                   <p><span className="font-medium text-muted">Data/Hora:</span> {formatDate(investigacaoRow.data)} {investigacaoRow.hora || ''}</p>
                   <p><span className="font-medium text-muted">Unidade:</span> {investigacaoRow.unidadeHospitalar}</p>
-                  <p><span className="font-medium text-muted">Regional:</span> {investigacaoRow.regional || 'â€”'}</p>
-                  <p><span className="font-medium text-muted">CAT:</span> {investigacaoRow.numeroCAT || 'â€”'}</p>
+                  <p><span className="font-medium text-muted">Regional:</span> {investigacaoRow.regional || '—'}</p>
+                  <p><span className="font-medium text-muted">CAT:</span> {investigacaoRow.numeroCAT || '—'}</p>
                   <p><span className="font-medium text-muted">Tipo:</span> {TIPOS_ACIDENTE.find((t) => t.value === investigacaoRow.tipo)?.label || investigacaoRow.tipo}</p>
                 </div>
                 {investigacaoRow.descricao && (
@@ -1415,7 +1592,7 @@ export default function AcidentesView() {
 
               {/* Formulário investigação */}
               <section className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/30 dark:bg-amber-900/10 p-4 space-y-4">
-                <h3 className="text-[11px] font-semibold uppercase text-amber-800 dark:text-amber-200">Investigação â€” RIAT, CAT e SINAN</h3>
+                <h3 className="text-[11px] font-semibold uppercase text-amber-800 dark:text-amber-200">Investigação — RIAT, CAT e SINAN</h3>
                 <p className="text-[11px] text-muted">
                   Anexe os documentos: informe o <strong>link</strong> do arquivo (ex.: Google Drive, OneDrive ou URL direta) e, se quiser, um nome para exibição.
                 </p>
@@ -1423,6 +1600,28 @@ export default function AcidentesView() {
                   <p className="text-muted">Carregando...</p>
                 ) : (
                   <>
+                    <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-border">
+                      <button
+                        type="button"
+                        onClick={downloadRiatPreenchida}
+                        disabled={investigacaoRiatDownloading}
+                        className="rounded border border-emerald-600 bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                      >
+                        {investigacaoRiatDownloading ? 'Gerando...' : 'Baixar RIAT preenchida (.xlsx)'}
+                      </button>
+                      <span className="text-[10px] text-muted">
+                        Use o modelo oficial em <code className="text-[9px]">public/templates/</code> (riat-emserh.xlsx ou riat.xlsx).
+                      </span>
+                    </div>
+
+                    <RiatWebForm
+                      draft={riatDraft}
+                      onDraftChange={setRiatDraft}
+                      numeroSinan={riatNumeroSinan}
+                      onNumeroSinanChange={setRiatNumeroSinan}
+                      disabled={investigacaoRiatDownloading}
+                    />
+
                     <div>
                       <label className="block font-medium text-muted mb-1">Status da investigação</label>
                       <select
@@ -1455,7 +1654,7 @@ export default function AcidentesView() {
                         />
                         {investigacaoForm.riatUrl && (
                           <a href={investigacaoForm.riatUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline">
-                            Abrir documento â†’
+                            Abrir documento →
                           </a>
                         )}
                       </div>
@@ -1477,7 +1676,7 @@ export default function AcidentesView() {
                         />
                         {investigacaoForm.catUrl && (
                           <a href={investigacaoForm.catUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline">
-                            Abrir documento â†’
+                            Abrir documento →
                           </a>
                         )}
                       </div>
@@ -1499,7 +1698,7 @@ export default function AcidentesView() {
                         />
                         {investigacaoForm.sinanUrl && (
                           <a href={investigacaoForm.sinanUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline">
-                            Abrir documento â†’
+                            Abrir documento →
                           </a>
                         )}
                       </div>
@@ -1517,14 +1716,6 @@ export default function AcidentesView() {
                     </div>
 
                     <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border">
-                      <button
-                        type="button"
-                        onClick={downloadRiatPreenchida}
-                        disabled={investigacaoRiatDownloading}
-                        className="rounded border border-emerald-600 bg-emerald-600/10 px-4 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600/20 disabled:opacity-50"
-                      >
-                        {investigacaoRiatDownloading ? 'Gerando...' : 'Baixar RIAT preenchida'}
-                      </button>
                       <button
                         type="button"
                         onClick={closeInvestigacao}

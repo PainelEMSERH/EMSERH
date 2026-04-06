@@ -1,0 +1,40 @@
+/** Mapa célula → campo semântico (modelo RIAT EMSERH em public/templates/riat-emserh.xlsx ou riat.xlsx). */
+export function getRiatCellMap(): Record<string, string> {
+  return {
+    H3: 'dataInicialInvestigacao',
+    I3: 'dataFinalInvestigacao',
+    C5: 'responsavelInvestigacao',
+    F6: 'numeroSinan',
+    B7: 'nome',
+    B8: 'matricula',
+    B9: 'unidadeHospitalar',
+    B10: 'funcaoTrabalhador',
+    B11: 'tempoFuncao',
+    B12: 'tempoExperiencia',
+    B14: 'data',
+    D14: 'hora',
+    B15: 'localAcidente',
+    G15: 'especificacaoLocal',
+    G17: 'sesmtInformadoMotivo',
+    D19: 'horasTrabalhadasAteOcorrencia',
+    I19: 'diasTratamento',
+    G21: 'causaImediata',
+    D21: 'parteCorpoLesionada',
+    B25: 'descricao',
+    B20: 'tipo_tipico',
+    C20: 'tipo_trajeto',
+    D20: 'tipo_biologico',
+    E20: 'tipo_quimico',
+    F20: 'tipo_incidente',
+    G19: 'afastamento_sim',
+    H19: 'afastamento_nao',
+    B36: 'fatorMaterial',
+    B38: 'fatorHumano',
+    B53: 'circunstancias',
+    B54: 'impacto',
+    B55: 'causaRaiz',
+    B56: 'acoesCorretivas',
+  };
+}
+
+export const RIAT_CAT_CELL = 'F5';
