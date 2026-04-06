@@ -25,7 +25,8 @@ export async function fillRiatTemplateFromFile(
 
   for (const [cellRef, fieldKey] of Object.entries(cellMap)) {
     const v = values[fieldKey] ?? '';
-    ws.getCell(cellRef).value = v === '' ? null : v;
+    const cell = ws.getCell(cellRef);
+    cell.value = v === '' ? null : v;
   }
 
   const cat = String(numeroCAT ?? '').trim();

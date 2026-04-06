@@ -16,7 +16,7 @@ function yearWhereSql(paramIdx: number): string {
   return `( (ano IS NOT NULL AND ano::int = $${paramIdx}) OR ( (ano IS NULL OR ano::text = '') AND ${dataParsedExpr} IS NOT NULL AND ${yearExpr} = $${paramIdx} ) )`;
 }
 
-/** GET ?ano=2024 — indicadores institucionais (TF anual EMSERH, acidentes e investigações por regional, aderência proxy). */
+/** GET ?ano= — painel SST acidentes (TF, contagens, investigações, aderência; divulgação = placeholder até haver base). */
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -110,6 +110,12 @@ export async function GET(req: Request) {
         inv > 0 ? Math.round((concluidosPorRegional[r] / inv) * 10000) / 100 : null;
     }
 
+    const divulgacaoNota =
+      'Percentual de unidades com divulgação de programas legais: indicador sem base automática no painel; pode ser alimentado manualmente ou por integração futura.';
+    const unidadesDivulgacaoPercent: number | null = null;
+    const divulgacaoPorRegional: Record<string, number | null> = {};
+    for (const r of REGIONALS) divulgacaoPorRegional[r] = null;
+
     return NextResponse.json({
       ok: true,
       ano,
@@ -121,8 +127,11 @@ export async function GET(req: Request) {
       investigadosPorRegional,
       aderenciaPlanoAcaoPercent: aderenciaPercent,
       aderenciaPorRegional,
+      unidadesDivulgacaoProgramasLegaisPercent: unidadesDivulgacaoPercent,
+      divulgacaoProgramasLegaisPorRegional: divulgacaoPorRegional,
       notaAderencia:
-        'Percentual de investigações com status "Concluída" entre as vinculadas a acidentes do ano (proxy de encerramento / P.A.).',
+        'Percentual de investigações com status "Concluída" entre as vinculadas a acidentes do ano (proxy de P.A.).',
+      notaDivulgacao: divulgacaoNota,
     });
   } catch (e: any) {
     console.error('[acidentes/painel-indicadores]', e);

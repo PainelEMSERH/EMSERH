@@ -54,7 +54,6 @@ type MetaRealData = {
 };
 
 type PainelIndicadoresData = {
-  ok?: boolean;
   ano: number;
   taxaFrequenciaAnualEmserh: number | null;
   totalAcidentesAno: number;
@@ -63,7 +62,10 @@ type PainelIndicadoresData = {
   investigadosPorRegional: Record<string, number>;
   aderenciaPlanoAcaoPercent: number | null;
   aderenciaPorRegional: Record<string, number | null>;
+  unidadesDivulgacaoProgramasLegaisPercent: number | null;
+  divulgacaoProgramasLegaisPorRegional: Record<string, number | null>;
   notaAderencia?: string;
+  notaDivulgacao?: string;
   fonteAtivosTF?: string;
 };
 
@@ -876,115 +878,147 @@ export default function AcidentesView() {
           )}
         </section>
 
-        {/* Painel institucional (TF anual EMSERH, regionais, investigações, aderência) */}
-        <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-foreground">Indicadores institucionais (ano)</h2>
-            <select
-              className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/50"
-              value={painelAno}
-              onChange={(e) => setPainelAno(e.target.value)}
-              disabled={painelLoading}
-            >
-              {[
-                ...new Set([
-                  new Date().getFullYear(),
-                  new Date().getFullYear() - 1,
-                  new Date().getFullYear() - 2,
-                  new Date().getFullYear() - 3,
-                  parseInt(painelAno, 10),
-                ]),
-              ]
-                .filter((y) => !Number.isNaN(y))
-                .sort((a, b) => b - a)
-                .map((y) => (
-                  <option key={y} value={String(y)}>
-                    {y}
-                  </option>
-                ))}
-            </select>
+        {/* Painel operacional SST — indicadores por ano */}
+        <section className="rounded-xl border-2 border-emerald-500/25 bg-panel p-4 shadow-sm space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
+                Painel de indicadores — Acidentes (EMSERH)
+              </h2>
+              <p className="mt-1 text-[10px] text-muted max-w-3xl leading-relaxed">
+                Consolidado do ano selecionado. TF usa a mesma base da tabela mensal (ativos × 150 h/mês). Divulgação de
+                programas legais: percentual reservado até existir fonte de dados.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-medium text-muted">Ano</span>
+              <select
+                className="rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500/50"
+                value={painelAno}
+                onChange={(e) => setPainelAno(e.target.value)}
+                disabled={painelLoading}
+              >
+                {[
+                  ...new Set([
+                    new Date().getFullYear(),
+                    new Date().getFullYear() - 1,
+                    new Date().getFullYear() - 2,
+                    new Date().getFullYear() - 3,
+                    parseInt(painelAno, 10),
+                  ]),
+                ]
+                  .filter((y) => !Number.isNaN(y))
+                  .sort((a, b) => b - a)
+                  .map((y) => (
+                    <option key={y} value={String(y)}>
+                      {y}
+                    </option>
+                  ))}
+              </select>
+            </div>
           </div>
+
           {painelLoading ? (
-            <p className="text-xs text-muted">Carregando indicadores...</p>
+            <p className="text-xs text-muted py-6">Carregando painel...</p>
           ) : painelData ? (
-            <div className="space-y-3 text-xs">
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-lg border border-border bg-bg px-3 py-2">
-                  <p className="text-[10px] uppercase tracking-wide text-muted">TF anual (EMSERH)</p>
-                  <p className="text-lg font-bold tabular-nums">
-                    {painelData.taxaFrequenciaAnualEmserh != null
-                      ? painelData.taxaFrequenciaAnualEmserh.toFixed(2)
-                      : '—'}
-                  </p>
-                  <p className="text-[10px] text-muted mt-0.5">
-                    {painelData.totalAcidentesAno} acidentes no ano
-                    {painelData.fonteAtivosTF === 'alterdata' ? ' · ativos: Alterdata' : ''}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-border bg-bg px-3 py-2 sm:col-span-2">
-                  <p className="text-[10px] uppercase tracking-wide text-muted mb-1">Acidentes por regional</p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1">
-                    {REGIONALS.map((r) => (
-                      <span key={r} className="tabular-nums">
-                        <span className="text-muted">{r}:</span>{' '}
-                        <span className="font-semibold">{painelData.acidentesPorRegional?.[r] ?? 0}</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-border bg-bg px-3 py-2">
-                  <p className="text-[10px] uppercase tracking-wide text-muted">Investigados (no ano)</p>
-                  <p className="text-lg font-bold tabular-nums">{painelData.investigadosNoAno ?? 0}</p>
-                </div>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2">
-                  <p className="text-[10px] font-semibold text-amber-800 dark:text-amber-200 mb-1">
-                    Investigados por regional (ano)
-                  </p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5">
-                    {REGIONALS.map((r) => (
-                      <span key={r} className="tabular-nums text-[11px]">
-                        {r}: <span className="font-medium">{painelData.investigadosPorRegional?.[r] ?? 0}</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2">
-                  <p className="text-[10px] font-semibold text-emerald-800 dark:text-emerald-200 mb-1">
-                    Aderência (investigações concluídas)
-                  </p>
-                  <p className="text-lg font-bold tabular-nums">
-                    {painelData.aderenciaPlanoAcaoPercent != null
-                      ? `${painelData.aderenciaPlanoAcaoPercent.toFixed(1)}%`
-                      : '—'}
-                  </p>
-                  <p className="text-[10px] text-muted mt-1 leading-relaxed">
-                    {painelData.notaAderencia ||
-                      'Proporção de registros com status Concluída entre investigações ligadas a acidentes do ano.'}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
-                    {REGIONALS.map((r) => {
-                      const p = painelData.aderenciaPorRegional?.[r];
-                      return (
-                        <span key={r}>
-                          {r}: {p != null ? `${p.toFixed(0)}%` : '—'}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2 text-[11px] text-muted leading-relaxed">
-                <span className="font-medium text-foreground">Divulgação — programas legais (NRs, PGR, etc.)</span>
-                <p className="mt-1">
-                  Espaço reservado para cartazes, campanhas internas e referências legais. Conteúdo a definir pela
-                  comunicação/SESMT.
+            <div className="space-y-4 text-xs">
+              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3">
+                <p className="text-[11px] font-bold uppercase text-emerald-900 dark:text-emerald-100">
+                  Taxa de frequência de acidentes — total EMSERH
                 </p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+                  {painelData.taxaFrequenciaAnualEmserh != null
+                    ? painelData.taxaFrequenciaAnualEmserh.toFixed(2)
+                    : '—'}
+                </p>
+                <p className="text-[10px] text-muted mt-1">
+                  {painelData.totalAcidentesAno} acidentes no ano · TF = acidentes × 10⁶ ÷ horas-homem
+                  {painelData.fonteAtivosTF === 'alterdata' ? ' · ativos: Alterdata' : ''}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-bold uppercase text-muted mb-2">Números de acidentes EMSERH — por regional</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {REGIONALS.map((r) => (
+                    <div key={r} className="rounded border border-border bg-bg px-3 py-2">
+                      <p className="text-[10px] font-semibold text-foreground">Número de acidentes EMSERH — {r}</p>
+                      <p className="text-lg font-bold tabular-nums">{painelData.acidentesPorRegional?.[r] ?? 0}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-bold uppercase text-muted mb-2">Acidentes investigados</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                  <div className="rounded border border-amber-500/30 bg-amber-500/5 px-3 py-2 lg:col-span-1">
+                    <p className="text-[10px] font-semibold">Investigados — EMSERH</p>
+                    <p className="text-xl font-bold tabular-nums">{painelData.investigadosNoAno ?? 0}</p>
+                  </div>
+                  {REGIONALS.map((r) => (
+                    <div key={`inv-${r}`} className="rounded border border-border bg-bg px-3 py-2">
+                      <p className="text-[10px] font-semibold">Investigados — {r}</p>
+                      <p className="text-lg font-bold tabular-nums">{painelData.investigadosPorRegional?.[r] ?? 0}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-bold uppercase text-muted mb-2">
+                  % aderência ao plano de ação das investigações de acidentes
+                </p>
+                <p className="text-[10px] text-muted mb-2 leading-relaxed">{painelData.notaAderencia}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                  <div className="rounded border border-emerald-500/30 bg-emerald-500/5 px-3 py-2">
+                    <p className="text-[10px] font-semibold">% P.A — EMSERH</p>
+                    <p className="text-xl font-bold tabular-nums">
+                      {painelData.aderenciaPlanoAcaoPercent != null
+                        ? `${painelData.aderenciaPlanoAcaoPercent.toFixed(1)}%`
+                        : '—'}
+                    </p>
+                  </div>
+                  {REGIONALS.map((r) => {
+                    const p = painelData.aderenciaPorRegional?.[r];
+                    return (
+                      <div key={`pa-${r}`} className="rounded border border-border bg-bg px-3 py-2">
+                        <p className="text-[10px] font-semibold">P.A acidentes — EMSERH · {r}</p>
+                        <p className="text-lg font-bold tabular-nums">{p != null ? `${p.toFixed(0)}%` : '—'}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-bold uppercase text-muted mb-2">
+                  % unidades atendidas — divulgação programas legais
+                </p>
+                <p className="text-[10px] text-muted mb-2 leading-relaxed">{painelData.notaDivulgacao}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                  <div className="rounded border border-dashed border-border bg-muted/20 px-3 py-2">
+                    <p className="text-[10px] font-semibold">Divulgação — EMSERH</p>
+                    <p className="text-xl font-bold tabular-nums">
+                      {painelData.unidadesDivulgacaoProgramasLegaisPercent != null
+                        ? `${painelData.unidadesDivulgacaoProgramasLegaisPercent}%`
+                        : '—'}
+                    </p>
+                  </div>
+                  {REGIONALS.map((r) => {
+                    const v = painelData.divulgacaoProgramasLegaisPorRegional?.[r];
+                    return (
+                      <div key={`div-${r}`} className="rounded border border-dashed border-border bg-muted/10 px-3 py-2">
+                        <p className="text-[10px] font-semibold">Divulgação programas legais — EMSERH · {r}</p>
+                        <p className="text-lg font-bold tabular-nums">{v != null ? `${v}%` : '—'}</p>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           ) : (
-            <p className="text-[10px] text-muted">Indicadores indisponíveis.</p>
+            <p className="text-[10px] text-muted py-4">Painel indisponível.</p>
           )}
         </section>
 
@@ -1600,18 +1634,24 @@ export default function AcidentesView() {
                   <p className="text-muted">Carregando...</p>
                 ) : (
                   <>
-                    <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-border">
-                      <button
-                        type="button"
-                        onClick={downloadRiatPreenchida}
-                        disabled={investigacaoRiatDownloading}
-                        className="rounded border border-emerald-600 bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                      >
-                        {investigacaoRiatDownloading ? 'Gerando...' : 'Baixar RIAT preenchida (.xlsx)'}
-                      </button>
-                      <span className="text-[10px] text-muted">
-                        Use o modelo oficial em <code className="text-[9px]">public/templates/</code> (riat-emserh.xlsx ou riat.xlsx).
-                      </span>
+                    <div className="flex flex-col gap-2 pb-3 border-b border-border">
+                      <p className="text-[10px] text-muted">
+                        Ao investigar pela primeira vez, a RIAT oficial (.xlsx) é baixada automaticamente. Use o botão abaixo
+                        para gerar de novo após ajustar o formulário.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={downloadRiatPreenchida}
+                          disabled={investigacaoRiatDownloading}
+                          className="rounded border border-emerald-600 bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                        >
+                          {investigacaoRiatDownloading ? 'Gerando...' : 'Baixar RIAT preenchida (.xlsx)'}
+                        </button>
+                        <span className="text-[10px] text-muted">
+                          Modelo fixo do repositório: <code className="text-[9px]">public/templates/riat.xlsx</code>
+                        </span>
+                      </div>
                     </div>
 
                     <RiatWebForm

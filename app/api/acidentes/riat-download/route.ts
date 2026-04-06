@@ -9,19 +9,15 @@ import { getRiatCellMap, RIAT_CAT_CELL } from '@/lib/acidentes/riatCellMap';
 import { buildRiatCellValues, toDDMMYYYY } from '@/lib/acidentes/riatValues';
 import { fillRiatTemplateFromFile } from '@/lib/acidentes/fillRiatTemplate';
 
+/** Única fonte: o arquivo versionado no repositório (public/templates/riat.xlsx). Sem fallback, sem modelo genérico. */
 function resolveTemplatePath(): string | null {
-  const base = path.join(process.cwd(), 'public', 'templates');
-  const candidates = ['riat-emserh.xlsx', 'riat.xlsx'];
-  for (const name of candidates) {
-    const full = path.join(base, name);
-    if (fs.existsSync(full)) return full;
-  }
-  return null;
+  const full = path.join(process.cwd(), 'public', 'templates', 'riat.xlsx');
+  return fs.existsSync(full) ? full : null;
 }
 
 /**
  * POST — body: { acidente, observacoes?, numeroSinan?, riatOverrides? }
- * Preenche apenas o modelo oficial em public/templates/riat-emserh.xlsx ou riat.xlsx (ExcelJS).
+ * Usa ExcelJS: copia o .xlsx oficial e só altera valores (preserva layout, mesclas e formatação).
  */
 export async function POST(req: Request) {
   try {
@@ -43,7 +39,7 @@ export async function POST(req: Request) {
         {
           ok: false,
           error:
-            'Modelo RIAT não encontrado. Coloque riat-emserh.xlsx ou riat.xlsx em public/templates/.',
+            'Arquivo RIAT não encontrado: é obrigatório public/templates/riat.xlsx no repositório (o mesmo do GitHub). Faça commit e redeploy.',
         },
         { status: 400 }
       );

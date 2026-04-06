@@ -3,11 +3,9 @@
 import React from 'react';
 import { isoDateInputToBR } from '@/lib/acidentes/riatValues';
 
-export type RiatDraft = Record<string, string>;
-
 type Props = {
-  draft: RiatDraft;
-  onDraftChange: (next: RiatDraft) => void;
+  draft: Record<string, string>;
+  onDraftChange: (next: Record<string, string>) => void;
   numeroSinan: string;
   onNumeroSinanChange: (v: string) => void;
   disabled?: boolean;
@@ -55,10 +53,10 @@ export default function RiatWebForm({
   return (
     <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-3">
       <h4 className="text-[11px] font-semibold uppercase text-emerald-800 dark:text-emerald-200">
-        Dados extras para a RIAT (opcional)
+        Preenchimento da RIAT (web) — opcional antes do Excel
       </h4>
       <p className="text-[10px] text-muted leading-relaxed">
-        O Excel é preenchido com os dados do acidente. Ajuste aqui o que for necessário antes de baixar; campos vazios mantêm o valor sugerido automaticamente.
+        Os dados do acidente já entram no arquivo. Complete aqui o que faltar; em branco mantém o padrão automático.
       </p>
 
       <div>
@@ -69,14 +67,13 @@ export default function RiatWebForm({
           onChange={(e) => onNumeroSinanChange(e.target.value)}
           disabled={disabled}
           className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs"
-          placeholder="Ex.: número da ficha"
+          placeholder="Número da ficha SINAN"
         />
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
         {fields.map((f) => {
           if (f.type === 'date') {
-            const isoKey = f.key;
             return (
               <div key={f.key} className="sm:col-span-1">
                 <label className="block text-[10px] font-medium text-muted mb-1">{f.label}</label>
