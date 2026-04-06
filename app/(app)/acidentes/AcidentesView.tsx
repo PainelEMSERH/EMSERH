@@ -2,7 +2,27 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { REGIONALS } from '@/lib/unidReg';
-import { AlertTriangle, ChevronDown, ChevronUp, Eye, EyeOff, Plus, Search } from 'lucide-react';
+import {
+  AlertTriangle,
+  BarChart3,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ClipboardList,
+  Eye,
+  EyeOff,
+  FileSpreadsheet,
+  Filter,
+  FolderOpen,
+  LayoutDashboard,
+  Plus,
+  Search,
+  ShieldAlert,
+  Table2,
+  TrendingUp,
+  X,
+} from 'lucide-react';
 
 type AcidenteRow = {
   id: string;
@@ -118,6 +138,10 @@ const STATUS_ACIDENTE = [
 ];
 
 const LS_REGIONAL_KEY = 'acidentes:regional';
+
+/** Pasta do Google Drive onde as RIAT preenchidas são armazenadas */
+const RIAT_GOOGLE_DRIVE_FOLDER_URL =
+  'https://drive.google.com/drive/folders/1ULAaRsKcD0vXqMocTaITcBupLUD5kCse';
 
 /** Chave estável do acidente (planilha) para vincular investigação */
 function acidenteRef(row: AcidenteRow): string {
@@ -279,6 +303,7 @@ export default function AcidentesView() {
     setLoading(true);
     const params = new URLSearchParams();
     if (regional) params.set('regional', regional);
+    if (unidade) params.set('unidade', unidade);
     if (tipo) params.set('tipo', tipo);
     if (status) params.set('status', status);
     if (empresa) params.set('empresa', empresa);
@@ -301,7 +326,7 @@ export default function AcidentesView() {
         setListError(err?.message || 'Erro ao carregar a lista. Tente recarregar a página.');
       })
       .finally(() => setLoading(false));
-  }, [regional, tipo, status, empresa, ano, mes, q, page, listKey]);
+  }, [regional, unidade, tipo, status, empresa, ano, mes, q, page, listKey]);
 
   // Carrega estatísticas
   useEffect(() => {
@@ -356,6 +381,13 @@ export default function AcidentesView() {
   const totalPages = useMemo(() => {
     return total > 0 ? Math.ceil(total / pageSize) : 1;
   }, [total]);
+
+  const listRangeLabel = useMemo(() => {
+    if (total === 0) return 'Nenhum registro nesta página';
+    const from = (page - 1) * pageSize + 1;
+    const to = Math.min(page * pageSize, total);
+    return `Exibindo ${from.toLocaleString('pt-BR')}–${to.toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')}`;
+  }, [page, pageSize, total]);
 
   /** Modelo RIAT do repositório (public/templates/riat.xlsx), sem preenchimento automático. */
   async function downloadModeloRiat() {
@@ -470,43 +502,90 @@ export default function AcidentesView() {
     }
   };
 
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
-            SST • Acidentes
-          </p>
-          <h1 className="mt-1 text-lg font-semibold">Acidentes de Trabalho</h1>
-          <p className="mt-1 text-xs text-muted">
-            Registro, análise e acompanhamento de acidentes de trabalho nas unidades da EMSERH.
-          </p>
-        </div>
-        <span className="rounded-full border border-border bg-panel px-3 py-1.5 text-[11px] text-muted">
-          Somente leitura (importe em Admin → Importar bases)
-        </span>
-      </div>
+  const filtroSelectClass =
+    'w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm shadow-sm outline-none transition focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20';
 
-      {/* Painel SST — indicadores (no topo; títulos conforme especificação operacional) */}
+  return (
+    <div className="mx-auto max-w-[min(100%,90rem)] space-y-8 pb-14 pt-1">
+      <header className="relative overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05]">
+        <div
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_100%_-20%,rgba(245,158,11,0.12),transparent),radial-gradient(ellipse_80%_50%_at_0%_110%,rgba(16,185,129,0.07),transparent)]"
+          aria-hidden
+        />
+        <div className="relative flex flex-col gap-6 p-6 md:flex-row md:items-start md:justify-between md:p-8">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-amber-950 dark:text-amber-200">
+              <ShieldAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              SST · Acidentes de trabalho
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+                Painel de acidentes
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
+                Indicadores operacionais, taxa de frequência, registros importados e investigações (RIAT, CAT, SINAN). A lista é
+                somente leitura — atualize os dados em <strong className="text-foreground">Admin → Importar bases</strong>.
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row md:flex-col md:items-end">
+            <span className="inline-flex items-center justify-center gap-2 rounded-xl border border-border/80 bg-background/90 px-4 py-2.5 text-center text-[11px] font-medium text-muted shadow-sm backdrop-blur-sm">
+              <ClipboardList className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+              Base da lista em modo leitura
+            </span>
+          </div>
+        </div>
+        <nav
+          className="relative flex flex-wrap gap-2 border-t border-border/60 bg-muted/25 px-4 py-3 md:px-8"
+          aria-label="Seções da página"
+        >
+          {[
+            { href: '#painel-indicadores-acidentes', label: 'Indicadores', icon: LayoutDashboard },
+            { href: '#filtros-acidentes', label: 'Filtros', icon: Filter },
+            { href: '#visao-geral-acidentes', label: 'Resumo', icon: BarChart3 },
+            { href: '#taxa-frequencia-acidentes', label: 'Taxa de frequência', icon: TrendingUp },
+            { href: '#registros-acidentes', label: 'Registros', icon: Table2 },
+          ].map(({ href, label, icon: Icon }) => (
+            <a
+              key={href}
+              href={href}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-background/90 px-3 py-1.5 text-xs font-medium text-muted shadow-sm transition hover:border-border hover:text-foreground"
+            >
+              <Icon className="h-3.5 w-3.5 opacity-70" aria-hidden />
+              {label}
+            </a>
+          ))}
+        </nav>
+      </header>
+
       <section
         id="painel-indicadores-acidentes"
-        className="rounded-xl border-2 border-amber-500/50 bg-gradient-to-b from-amber-500/5 to-panel p-4 shadow-md space-y-4 scroll-mt-4"
+        className="scroll-mt-24 space-y-6 rounded-2xl border border-border/80 bg-card p-6 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.04] md:p-8"
       >
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-amber-500/20 pb-3">
-          <div>
-            <h2 className="text-sm font-extrabold uppercase tracking-wide text-foreground">
-              Indicadores de acidentes — EMSERH
-            </h2>
-            <p className="mt-1.5 text-[10px] text-muted max-w-2xl leading-relaxed">
-              <strong>Taxa de frequência total EMSERH</strong> e <strong>números por regional</strong> (Norte, Leste, Centro, Sul)
-              são calculados automaticamente a partir da base importada — não há campos para digitar esses totais aqui.
-              Atualize a planilha/base e use o ano acima para ver os consolidados.
-            </p>
+        <div className="flex flex-col gap-4 border-b border-border/60 pb-6 md:flex-row md:items-end md:justify-between">
+          <div className="flex gap-4">
+            <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300 sm:flex">
+              <BarChart3 className="h-6 w-6" aria-hidden />
+            </div>
+            <div>
+              <h2 className="text-base font-bold tracking-tight text-foreground md:text-lg">
+                Indicadores de acidentes — EMSERH
+              </h2>
+              <p className="mt-2 max-w-3xl text-xs leading-relaxed text-muted md:text-sm">
+                <strong className="text-foreground">Taxa de frequência total EMSERH</strong> e{' '}
+                <strong className="text-foreground">totais por regional</strong> (Norte, Leste, Centro, Sul) são calculados
+                automaticamente a partir da base importada — não há digitação manual desses números nesta tela. Escolha o ano
+                ao lado para consolidar o período.
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold text-muted uppercase">Ano</span>
+          <div className="flex shrink-0 items-center gap-2">
+            <label htmlFor="painel-ano" className="text-xs font-semibold uppercase tracking-wide text-muted">
+              Ano de referência
+            </label>
             <select
-              className="rounded-lg border-2 border-amber-500/40 bg-card px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-amber-500/60"
+              id="painel-ano"
+              className="rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm font-semibold shadow-sm outline-none focus:ring-2 focus:ring-amber-500/30"
               value={painelAno}
               onChange={(e) => setPainelAno(e.target.value)}
               disabled={painelLoading}
@@ -533,69 +612,80 @@ export default function AcidentesView() {
         </div>
 
         {painelLoading ? (
-          <p className="text-sm font-medium text-amber-800 dark:text-amber-200 py-4">Carregando indicadores...</p>
+          <div className="flex items-center gap-3 py-10 text-sm font-medium text-muted">
+            <span className="h-5 w-5 animate-pulse rounded-full bg-amber-500/40" aria-hidden />
+            Carregando indicadores do painel…
+          </div>
         ) : (
-          <div className="space-y-5 text-xs">
-            <div className="rounded-lg border border-border bg-card/80 px-4 py-3">
-              <p className="text-[11px] font-extrabold uppercase text-foreground leading-snug">
-                Taxa de frequência de acidentes total EMSERH
-              </p>
-              <p className="mt-2 text-3xl font-black tabular-nums text-emerald-700 dark:text-emerald-300">
-                {painelData?.taxaFrequenciaAnualEmserh != null
-                  ? painelData.taxaFrequenciaAnualEmserh.toFixed(2)
-                  : '—'}
-              </p>
-              <p className="text-[10px] text-muted mt-1">
-                {painelData != null
-                  ? `${painelData.totalAcidentesAno} acidentes no ano selecionado`
-                  : 'Dados do painel indisponíveis (verifique deploy da rota /api/acidentes/painel-indicadores).'}
-                {painelData?.fonteAtivosTF === 'alterdata' ? ' · Ativos: Alterdata' : ''}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-[10px] font-extrabold uppercase text-muted mb-2 tracking-wide">
-                Números de acidentes EMSERH — por regional
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {REGIONALS.map((r) => (
-                  <div key={`acc-${r}`} className="rounded-lg border-2 border-border bg-bg px-3 py-2.5">
-                    <p className="text-[10px] font-bold uppercase text-foreground leading-tight">
-                      Números de acidentes EMSERH — {r}
-                    </p>
-                    <p className="text-2xl font-black tabular-nums mt-1">{painelData?.acidentesPorRegional?.[r] ?? 0}</p>
-                  </div>
-                ))}
+          <div className="space-y-8 text-xs">
+            <div className="grid gap-4 lg:grid-cols-12 lg:items-stretch">
+              <div className="flex flex-col justify-between rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.08] to-transparent p-5 lg:col-span-4">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-900 dark:text-emerald-200/90">
+                    Taxa de frequência — total EMSERH
+                  </p>
+                  <p className="mt-3 text-4xl font-black tabular-nums tracking-tight text-emerald-700 dark:text-emerald-300">
+                    {painelData?.taxaFrequenciaAnualEmserh != null
+                      ? painelData.taxaFrequenciaAnualEmserh.toFixed(2)
+                      : '—'}
+                  </p>
+                </div>
+                <p className="mt-4 text-[11px] leading-relaxed text-muted">
+                  {painelData != null
+                    ? `${painelData.totalAcidentesAno} acidentes registrados no ano selecionado.`
+                    : 'Dados indisponíveis — confira o deploy da rota /api/acidentes/painel-indicadores.'}
+                  {painelData?.fonteAtivosTF === 'alterdata' ? (
+                    <span className="mt-1 block font-medium text-foreground">Ativos (TF): Alterdata</span>
+                  ) : null}
+                </p>
+              </div>
+              <div className="lg:col-span-8">
+                <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-muted">
+                  Números de acidentes EMSERH — por regional
+                </p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {REGIONALS.map((r) => (
+                    <div
+                      key={`acc-${r}`}
+                      className="rounded-xl border border-border/80 bg-muted/20 p-4 shadow-sm transition hover:border-amber-500/30"
+                    >
+                      <p className="text-[10px] font-bold uppercase leading-tight text-foreground">{r}</p>
+                      <p className="mt-2 text-2xl font-black tabular-nums text-foreground">
+                        {painelData?.acidentesPorRegional?.[r] ?? 0}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
             <div>
-              <p className="text-[10px] font-extrabold uppercase text-muted mb-2 tracking-wide">
-                Acidentes investigados
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
-                <div className="rounded-lg border-2 border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
-                  <p className="text-[10px] font-bold uppercase">Acidentes investigados — EMSERH</p>
-                  <p className="text-2xl font-black tabular-nums mt-1">{painelData?.investigadosNoAno ?? 0}</p>
+              <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-muted">Acidentes investigados</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="rounded-xl border border-amber-500/35 bg-amber-500/[0.09] p-4 shadow-sm">
+                  <p className="text-[10px] font-bold uppercase text-amber-950 dark:text-amber-100">Total EMSERH</p>
+                  <p className="mt-2 text-3xl font-black tabular-nums">{painelData?.investigadosNoAno ?? 0}</p>
                 </div>
                 {REGIONALS.map((r) => (
-                  <div key={`inv-${r}`} className="rounded-lg border border-border bg-bg px-3 py-2.5">
-                    <p className="text-[10px] font-bold uppercase">Acidentes investigados — {r}</p>
-                    <p className="text-xl font-black tabular-nums mt-1">{painelData?.investigadosPorRegional?.[r] ?? 0}</p>
+                  <div key={`inv-${r}`} className="rounded-xl border border-border/80 bg-background p-4 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase text-muted">{r}</p>
+                    <p className="mt-2 text-2xl font-black tabular-nums">{painelData?.investigadosPorRegional?.[r] ?? 0}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div>
-              <p className="text-[10px] font-extrabold uppercase text-foreground mb-2 leading-snug">
-                % aderência ao plano de ação das investigações de acidentes
+            <div className="rounded-xl border border-border/60 bg-muted/15 p-5">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-foreground">
+                % aderência ao plano de ação — investigações
               </p>
-              <p className="text-[10px] text-muted mb-2">{painelData?.notaAderencia}</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
-                <div className="rounded-lg border-2 border-emerald-500/40 bg-emerald-500/10 px-3 py-2.5">
-                  <p className="text-[10px] font-bold uppercase">% P.A — EMSERH</p>
-                  <p className="text-2xl font-black tabular-nums mt-1">
+              {painelData?.notaAderencia ? (
+                <p className="mt-2 text-[11px] leading-relaxed text-muted">{painelData.notaAderencia}</p>
+              ) : null}
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
+                  <p className="text-[10px] font-bold uppercase text-emerald-900 dark:text-emerald-200">% P.A — EMSERH</p>
+                  <p className="mt-2 text-2xl font-black tabular-nums">
                     {painelData?.aderenciaPlanoAcaoPercent != null
                       ? `${painelData.aderenciaPlanoAcaoPercent.toFixed(1)}%`
                       : '—'}
@@ -604,24 +694,26 @@ export default function AcidentesView() {
                 {REGIONALS.map((r) => {
                   const p = painelData?.aderenciaPorRegional?.[r];
                   return (
-                    <div key={`pa-${r}`} className="rounded-lg border border-border bg-bg px-3 py-2.5">
-                      <p className="text-[10px] font-bold uppercase leading-tight">P.A acidentes EMSERH — {r}</p>
-                      <p className="text-xl font-black tabular-nums mt-1">{p != null ? `${p.toFixed(0)}%` : '—'}</p>
+                    <div key={`pa-${r}`} className="rounded-lg border border-border/70 bg-background p-4">
+                      <p className="text-[10px] font-bold uppercase text-muted">{r}</p>
+                      <p className="mt-2 text-xl font-black tabular-nums">{p != null ? `${p.toFixed(0)}%` : '—'}</p>
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            <div>
-              <p className="text-[10px] font-extrabold uppercase text-foreground mb-2 leading-snug">
-                % unidades atendidas — divulgação programas legais
+            <div className="rounded-xl border border-dashed border-border/80 bg-background/50 p-5">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-foreground">
+                % unidades — divulgação programas legais
               </p>
-              <p className="text-[10px] text-muted mb-2">{painelData?.notaDivulgacao}</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
-                <div className="rounded-lg border-2 border-dashed border-border bg-muted/30 px-3 py-2.5">
-                  <p className="text-[10px] font-bold uppercase">Divulgação — EMSERH (total)</p>
-                  <p className="text-2xl font-black tabular-nums mt-1">
+              {painelData?.notaDivulgacao ? (
+                <p className="mt-2 text-[11px] leading-relaxed text-muted">{painelData.notaDivulgacao}</p>
+              ) : null}
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="rounded-lg border border-dashed border-border bg-muted/25 p-4">
+                  <p className="text-[10px] font-bold uppercase text-muted">Total EMSERH</p>
+                  <p className="mt-2 text-2xl font-black tabular-nums">
                     {painelData?.unidadesDivulgacaoProgramasLegaisPercent != null
                       ? `${painelData.unidadesDivulgacaoProgramasLegaisPercent}%`
                       : '—'}
@@ -630,11 +722,9 @@ export default function AcidentesView() {
                 {REGIONALS.map((r) => {
                   const v = painelData?.divulgacaoProgramasLegaisPorRegional?.[r];
                   return (
-                    <div key={`div-${r}`} className="rounded-lg border border-dashed border-border bg-muted/15 px-3 py-2.5">
-                      <p className="text-[10px] font-bold uppercase leading-tight">
-                        Divulgação programas legais EMSERH — {r}
-                      </p>
-                      <p className="text-xl font-black tabular-nums mt-1">{v != null ? `${v}%` : '—'}</p>
+                    <div key={`div-${r}`} className="rounded-lg border border-dashed border-border/70 bg-background p-4">
+                      <p className="text-[10px] font-bold uppercase text-muted">{r}</p>
+                      <p className="mt-2 text-xl font-black tabular-nums">{v != null ? `${v}%` : '—'}</p>
                     </div>
                   );
                 })}
@@ -644,148 +734,216 @@ export default function AcidentesView() {
         )}
       </section>
 
-      {/* Filtros - card padronizado */}
-      <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex flex-wrap items-center gap-3 text-xs">
-        <div className="flex flex-col gap-1">
-          <span className="font-medium">Regional</span>
-          <select
-            className="w-52 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-            value={regional}
-            onChange={(e) => {
-              setRegional(e.target.value || '');
+      <section
+        id="filtros-acidentes"
+        className="scroll-mt-24 rounded-2xl border border-border/80 bg-card p-6 shadow-sm md:p-8"
+      >
+        <div className="mb-6 flex flex-col gap-4 border-b border-border/60 pb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+              <Filter className="h-5 w-5 text-muted-foreground" aria-hidden />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-foreground">Filtros da lista de registros</h2>
+              <p className="mt-1 text-xs text-muted">
+                Refinam os acidentes exibidos na tabela abaixo. O resumo estatístico usa regional e ano conforme seleção.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="shrink-0 rounded-lg border border-border bg-background px-4 py-2 text-xs font-semibold text-muted transition hover:border-amber-500/40 hover:text-foreground"
+            onClick={() => {
+              setRegional('');
+              setUnidade('');
+              setTipo('');
+              setStatus('');
+              setEmpresa('');
+              setAno('todos');
+              setMes('');
+              setQ('');
               setPage(1);
             }}
           >
-            <option value="">Todas as Regionais</option>
-            {REGIONALS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
+            Limpar filtros
+          </button>
         </div>
-        <>
-            <div className="flex flex-col gap-1">
-              <span className="font-medium">Tipo</span>
-              <select
-                className="w-44 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                value={tipo}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Regional</label>
+            <select
+              className={filtroSelectClass}
+              value={regional}
+              onChange={(e) => {
+                setRegional(e.target.value || '');
+                setUnidade('');
+                setPage(1);
+              }}
+            >
+              <option value="">Todas as regionais</option>
+              {REGIONALS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Unidade hospitalar</label>
+            <select
+              className={filtroSelectClass}
+              value={unidade}
+              onChange={(e) => {
+                setUnidade(e.target.value || '');
+                setPage(1);
+              }}
+            >
+              <option value="">Todas as unidades</option>
+              {unidadesDaRegional.map((u) => (
+                <option key={`${u.regional}-${u.unidade}`} value={u.unidade}>
+                  {u.unidade}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Tipo de acidente</label>
+            <select
+              className={filtroSelectClass}
+              value={tipo}
+              onChange={(e) => {
+                setTipo(e.target.value || '');
+                setPage(1);
+              }}
+            >
+              <option value="">Todos os tipos</option>
+              {TIPOS_ACIDENTE.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Status</label>
+            <select
+              className={filtroSelectClass}
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value || '');
+                setPage(1);
+              }}
+            >
+              <option value="">Todos</option>
+              {STATUS_ACIDENTE.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Empresa</label>
+            <select
+              className={filtroSelectClass}
+              value={empresa}
+              onChange={(e) => {
+                setEmpresa(e.target.value || '');
+                setPage(1);
+              }}
+            >
+              <option value="">Todas</option>
+              <option value="IADVH">IADVH</option>
+              <option value="EMSERH">EMSERH</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Ano (lista)</label>
+            <select
+              className={filtroSelectClass}
+              value={ano}
+              onChange={(e) => {
+                setAno(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="todos">Todos os anos</option>
+              {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                <option key={y} value={String(y)}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Mês</label>
+            <select
+              className={filtroSelectClass}
+              value={mes}
+              onChange={(e) => {
+                setMes(e.target.value || '');
+                setPage(1);
+              }}
+            >
+              <option value="">Todos os meses</option>
+              {[
+                { value: '1', label: 'Janeiro' },
+                { value: '2', label: 'Fevereiro' },
+                { value: '3', label: 'Março' },
+                { value: '4', label: 'Abril' },
+                { value: '5', label: 'Maio' },
+                { value: '6', label: 'Junho' },
+                { value: '7', label: 'Julho' },
+                { value: '8', label: 'Agosto' },
+                { value: '9', label: 'Setembro' },
+                { value: '10', label: 'Outubro' },
+                { value: '11', label: 'Novembro' },
+                { value: '12', label: 'Dezembro' },
+              ].map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5 sm:col-span-2 lg:col-span-1 xl:col-span-2">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Busca textual</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+              <input
+                type="search"
+                className="w-full rounded-lg border border-border/80 bg-background py-2.5 pl-10 pr-3 text-sm shadow-sm outline-none transition focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20"
+                placeholder="Nome, unidade, CAT…"
+                value={q}
                 onChange={(e) => {
-                  setTipo(e.target.value || '');
+                  setQ(e.target.value);
                   setPage(1);
                 }}
-              >
-                <option value="">Todos</option>
-                {TIPOS_ACIDENTE.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="font-medium">Status</span>
-              <select
-                className="w-44 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                value={status}
-                onChange={(e) => {
-                  setStatus(e.target.value || '');
-                  setPage(1);
-                }}
-              >
-                <option value="">Todos</option>
-                {STATUS_ACIDENTE.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="font-medium">Empresa</span>
-              <select
-                className="w-36 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                value={empresa}
-                onChange={(e) => {
-                  setEmpresa(e.target.value || '');
-                  setPage(1);
-                }}
-              >
-                <option value="">Todas</option>
-                <option value="IADVH">IADVH</option>
-                <option value="EMSERH">EMSERH</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="font-medium">Ano</span>
-              <select
-                className="w-36 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                value={ano}
-                onChange={(e) => {
-                  setAno(e.target.value);
-                  setPage(1);
-                }}
-              >
-                <option value="todos">Todos os anos</option>
-                {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - i).map((y) => (
-                  <option key={y} value={String(y)}>{y}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="font-medium">Mês</span>
-              <select
-                className="w-40 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                value={mes}
-                onChange={(e) => {
-                  setMes(e.target.value || '');
-                  setPage(1);
-                }}
-              >
-                <option value="">Todos</option>
-                {[
-                  { value: '1', label: 'Janeiro' },
-                  { value: '2', label: 'Fevereiro' },
-                  { value: '3', label: 'Março' },
-                  { value: '4', label: 'Abril' },
-                  { value: '5', label: 'Maio' },
-                  { value: '6', label: 'Junho' },
-                  { value: '7', label: 'Julho' },
-                  { value: '8', label: 'Agosto' },
-                  { value: '9', label: 'Setembro' },
-                  { value: '10', label: 'Outubro' },
-                  { value: '11', label: 'Novembro' },
-                  { value: '12', label: 'Dezembro' },
-                ].map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="font-medium">Buscar</span>
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-                <input
-                  type="text"
-                  className="w-56 pl-8 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                  placeholder="Nome, unidade, CAT..."
-                  value={q}
-                  onChange={(e) => {
-                    setQ(e.target.value);
-                    setPage(1);
-                  }}
-                />
+          </div>
+        </div>
+      </section>
+
+      <div className="space-y-8">
+        <section
+          id="visao-geral-acidentes"
+          className="scroll-mt-24 rounded-2xl border border-border/80 bg-card p-6 shadow-sm md:p-8"
+        >
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-border/60 pb-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-800 dark:text-amber-200">
+                <BarChart3 className="h-5 w-5" aria-hidden />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-foreground">Resumo do período filtrado</h2>
+                <p className="mt-1 text-xs text-muted">
+                  Totais alinhados à regional e ao ano selecionados nos filtros (exceto &quot;Todos os anos&quot;, que usa o ano do filtro de estatística).
+                </p>
               </div>
             </div>
-        </>
-      </div>
-
-      {/* VISÃO GERAL – blocos institucionais */}
-      <div className="space-y-4">
-        {/* Bloco 0: Estatísticas – uma linha compacta */}
-        <section className="rounded-xl border border-border bg-panel p-3 shadow-sm">
+          </div>
+          <div className="rounded-xl border border-border/60 bg-muted/10 p-4 md:p-5">
           {statsLoading ? (
             <p className="text-sm text-muted">Carregando...</p>
           ) : stats ? (
@@ -872,18 +1030,27 @@ export default function AcidentesView() {
           ) : (
             <p className="text-[10px] text-muted">Nenhuma estatística disponível.</p>
           )}
+          </div>
         </section>
 
-        {/* Bloco 1: Taxa de Frequência (TF) */}
-          <section className="rounded-xl border border-border bg-panel p-5 shadow-sm space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold text-foreground">Taxa de Frequência de Acidentes de Trabalho (TF)</h2>
-                <p className="mt-1.5 text-xs text-muted leading-relaxed max-w-2xl">
-                  Indicador calculado mensalmente com base no número de acidentes de trabalho e no
-                  total de horas-homem trabalhadas, permitindo o monitoramento da frequência de
-                  acidentes ao longo do tempo.
-                </p>
+        <section
+          id="taxa-frequencia-acidentes"
+          className="scroll-mt-24 space-y-6 rounded-2xl border border-border/80 bg-card p-6 shadow-sm md:p-8"
+        >
+            <div className="flex flex-col gap-4 border-b border-border/60 pb-6 md:flex-row md:items-start md:justify-between">
+              <div className="flex gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-800 dark:text-emerald-200">
+                  <TrendingUp className="h-5 w-5" aria-hidden />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-foreground md:text-lg">
+                    Taxa de frequência de acidentes (TF)
+                  </h2>
+                  <p className="mt-2 max-w-3xl text-xs leading-relaxed text-muted md:text-sm">
+                    Indicador mensal a partir do número de acidentes e das horas-homem trabalhadas (HHT). Os colaboradores
+                    ativos podem ser informados por mês; acidentes vêm da base importada.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -925,7 +1092,7 @@ export default function AcidentesView() {
                 </p>
               )}
 
-              <div className="space-y-3 rounded-xl border border-border bg-bg/50 p-4 overflow-x-auto">
+              <div className="space-y-3 overflow-x-auto rounded-xl border border-border/80 bg-muted/20 p-5">
                 <div className="flex items-center gap-3 px-0.5">
                   <span className="w-40 shrink-0 text-xs font-semibold uppercase tracking-wide text-muted">
                     Mês
@@ -1121,63 +1288,112 @@ export default function AcidentesView() {
 
       </div>
 
-      {/* Registros de Acidentes */}
-      <div className="space-y-4">
-        <div className="text-xs text-muted">
-          Total: <span className="font-semibold text-text">{total}</span> acidentes
+      <section
+        id="registros-acidentes"
+        className="scroll-mt-24 rounded-2xl border border-border/80 bg-card shadow-sm"
+      >
+        <div className="flex flex-col gap-4 border-b border-border/60 p-6 md:flex-row md:items-center md:justify-between md:p-8">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+              <Table2 className="h-5 w-5 text-muted-foreground" aria-hidden />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-foreground md:text-lg">Registros de acidentes</h2>
+              <p className="mt-1 text-xs text-muted">
+                Base importada · {listRangeLabel}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="rounded-full border border-border/80 bg-muted/40 px-3 py-1.5 font-semibold tabular-nums text-foreground">
+              {total.toLocaleString('pt-BR')} no filtro
+            </span>
+            <span className="text-muted">
+              Página {page} / {totalPages}
+            </span>
+          </div>
         </div>
 
-          <div className="overflow-x-auto rounded-lg border border-border bg-card">
-            <table className="min-w-full text-[11px]">
-              <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
-                <tr>
-                  <th className="px-3 py-2 text-center"></th>
-                  <th className="px-3 py-2 text-center">Nome</th>
-                  <th className="px-3 py-2 text-center">Empresa</th>
-                  <th className="px-3 py-2 text-center">Unidade</th>
-                  <th className="px-3 py-2 text-center">Tipo</th>
-                  <th className="px-3 py-2 text-center">Afastamento</th>
-                  <th className="px-3 py-2 text-center">Data</th>
-                  <th className="px-3 py-2 text-center">Hora</th>
-                  <th className="px-3 py-2 text-center">Mês</th>
-                  <th className="px-3 py-2 text-center">CAT</th>
-                  <th className="px-3 py-2 text-center">RIAT</th>
-                  <th className="px-3 py-2 text-center">SINAN</th>
-                  <th className="px-3 py-2 text-center">Status</th>
-                  <th className="px-3 py-2 text-center">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
+        <div className="overflow-x-auto px-2 pb-2 md:px-4">
+          <table className="min-w-[72rem] w-full border-collapse text-left text-[11px] md:min-w-full">
+            <thead className="sticky top-0 z-10 border-b border-border/80 bg-card/95 text-[10px] font-semibold uppercase tracking-wider text-muted backdrop-blur-sm">
+              <tr>
+                <th className="w-10 px-2 py-3 text-center" scope="col" aria-label="Expandir" />
+                <th className="min-w-[9rem] px-3 py-3" scope="col">
+                  Trabalhador
+                </th>
+                <th className="px-2 py-3 text-center" scope="col">
+                  Empresa
+                </th>
+                <th className="min-w-[10rem] px-3 py-3" scope="col">
+                  Unidade
+                </th>
+                <th className="min-w-[8rem] px-3 py-3" scope="col">
+                  Tipo
+                </th>
+                <th className="px-2 py-3 text-center" scope="col">
+                  Afast.
+                </th>
+                <th className="px-2 py-3 text-center whitespace-nowrap" scope="col">
+                  Data
+                </th>
+                <th className="px-2 py-3 text-center" scope="col">
+                  Hora
+                </th>
+                <th className="px-2 py-3 text-center" scope="col">
+                  Mês
+                </th>
+                <th className="min-w-[6rem] px-2 py-3 text-center font-mono text-[9px]" scope="col">
+                  CAT
+                </th>
+                <th className="px-2 py-3 text-center" scope="col">
+                  RIAT
+                </th>
+                <th className="px-2 py-3 text-center" scope="col">
+                  SINAN
+                </th>
+                <th className="px-2 py-3 text-center" scope="col">
+                  Status
+                </th>
+                <th className="min-w-[7rem] px-3 py-3 text-center" scope="col">
+                  Ações
+                </th>
+              </tr>
+            </thead>
+              <tbody className="divide-y divide-border/50">
                 {loading && (
                   <tr>
-                    <td colSpan={14} className="px-3 py-6 text-center text-muted">
-                      Carregando...
+                    <td colSpan={14} className="px-6 py-16 text-center">
+                      <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
+                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" aria-hidden />
+                        <p className="text-sm font-medium text-muted">Carregando registros…</p>
+                      </div>
                     </td>
                   </tr>
                 )}
                 {!loading && rows.length === 0 && (
                   <tr>
-                    <td colSpan={14} className="px-3 py-6 text-center">
+                    <td colSpan={14} className="px-6 py-16 text-center">
                       {listError ? (
-                        <>
-                          <p className="text-destructive text-sm">{listError}</p>
+                        <div className="mx-auto max-w-md rounded-xl border border-destructive/30 bg-destructive/5 p-6">
+                          <p className="text-sm font-medium text-destructive">{listError}</p>
                           <button
                             type="button"
-                            className="mt-3 rounded bg-emerald-600 px-3 py-1.5 text-xs text-white hover:bg-emerald-700"
+                            className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
                             onClick={() => setListKey((k) => k + 1)}
                           >
-                            Recarregar lista
+                            Tentar novamente
                           </button>
-                        </>
+                        </div>
                       ) : (
-                        <>
-                          <p className="text-muted">Nenhum acidente encontrado.</p>
+                        <div className="mx-auto max-w-md text-muted">
+                          <p className="text-sm font-medium text-foreground">Nenhum acidente encontrado com estes filtros.</p>
                           {total === 0 && (
-                            <p className="mt-2 text-[11px] text-muted">
-                              Se não aparecer nenhum acidente, selecione <strong>«Todos os anos»</strong> no filtro ou tente outro ano (ex.: 2021, 2022).
+                            <p className="mt-3 text-xs leading-relaxed">
+                              Experimente <strong className="text-foreground">Todos os anos</strong> no filtro de ano ou limpe os filtros.
                             </p>
                           )}
-                        </>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -1187,94 +1403,95 @@ export default function AcidentesView() {
                     const isExpanded = expandedRows.has(row.id);
                     return (
                       <React.Fragment key={row.id}>
-                        <tr className="border-t border-border/60">
-                          <td className="px-3 py-2 text-center">
+                        <tr className="transition-colors hover:bg-muted/25">
+                          <td className="px-2 py-2.5 text-center align-middle">
                             <button
                               type="button"
                               onClick={() => toggleExpand(row.id)}
-                              className="text-muted hover:text-text"
+                              className="inline-flex rounded-md p-1 text-muted transition hover:bg-muted hover:text-foreground"
+                              aria-expanded={isExpanded}
+                              title={isExpanded ? 'Recolher detalhes' : 'Ver detalhes resumidos'}
                             >
-                              {isExpanded ? (
-                                <ChevronUp className="w-4 h-4" />
-                              ) : (
-                                <ChevronDown className="w-4 h-4" />
-                              )}
+                              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </button>
                           </td>
-                          <td className="px-3 py-2 text-center text-[11px]">{row.nome}</td>
-                          <td className="px-3 py-2 text-center text-[11px]">{row.empresa}</td>
-                          <td className="px-3 py-2 text-center text-[11px]">{row.unidadeHospitalar}</td>
-                          <td className="px-3 py-2 text-center text-[11px]">
+                          <td className="px-3 py-2.5 align-middle font-medium text-foreground">{row.nome}</td>
+                          <td className="px-2 py-2.5 text-center align-middle">
+                            <span className="inline-flex rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                              {row.empresa}
+                            </span>
+                          </td>
+                          <td className="max-w-[14rem] truncate px-3 py-2.5 align-middle text-muted" title={row.unidadeHospitalar}>
+                            {row.unidadeHospitalar}
+                          </td>
+                          <td className="max-w-[12rem] px-3 py-2.5 align-middle text-[10px] leading-snug text-muted">
                             {TIPOS_ACIDENTE.find((t) => t.value === row.tipo)?.label || row.tipo}
                           </td>
-                          <td className="px-3 py-2 text-center">
+                          <td className="px-2 py-2.5 text-center align-middle">
                             {row.comAfastamento ? (
-                              <span className="inline-flex rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-medium text-white dark:bg-red-900/40 dark:text-red-100">
-                                Com Afastamento
+                              <span className="inline-flex rounded-md bg-red-500/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-red-700 ring-1 ring-red-500/25 dark:text-red-300">
+                                Com afast.
                               </span>
                             ) : (
-                              <span className="inline-flex rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-medium text-white dark:bg-emerald-900/40 dark:text-emerald-100">
-                                Sem Afastamento
+                              <span className="inline-flex rounded-md bg-emerald-500/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-500/25 dark:text-emerald-300">
+                                Sem afast.
                               </span>
                             )}
                           </td>
-                          <td className="px-3 py-2 text-center text-[11px]">{formatDate(row.data)}</td>
-                          <td className="px-3 py-2 text-center text-[11px]">{row.hora || '-'}</td>
-                          <td className="px-3 py-2 text-center text-[11px]">
-                            {[
-                              'Jan',
-                              'Fev',
-                              'Mar',
-                              'Abr',
-                              'Mai',
-                              'Jun',
-                              'Jul',
-                              'Ago',
-                              'Set',
-                              'Out',
-                              'Nov',
-                              'Dez',
-                            ][row.mes - 1]}
+                          <td className="whitespace-nowrap px-2 py-2.5 text-center align-middle tabular-nums text-muted">
+                            {formatDate(row.data)}
                           </td>
-                          <td className="px-3 py-2 text-center text-[11px]">{row.numeroCAT || '-'}</td>
-                          <td className="px-3 py-2 text-center text-[11px]">{row.riat || '-'}</td>
-                          <td className="px-3 py-2 text-center text-[11px]">{row.sinan || '-'}</td>
-                          <td className="px-3 py-2 text-center">
+                          <td className="px-2 py-2.5 text-center align-middle tabular-nums text-muted">{row.hora || '—'}</td>
+                          <td className="px-2 py-2.5 text-center align-middle text-muted">
+                            {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][row.mes - 1]}
+                          </td>
+                          <td className="px-2 py-2.5 text-center align-middle font-mono text-[10px] text-muted">{row.numeroCAT || '—'}</td>
+                          <td className="max-w-[5rem] truncate px-2 py-2.5 text-center align-middle text-muted" title={row.riat || undefined}>
+                            {row.riat || '—'}
+                          </td>
+                          <td className="max-w-[5rem] truncate px-2 py-2.5 text-center align-middle text-muted" title={row.sinan || undefined}>
+                            {row.sinan || '—'}
+                          </td>
+                          <td className="px-2 py-2.5 text-center align-middle">
                             <span
-                              className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                              className={`inline-flex rounded-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ${
                                 row.status === 'concluido'
-                                  ? 'bg-emerald-500 text-white dark:bg-emerald-900/40 dark:text-emerald-100'
+                                  ? 'bg-emerald-500/15 text-emerald-800 ring-emerald-500/30 dark:text-emerald-300'
                                   : row.status === 'cancelado'
-                                  ? 'bg-neutral-600 text-white dark:bg-neutral-900/40 dark:text-neutral-100'
+                                  ? 'bg-neutral-500/15 text-neutral-700 ring-neutral-500/25 dark:text-neutral-300'
                                   : row.status === 'em_analise'
-                                  ? 'bg-amber-500 text-white dark:bg-amber-900/40 dark:text-amber-100'
-                                  : 'bg-blue-500 text-white dark:bg-blue-900/40 dark:text-blue-100'
+                                  ? 'bg-amber-500/15 text-amber-900 ring-amber-500/30 dark:text-amber-200'
+                                  : 'bg-sky-500/15 text-sky-900 ring-sky-500/30 dark:text-sky-200'
                               }`}
                             >
                               {STATUS_ACIDENTE.find((s) => s.value === row.status)?.label || row.status}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-center">
-                            <div className="inline-flex items-center gap-1.5">
+                          <td className="px-3 py-2.5 text-center align-middle">
+                            <div className="flex flex-col items-center gap-1 sm:flex-row sm:justify-center">
                               {row.hasInvestigacao && (
-                                <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-[9px] font-medium text-white" title="Investigação registrada">
-                                  OK
+                                <span
+                                  className="rounded-md bg-emerald-600/90 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-white shadow-sm"
+                                  title="Investigação registrada"
+                                >
+                                  RIAT
                                 </span>
                               )}
                               <button
                                 type="button"
                                 onClick={() => openInvestigacao(row)}
-                                className="inline-flex items-center gap-1 rounded bg-amber-600 px-2 py-1.5 text-[10px] font-semibold text-white hover:bg-amber-500"
+                                className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-amber-500"
                               >
-                                {row.hasInvestigacao ? 'Ver/Editar' : 'Investigar'}
+                                <FileSpreadsheet className="h-3 w-3 opacity-90" aria-hidden />
+                                {row.hasInvestigacao ? 'Ver' : 'Investigar'}
                               </button>
                             </div>
                           </td>
                         </tr>
                         {isExpanded && (
-                          <tr>
-                            <td colSpan={14} className="px-3 py-2 bg-muted/15 border-t border-border/60">
-                              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[10px]">
+                          <tr className="bg-muted/20">
+                            <td colSpan={14} className="border-t border-border/50 px-4 py-3">
+                              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px]">
                                 <span className="text-muted">
                                   <span className="font-semibold text-foreground">Data/Hora: </span>
                                   {formatDate(row.data)} {row.hora || ''}
@@ -1295,8 +1512,8 @@ export default function AcidentesView() {
                                   <span className="font-semibold text-foreground">CAT: </span>
                                   {row.numeroCAT || '—'}
                                 </span>
-                                <span className="w-full text-[9px] text-muted italic border-t border-border/40 pt-1.5 mt-0.5 sm:border-0 sm:pt-0 sm:mt-0 sm:w-auto">
-                                  Descrição, causas e plano de ação: use a RIAT (Excel) após baixar o modelo em Investigar.
+                                <span className="mt-1 w-full text-[10px] italic text-muted sm:mt-0 sm:w-auto">
+                                  Detalhamento completo (descrição, causas, plano de ação): preencha a RIAT em Excel e anexe o link em Investigar.
                                 </span>
                               </div>
                             </td>
@@ -1378,6 +1595,7 @@ export default function AcidentesView() {
                       <p className="text-[10px] text-muted">
                         Baixe o modelo RIAT <strong>em branco</strong> (arquivo do GitHub, sem preenchimento automático). Na
                         primeira investigação do acidente o download dispara sozinho; use o botão para baixar de novo.
+                        Depois de preencher, salve na pasta do Google Drive e cole o link do arquivo no campo RIAT abaixo.
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
                         <button
@@ -1388,6 +1606,15 @@ export default function AcidentesView() {
                         >
                           {investigacaoRiatDownloading ? 'Baixando...' : 'Baixar modelo RIAT (riat.xlsx)'}
                         </button>
+                        <a
+                          href={RIAT_GOOGLE_DRIVE_FOLDER_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 rounded border border-[#1a73e8] bg-[#1a73e8]/10 px-4 py-2 text-xs font-semibold text-[#1a73e8] hover:bg-[#1a73e8]/20 dark:border-[#8ab4f8] dark:bg-[#8ab4f8]/15 dark:text-[#8ab4f8] dark:hover:bg-[#8ab4f8]/25"
+                        >
+                          <FolderOpen className="h-4 w-4 shrink-0" aria-hidden />
+                          Abrir pasta RIAT no Google Drive
+                        </a>
                         <span className="text-[10px] text-muted">
                           <code className="text-[9px]">public/templates/riat.xlsx</code>
                         </span>
