@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
@@ -17,7 +17,11 @@ import {
   FileText,
   Shield,
   Users,
+  PanelLeftClose,
+  PanelLeft,
 } from "lucide-react";
+
+const SIDEBAR_STORAGE_KEY = "emserh-sidebar-open";
 
 type NavItem = {
   label: string;
@@ -62,7 +66,7 @@ function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-72 shrink-0 border-r border-border bg-bg/50">
+    <aside id="app-sidebar" className="w-72 min-w-72 shrink-0 bg-bg/50">
       <div className="px-4 py-5 text-sm font-semibold tracking-wide text-text">
         Menu
       </div>
@@ -105,20 +109,68 @@ function Sidebar() {
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+      if (v === "0") setSidebarOpen(false);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    setSidebarOpen((o) => {
+      const next = !o;
+      try {
+        localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
   return (
     <div className="flex min-h-screen bg-bg text-text">
-      <Sidebar />
-      <main className="flex-1 overflow-x-hidden">
+      <div
+        className={clsx(
+          "shrink-0 overflow-hidden border-r border-border bg-bg/50 transition-[width] duration-200 ease-out",
+          sidebarOpen ? "w-72 border-border" : "w-0 border-transparent"
+        )}
+        aria-hidden={!sidebarOpen}
+      >
+        {sidebarOpen ? <Sidebar /> : null}
+      </div>
+      <main className="min-w-0 flex-1 overflow-x-hidden">
         <header className="sticky top-0 z-10 w-full border-b border-border bg-panel/80 backdrop-blur px-5 py-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-emerald-400">● Conectado</span>
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-panel text-text hover:bg-bg focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                aria-expanded={sidebarOpen}
+                aria-controls="app-sidebar"
+                aria-label={sidebarOpen ? "Recolher menu lateral" : "Mostrar menu lateral"}
+                title={sidebarOpen ? "Recolher menu" : "Mostrar menu"}
+              >
+                {sidebarOpen ? (
+                  <PanelLeftClose className="h-4 w-4" aria-hidden />
+                ) : (
+                  <PanelLeft className="h-4 w-4" aria-hidden />
+                )}
+              </button>
+              <span className="truncate text-sm text-emerald-400">● Conectado</span>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
               <ThemeSwitcherGeist />
               <UserButton afterSignOutUrl="/" />
             </div>
           </div>
         </header>
-        <div className="p-6 max-w-full overflow-x-hidden">{children}</div>
+        <div className="max-w-full overflow-x-hidden p-6">{children}</div>
       </main>
     </div>
   );

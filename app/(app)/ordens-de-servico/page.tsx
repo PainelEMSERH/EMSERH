@@ -660,6 +660,7 @@ export default function OrdemServicoPage() {
                     </th>
                     <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Função</th>
                     <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Data Admissão</th>
+                    <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Data OS / termo</th>
                     <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Status OS</th>
                     <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Ações</th>
                   </tr>
@@ -673,6 +674,7 @@ export default function OrdemServicoPage() {
                       <td className="px-4 py-3 text-center text-[11px]">{row.regional}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row.funcao}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{formatDate(row.dataAdmissao)}</td>
+                      <td className="px-4 py-3 text-center text-[11px]">{formatDate(row.dataEntregaOS)}</td>
                       <td className="px-4 py-3 text-center">
                         {isAbandonoRow(row) ? (
                           <span
