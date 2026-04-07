@@ -3,20 +3,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { REGIONALS } from '@/lib/unidReg';
 import {
-  BarChart3,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   ChevronUp,
   ClipboardList,
   FileSpreadsheet,
-  Filter,
   FolderOpen,
-  LayoutDashboard,
-  Search,
-  ShieldAlert,
-  Table2,
-  TrendingUp,
   X,
 } from 'lucide-react';
 
@@ -498,90 +489,34 @@ export default function AcidentesView() {
     }
   };
 
-  const filtroSelectClass =
-    'w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm shadow-sm outline-none transition focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20';
+  const fieldClass = 'w-full px-3 py-2 rounded bg-card border border-border text-sm outline-none';
 
   return (
-    <div className="mx-auto max-w-[min(100%,90rem)] space-y-8 pb-14 pt-1">
-      <header className="relative overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05]">
-        <div
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_100%_-20%,rgba(245,158,11,0.12),transparent),radial-gradient(ellipse_80%_50%_at_0%_110%,rgba(16,185,129,0.07),transparent)]"
-          aria-hidden
-        />
-        <div className="relative flex flex-col gap-6 p-6 md:flex-row md:items-start md:justify-between md:p-8">
-          <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-amber-950 dark:text-amber-200">
-              <ShieldAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              SST · Acidentes de trabalho
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
-                Painel de acidentes
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-                Indicadores operacionais, taxa de frequência, registros importados e investigações (RIAT, CAT, SINAN). A lista é
-                somente leitura — atualize os dados em <strong className="text-foreground">Admin → Importar bases</strong>.
-              </p>
-            </div>
+    <div className="space-y-4 text-text">
+      <div className="rounded-xl border border-border bg-panel p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-medium tracking-wide text-muted uppercase">SST · Acidentes</p>
+            <h1 className="text-xl font-semibold">Acidentes de Trabalho</h1>
+            <p className="mt-1 text-xs text-muted max-w-3xl">
+              Indicadores, taxa de frequência (TF) e registros importados. Investigação via RIAT/CAT/SINAN. Atualize a base em{' '}
+              <span className="text-text">Admin → Importar bases</span>.
+            </p>
           </div>
-          <div className="flex shrink-0 flex-col gap-2 sm:flex-row md:flex-col md:items-end">
-            <span className="inline-flex items-center justify-center gap-2 rounded-xl border border-border/80 bg-background/90 px-4 py-2.5 text-center text-[11px] font-medium text-muted shadow-sm backdrop-blur-sm">
-              <ClipboardList className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
-              Base da lista em modo leitura
-            </span>
-          </div>
+          <span className="rounded-lg border border-border bg-card px-3 py-2 text-[11px] text-muted shrink-0">
+            Lista somente leitura
+          </span>
         </div>
-        <nav
-          className="relative flex flex-wrap gap-2 border-t border-border/60 bg-muted/25 px-4 py-3 md:px-8"
-          aria-label="Seções da página"
-        >
-          {[
-            { href: '#painel-indicadores-acidentes', label: 'Indicadores', icon: LayoutDashboard },
-            { href: '#filtros-acidentes', label: 'Filtros', icon: Filter },
-            { href: '#visao-geral-acidentes', label: 'Resumo', icon: BarChart3 },
-            { href: '#taxa-frequencia-acidentes', label: 'Taxa de frequência', icon: TrendingUp },
-            { href: '#registros-acidentes', label: 'Registros', icon: Table2 },
-          ].map(({ href, label, icon: Icon }) => (
-            <a
-              key={href}
-              href={href}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-background/90 px-3 py-1.5 text-xs font-medium text-muted shadow-sm transition hover:border-border hover:text-foreground"
-            >
-              <Icon className="h-3.5 w-3.5 opacity-70" aria-hidden />
-              {label}
-            </a>
-          ))}
-        </nav>
-      </header>
+      </div>
 
-      <section
-        id="painel-indicadores-acidentes"
-        className="scroll-mt-24 space-y-6 rounded-2xl border border-border/80 bg-card p-6 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.04] md:p-8"
-      >
-        <div className="flex flex-col gap-4 border-b border-border/60 pb-6 md:flex-row md:items-end md:justify-between">
-          <div className="flex gap-4">
-            <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300 sm:flex">
-              <BarChart3 className="h-6 w-6" aria-hidden />
-            </div>
-            <div>
-              <h2 className="text-base font-bold tracking-tight text-foreground md:text-lg">
-                Indicadores de acidentes — EMSERH
-              </h2>
-              <p className="mt-2 max-w-3xl text-xs leading-relaxed text-muted md:text-sm">
-                <strong className="text-foreground">Taxa de frequência total EMSERH</strong> e{' '}
-                <strong className="text-foreground">totais por regional</strong> (Norte, Leste, Centro, Sul) são calculados
-                automaticamente a partir da base importada — não há digitação manual desses números nesta tela. Escolha o ano
-                ao lado para consolidar o período.
-              </p>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <label htmlFor="painel-ano" className="text-xs font-semibold uppercase tracking-wide text-muted">
-              Ano de referência
-            </label>
+      <section id="painel-indicadores-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel p-4 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 className="text-lg font-semibold">Indicadores EMSERH</h2>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted">Ano</span>
             <select
               id="painel-ano"
-              className="rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm font-semibold shadow-sm outline-none focus:ring-2 focus:ring-amber-500/30"
+              className="px-3 py-2 rounded bg-card border border-border text-sm min-w-[5.5rem]"
               value={painelAno}
               onChange={(e) => setPainelAno(e.target.value)}
               disabled={painelLoading}
@@ -606,149 +541,100 @@ export default function AcidentesView() {
             </select>
           </div>
         </div>
+        <p className="text-xs text-muted -mt-2">
+          TF e totais por regional vêm da base importada (sem digitação manual aqui).
+        </p>
 
         {painelLoading ? (
-          <div className="flex items-center gap-3 py-10 text-sm font-medium text-muted">
-            <span className="h-5 w-5 animate-pulse rounded-full bg-amber-500/40" aria-hidden />
-            Carregando indicadores do painel…
-          </div>
+          <p className="text-sm text-muted py-4">Carregando indicadores…</p>
         ) : (
-          <div className="space-y-8 text-xs">
-            <div className="grid gap-4 lg:grid-cols-12 lg:items-stretch">
-              <div className="flex flex-col justify-between rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.08] to-transparent p-5 lg:col-span-4">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-900 dark:text-emerald-200/90">
-                    Taxa de frequência — total EMSERH
-                  </p>
-                  <p className="mt-3 text-4xl font-black tabular-nums tracking-tight text-emerald-700 dark:text-emerald-300">
-                    {painelData?.taxaFrequenciaAnualEmserh != null
-                      ? painelData.taxaFrequenciaAnualEmserh.toFixed(2)
-                      : '—'}
-                  </p>
-                </div>
-                <p className="mt-4 text-[11px] leading-relaxed text-muted">
+          <div className="space-y-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+              <div className="rounded-lg border border-border bg-card p-3">
+                <p className="text-[11px] text-muted">Taxa de frequência (ano)</p>
+                <p className="text-2xl font-bold tabular-nums text-text mt-1">
+                  {painelData?.taxaFrequenciaAnualEmserh != null ? painelData.taxaFrequenciaAnualEmserh.toFixed(2) : '—'}
+                </p>
+                <p className="text-[10px] text-muted mt-2">
                   {painelData != null
-                    ? `${painelData.totalAcidentesAno} acidentes registrados no ano selecionado.`
-                    : 'Dados indisponíveis — confira o deploy da rota /api/acidentes/painel-indicadores.'}
-                  {painelData?.fonteAtivosTF === 'alterdata' ? (
-                    <span className="mt-1 block font-medium text-foreground">Ativos (TF): Alterdata</span>
-                  ) : null}
+                    ? `${painelData.totalAcidentesAno} acidentes no ano`
+                    : 'Indicadores indisponíveis.'}
+                  {painelData?.fonteAtivosTF === 'alterdata' ? ' · Ativos TF: Alterdata' : ''}
                 </p>
               </div>
-              <div className="lg:col-span-8">
-                <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-muted">
-                  Números de acidentes EMSERH — por regional
-                </p>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {REGIONALS.map((r) => (
-                    <div
-                      key={`acc-${r}`}
-                      className="rounded-xl border border-border/80 bg-muted/20 p-4 shadow-sm transition hover:border-amber-500/30"
-                    >
-                      <p className="text-[10px] font-bold uppercase leading-tight text-foreground">{r}</p>
-                      <p className="mt-2 text-2xl font-black tabular-nums text-foreground">
-                        {painelData?.acidentesPorRegional?.[r] ?? 0}
-                      </p>
-                    </div>
-                  ))}
+              {REGIONALS.map((r) => (
+                <div key={`acc-${r}`} className="rounded-lg border border-border bg-card p-3">
+                  <p className="text-[11px] text-muted">Acidentes — {r}</p>
+                  <p className="text-xl font-bold tabular-nums text-text mt-1">{painelData?.acidentesPorRegional?.[r] ?? 0}</p>
                 </div>
-              </div>
+              ))}
             </div>
 
-            <div>
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-muted">Acidentes investigados</p>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <div className="rounded-xl border border-amber-500/35 bg-amber-500/[0.09] p-4 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase text-amber-950 dark:text-amber-100">Total EMSERH</p>
-                  <p className="mt-2 text-3xl font-black tabular-nums">{painelData?.investigadosNoAno ?? 0}</p>
+            <p className="text-sm font-semibold text-text pt-1">Investigados</p>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              <div className="rounded-lg border border-border bg-card p-3">
+                <p className="text-[11px] text-muted">Total EMSERH</p>
+                <p className="text-xl font-bold tabular-nums mt-1">{painelData?.investigadosNoAno ?? 0}</p>
+              </div>
+              {REGIONALS.map((r) => (
+                <div key={`inv-${r}`} className="rounded-lg border border-border bg-card p-3">
+                  <p className="text-[11px] text-muted">{r}</p>
+                  <p className="text-lg font-bold tabular-nums mt-1">{painelData?.investigadosPorRegional?.[r] ?? 0}</p>
                 </div>
-                {REGIONALS.map((r) => (
-                  <div key={`inv-${r}`} className="rounded-xl border border-border/80 bg-background p-4 shadow-sm">
-                    <p className="text-[10px] font-bold uppercase text-muted">{r}</p>
-                    <p className="mt-2 text-2xl font-black tabular-nums">{painelData?.investigadosPorRegional?.[r] ?? 0}</p>
+              ))}
+            </div>
+
+            <p className="text-sm font-semibold text-text">Aderência ao plano de ação (%)</p>
+            {painelData?.notaAderencia ? <p className="text-[11px] text-muted mb-2">{painelData.notaAderencia}</p> : null}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              <div className="rounded-lg border border-border bg-card p-3">
+                <p className="text-[11px] text-muted">EMSERH</p>
+                <p className="text-lg font-bold tabular-nums mt-1">
+                  {painelData?.aderenciaPlanoAcaoPercent != null ? `${painelData.aderenciaPlanoAcaoPercent.toFixed(1)}%` : '—'}
+                </p>
+              </div>
+              {REGIONALS.map((r) => {
+                const p = painelData?.aderenciaPorRegional?.[r];
+                return (
+                  <div key={`pa-${r}`} className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] text-muted">{r}</p>
+                    <p className="text-lg font-bold tabular-nums mt-1">{p != null ? `${p.toFixed(0)}%` : '—'}</p>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
 
-            <div className="rounded-xl border border-border/60 bg-muted/15 p-5">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-foreground">
-                % aderência ao plano de ação — investigações
-              </p>
-              {painelData?.notaAderencia ? (
-                <p className="mt-2 text-[11px] leading-relaxed text-muted">{painelData.notaAderencia}</p>
-              ) : null}
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
-                  <p className="text-[10px] font-bold uppercase text-emerald-900 dark:text-emerald-200">% P.A — EMSERH</p>
-                  <p className="mt-2 text-2xl font-black tabular-nums">
-                    {painelData?.aderenciaPlanoAcaoPercent != null
-                      ? `${painelData.aderenciaPlanoAcaoPercent.toFixed(1)}%`
-                      : '—'}
-                  </p>
-                </div>
-                {REGIONALS.map((r) => {
-                  const p = painelData?.aderenciaPorRegional?.[r];
-                  return (
-                    <div key={`pa-${r}`} className="rounded-lg border border-border/70 bg-background p-4">
-                      <p className="text-[10px] font-bold uppercase text-muted">{r}</p>
-                      <p className="mt-2 text-xl font-black tabular-nums">{p != null ? `${p.toFixed(0)}%` : '—'}</p>
-                    </div>
-                  );
-                })}
+            <p className="text-sm font-semibold text-text">Divulgação programas legais (%)</p>
+            {painelData?.notaDivulgacao ? <p className="text-[11px] text-muted mb-2">{painelData.notaDivulgacao}</p> : null}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              <div className="rounded-lg border border-border bg-card p-3">
+                <p className="text-[11px] text-muted">EMSERH</p>
+                <p className="text-lg font-bold tabular-nums mt-1">
+                  {painelData?.unidadesDivulgacaoProgramasLegaisPercent != null
+                    ? `${painelData.unidadesDivulgacaoProgramasLegaisPercent}%`
+                    : '—'}
+                </p>
               </div>
-            </div>
-
-            <div className="rounded-xl border border-dashed border-border/80 bg-background/50 p-5">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-foreground">
-                % unidades — divulgação programas legais
-              </p>
-              {painelData?.notaDivulgacao ? (
-                <p className="mt-2 text-[11px] leading-relaxed text-muted">{painelData.notaDivulgacao}</p>
-              ) : null}
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <div className="rounded-lg border border-dashed border-border bg-muted/25 p-4">
-                  <p className="text-[10px] font-bold uppercase text-muted">Total EMSERH</p>
-                  <p className="mt-2 text-2xl font-black tabular-nums">
-                    {painelData?.unidadesDivulgacaoProgramasLegaisPercent != null
-                      ? `${painelData.unidadesDivulgacaoProgramasLegaisPercent}%`
-                      : '—'}
-                  </p>
-                </div>
-                {REGIONALS.map((r) => {
-                  const v = painelData?.divulgacaoProgramasLegaisPorRegional?.[r];
-                  return (
-                    <div key={`div-${r}`} className="rounded-lg border border-dashed border-border/70 bg-background p-4">
-                      <p className="text-[10px] font-bold uppercase text-muted">{r}</p>
-                      <p className="mt-2 text-xl font-black tabular-nums">{v != null ? `${v}%` : '—'}</p>
-                    </div>
-                  );
-                })}
-              </div>
+              {REGIONALS.map((r) => {
+                const v = painelData?.divulgacaoProgramasLegaisPorRegional?.[r];
+                return (
+                  <div key={`div-${r}`} className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] text-muted">{r}</p>
+                    <p className="text-lg font-bold tabular-nums mt-1">{v != null ? `${v}%` : '—'}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
       </section>
 
-      <section
-        id="filtros-acidentes"
-        className="scroll-mt-24 rounded-2xl border border-border/80 bg-card p-6 shadow-sm md:p-8"
-      >
-        <div className="mb-6 flex flex-col gap-4 border-b border-border/60 pb-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-              <Filter className="h-5 w-5 text-muted-foreground" aria-hidden />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-foreground">Filtros da lista de registros</h2>
-              <p className="mt-1 text-xs text-muted">
-                Refinam os acidentes exibidos na tabela abaixo. O resumo estatístico usa regional e ano conforme seleção.
-              </p>
-            </div>
-          </div>
+      <div id="filtros-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <h2 className="text-lg font-semibold">Filtros</h2>
           <button
             type="button"
-            className="shrink-0 rounded-lg border border-border bg-background px-4 py-2 text-xs font-semibold text-muted transition hover:border-amber-500/40 hover:text-foreground"
+            className="px-2 py-1 text-xs border border-border rounded bg-card text-muted hover:text-text"
             onClick={() => {
               setRegional('');
               setUnidade('');
@@ -761,480 +647,372 @@ export default function AcidentesView() {
               setPage(1);
             }}
           >
-            Limpar filtros
+            Limpar
           </button>
         </div>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Regional</label>
-            <select
-              className={filtroSelectClass}
-              value={regional}
-              onChange={(e) => {
-                setRegional(e.target.value || '');
-                setUnidade('');
-                setPage(1);
-              }}
-            >
-              <option value="">Todas as regionais</option>
-              {REGIONALS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Unidade hospitalar</label>
-            <select
-              className={filtroSelectClass}
-              value={unidade}
-              onChange={(e) => {
-                setUnidade(e.target.value || '');
-                setPage(1);
-              }}
-            >
-              <option value="">Todas as unidades</option>
-              {unidadesDaRegional.map((u) => (
-                <option key={`${u.regional}-${u.unidade}`} value={u.unidade}>
-                  {u.unidade}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Tipo de acidente</label>
-            <select
-              className={filtroSelectClass}
-              value={tipo}
-              onChange={(e) => {
-                setTipo(e.target.value || '');
-                setPage(1);
-              }}
-            >
-              <option value="">Todos os tipos</option>
-              {TIPOS_ACIDENTE.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Status</label>
-            <select
-              className={filtroSelectClass}
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value || '');
-                setPage(1);
-              }}
-            >
-              <option value="">Todos</option>
-              {STATUS_ACIDENTE.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Empresa</label>
-            <select
-              className={filtroSelectClass}
-              value={empresa}
-              onChange={(e) => {
-                setEmpresa(e.target.value || '');
-                setPage(1);
-              }}
-            >
-              <option value="">Todas</option>
-              <option value="IADVH">IADVH</option>
-              <option value="EMSERH">EMSERH</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Ano (lista)</label>
-            <select
-              className={filtroSelectClass}
-              value={ano}
-              onChange={(e) => {
-                setAno(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="todos">Todos os anos</option>
-              {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - i).map((y) => (
-                <option key={y} value={String(y)}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Mês</label>
-            <select
-              className={filtroSelectClass}
-              value={mes}
-              onChange={(e) => {
-                setMes(e.target.value || '');
-                setPage(1);
-              }}
-            >
-              <option value="">Todos os meses</option>
-              {[
-                { value: '1', label: 'Janeiro' },
-                { value: '2', label: 'Fevereiro' },
-                { value: '3', label: 'Março' },
-                { value: '4', label: 'Abril' },
-                { value: '5', label: 'Maio' },
-                { value: '6', label: 'Junho' },
-                { value: '7', label: 'Julho' },
-                { value: '8', label: 'Agosto' },
-                { value: '9', label: 'Setembro' },
-                { value: '10', label: 'Outubro' },
-                { value: '11', label: 'Novembro' },
-                { value: '12', label: 'Dezembro' },
-              ].map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5 sm:col-span-2 lg:col-span-1 xl:col-span-2">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted">Busca textual</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
-              <input
-                type="search"
-                className="w-full rounded-lg border border-border/80 bg-background py-2.5 pl-10 pr-3 text-sm shadow-sm outline-none transition focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20"
-                placeholder="Nome, unidade, CAT…"
-                value={q}
-                onChange={(e) => {
-                  setQ(e.target.value);
-                  setPage(1);
-                }}
-              />
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+          <select
+            className={fieldClass}
+            value={regional}
+            onChange={(e) => {
+              setRegional(e.target.value || '');
+              setUnidade('');
+              setPage(1);
+            }}
+          >
+            <option value="">Todas as regionais</option>
+            {REGIONALS.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+          <select
+            className={fieldClass}
+            value={unidade}
+            onChange={(e) => {
+              setUnidade(e.target.value || '');
+              setPage(1);
+            }}
+          >
+            <option value="">Todas as unidades</option>
+            {unidadesDaRegional.map((u) => (
+              <option key={`${u.regional}-${u.unidade}`} value={u.unidade}>
+                {u.unidade}
+              </option>
+            ))}
+          </select>
+          <select
+            className={fieldClass}
+            value={tipo}
+            onChange={(e) => {
+              setTipo(e.target.value || '');
+              setPage(1);
+            }}
+          >
+            <option value="">Todos os tipos</option>
+            {TIPOS_ACIDENTE.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className={fieldClass}
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value || '');
+              setPage(1);
+            }}
+          >
+            <option value="">Todos os status</option>
+            {STATUS_ACIDENTE.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className={fieldClass}
+            value={empresa}
+            onChange={(e) => {
+              setEmpresa(e.target.value || '');
+              setPage(1);
+            }}
+          >
+            <option value="">Todas empresas</option>
+            <option value="IADVH">IADVH</option>
+            <option value="EMSERH">EMSERH</option>
+          </select>
+          <select
+            className={fieldClass}
+            value={ano}
+            onChange={(e) => {
+              setAno(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="todos">Todos os anos</option>
+            {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+              <option key={y} value={String(y)}>
+                {y}
+              </option>
+            ))}
+          </select>
+          <select
+            className={fieldClass}
+            value={mes}
+            onChange={(e) => {
+              setMes(e.target.value || '');
+              setPage(1);
+            }}
+          >
+            <option value="">Todos os meses</option>
+            {[
+              { value: '1', label: 'Janeiro' },
+              { value: '2', label: 'Fevereiro' },
+              { value: '3', label: 'Março' },
+              { value: '4', label: 'Abril' },
+              { value: '5', label: 'Maio' },
+              { value: '6', label: 'Junho' },
+              { value: '7', label: 'Julho' },
+              { value: '8', label: 'Agosto' },
+              { value: '9', label: 'Setembro' },
+              { value: '10', label: 'Outubro' },
+              { value: '11', label: 'Novembro' },
+              { value: '12', label: 'Dezembro' },
+            ].map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="search"
+            className={fieldClass}
+            placeholder="Buscar nome, unidade, CAT…"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+          />
         </div>
-      </section>
+      </div>
 
-      <div className="space-y-8">
-        <section
-          id="visao-geral-acidentes"
-          className="scroll-mt-24 rounded-2xl border border-border/80 bg-card p-6 shadow-sm md:p-8"
-        >
-          <div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-border/60 pb-5">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-800 dark:text-amber-200">
-                <BarChart3 className="h-5 w-5" aria-hidden />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-foreground">Resumo do período filtrado</h2>
-                <p className="mt-1 text-xs text-muted">
-                  Totais conforme os filtros <strong className="text-foreground">Regional</strong> e <strong className="text-foreground">Ano (lista)</strong> acima.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-xl border border-border/60 bg-muted/10 p-4 md:p-5">
+      <div className="space-y-4">
+        <section id="visao-geral-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel p-4">
+          <h2 className="text-lg font-semibold mb-3">Resumo</h2>
+          <p className="text-xs text-muted mb-3">Conforme filtros regional e ano da lista.</p>
           {statsLoading ? (
-            <p className="text-sm text-muted">Carregando...</p>
+            <p className="text-sm text-muted">Carregando…</p>
           ) : stats ? (
             <>
-            <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
-              <div className="rounded-lg border border-border bg-bg px-3 py-2.5 min-w-[4.5rem] shrink-0 text-left">
-                <p className="text-[11px] uppercase tracking-wide text-muted mb-0.5">Total no Ano</p>
-                <p className="text-[18px] font-bold tabular-nums leading-tight">{stats.totalAno}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-bg px-3 py-2.5 min-w-[4.5rem] shrink-0 text-left">
-                <p className="text-[11px] uppercase tracking-wide text-muted mb-0.5">Total no Mês</p>
-                <p className="text-[18px] font-bold tabular-nums leading-tight">{stats.totalMes}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-bg px-3 py-2.5 min-w-[4.5rem] shrink-0 text-left">
-                <p className="text-[11px] uppercase tracking-wide text-muted mb-0.5">Com Afast.</p>
-                <p className="text-[18px] font-bold text-red-500 dark:text-red-400 tabular-nums leading-tight">{stats.comAfastamento}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-bg px-3 py-2.5 min-w-[4.5rem] shrink-0 text-left">
-                <p className="text-[11px] uppercase tracking-wide text-muted mb-0.5">Sem Afast.</p>
-                <p className="text-[18px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums leading-tight">{stats.semAfastamento}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-bg px-3 py-2.5 min-w-[4.5rem] shrink-0 text-left">
-                <p className="text-[11px] uppercase tracking-wide text-muted mb-0.5">Investigados</p>
-                <p className="text-[18px] font-bold tabular-nums leading-tight">{stats.totalInvestigados ?? 0}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-bg px-3 py-2.5 min-w-0 flex-1 shrink min-w-[10rem]">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Por Regional</p>
-                <div className="flex flex-nowrap gap-x-3 gap-y-0 overflow-x-auto">
-                  {!stats.porRegional?.length ? (
-                    <span className="text-muted">—</span>
-                  ) : (
-                    (stats.porRegional ?? []).map((r) => (
-                      <span key={r.regional} className="flex items-baseline gap-1.5 shrink-0 whitespace-nowrap" title={r.regional}>
-                        <span className="text-[12px] text-foreground truncate max-w-[4rem]">{r.regional}</span>
-                        <span className="text-[14px] font-bold tabular-nums">{r.quantidade}</span>
-                      </span>
-                    ))
-                  )}
+              <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
+                <div className="rounded-lg border border-border bg-card px-3 py-2.5 min-w-[5rem] shrink-0">
+                  <p className="text-[11px] text-muted">Ano</p>
+                  <p className="text-lg font-bold tabular-nums">{stats.totalAno}</p>
                 </div>
-              </div>
-              <div className="rounded-lg border border-border bg-bg px-3 py-2.5 min-w-0 flex-1 shrink min-w-[10rem]">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Por Tipo</p>
-                <div className="flex flex-nowrap gap-x-3 gap-y-0 overflow-x-auto">
-                  {!stats.porTipo?.length ? (
-                    <span className="text-muted">—</span>
-                  ) : (
-                    (stats.porTipo ?? []).map((t) => (
-                      <span key={t.tipo} className="flex items-baseline gap-1.5 shrink-0 whitespace-nowrap" title={TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}>
-                        <span className="text-[12px] text-foreground truncate max-w-[4rem]">{TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}</span>
-                        <span className="text-[14px] font-bold tabular-nums">{t.quantidade}</span>
-                      </span>
-                    ))
-                  )}
+                <div className="rounded-lg border border-border bg-card px-3 py-2.5 min-w-[5rem] shrink-0">
+                  <p className="text-[11px] text-muted">Mês</p>
+                  <p className="text-lg font-bold tabular-nums">{stats.totalMes}</p>
                 </div>
-              </div>
-            </div>
-            {((stats.porRegionalInvestigados?.length ?? 0) > 0 || (stats.porTipoInvestigados?.length ?? 0) > 0) && (
-              <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-border/60 pt-2">
-                <div className="rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1.5 text-[10px]">
-                  <p className="mb-0.5 font-semibold text-amber-700 dark:text-amber-400">Investigados por Regional</p>
-                  <div className="max-h-14 overflow-y-auto">
-                    {(stats.porRegionalInvestigados ?? []).map((r) => (
-                      <div key={r.regional} className="flex justify-between gap-1">
-                        <span className="truncate">{r.regional}</span>
-                        <span className="font-medium">{r.quantidade}</span>
-                      </div>
-                    ))}
+                <div className="rounded-lg border border-border bg-card px-3 py-2.5 min-w-[5rem] shrink-0">
+                  <p className="text-[11px] text-muted">Com afast.</p>
+                  <p className="text-lg font-bold tabular-nums text-red-500 dark:text-red-400">{stats.comAfastamento}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-card px-3 py-2.5 min-w-[5rem] shrink-0">
+                  <p className="text-[11px] text-muted">Sem afast.</p>
+                  <p className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{stats.semAfastamento}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-card px-3 py-2.5 min-w-[5rem] shrink-0">
+                  <p className="text-[11px] text-muted">Investig.</p>
+                  <p className="text-lg font-bold tabular-nums">{stats.totalInvestigados ?? 0}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-card px-3 py-2.5 min-w-[12rem] shrink-0">
+                  <p className="text-[11px] text-muted mb-1">Por regional</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
+                    {!stats.porRegional?.length ? (
+                      <span className="text-muted">—</span>
+                    ) : (
+                      (stats.porRegional ?? []).map((r) => (
+                        <span key={r.regional} className="whitespace-nowrap">
+                          <span className="text-muted">{r.regional}</span>{' '}
+                          <span className="font-semibold tabular-nums">{r.quantidade}</span>
+                        </span>
+                      ))
+                    )}
                   </div>
                 </div>
-                <div className="rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1.5 text-[10px]">
-                  <p className="mb-0.5 font-semibold text-amber-700 dark:text-amber-400">Investigados por Tipo</p>
-                  <div className="max-h-14 overflow-y-auto">
-                    {(stats.porTipoInvestigados ?? []).map((t) => (
-                      <div key={t.tipo} className="flex justify-between gap-1">
-                        <span className="truncate">{TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}</span>
-                        <span className="font-medium">{t.quantidade}</span>
-                      </div>
-                    ))}
+                <div className="rounded-lg border border-border bg-card px-3 py-2.5 min-w-[12rem] shrink-0">
+                  <p className="text-[11px] text-muted mb-1">Por tipo</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
+                    {!stats.porTipo?.length ? (
+                      <span className="text-muted">—</span>
+                    ) : (
+                      (stats.porTipo ?? []).map((t) => (
+                        <span key={t.tipo} className="whitespace-nowrap" title={TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label}>
+                          <span className="text-muted truncate inline-block max-w-[6rem] align-bottom">
+                            {TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}
+                          </span>{' '}
+                          <span className="font-semibold tabular-nums">{t.quantidade}</span>
+                        </span>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
-            )}
+              {((stats.porRegionalInvestigados?.length ?? 0) > 0 || (stats.porTipoInvestigados?.length ?? 0) > 0) && (
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] border-t border-border pt-3">
+                  <div className="rounded-lg border border-border bg-card p-2">
+                    <p className="font-semibold text-text mb-1">Investigados por regional</p>
+                    <div className="space-y-0.5 max-h-24 overflow-y-auto">
+                      {(stats.porRegionalInvestigados ?? []).map((r) => (
+                        <div key={r.regional} className="flex justify-between gap-2">
+                          <span className="truncate text-muted">{r.regional}</span>
+                          <span className="font-medium tabular-nums">{r.quantidade}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-border bg-card p-2">
+                    <p className="font-semibold text-text mb-1">Investigados por tipo</p>
+                    <div className="space-y-0.5 max-h-24 overflow-y-auto">
+                      {(stats.porTipoInvestigados ?? []).map((t) => (
+                        <div key={t.tipo} className="flex justify-between gap-2">
+                          <span className="truncate text-muted">
+                            {TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}
+                          </span>
+                          <span className="font-medium tabular-nums">{t.quantidade}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
-            <p className="text-[10px] text-muted">Nenhuma estatística disponível.</p>
+            <p className="text-xs text-muted">Nenhuma estatística disponível.</p>
           )}
-          </div>
         </section>
 
-        <section
-          id="taxa-frequencia-acidentes"
-          className="scroll-mt-24 space-y-6 rounded-2xl border border-border/80 bg-card p-6 shadow-sm md:p-8"
-        >
-            <div className="flex flex-col gap-4 border-b border-border/60 pb-6 md:flex-row md:items-start md:justify-between">
-              <div className="flex gap-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-800 dark:text-emerald-200">
-                  <TrendingUp className="h-5 w-5" aria-hidden />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-foreground md:text-lg">
-                    Taxa de frequência de acidentes (TF)
-                  </h2>
-                  <p className="mt-2 max-w-3xl text-xs leading-relaxed text-muted md:text-sm">
-                    Indicador mensal a partir do número de acidentes e das horas-homem trabalhadas (HHT). Os colaboradores
-                    ativos podem ser informados por mês; acidentes vêm da base importada.
-                  </p>
-                </div>
-              </div>
-            </div>
+        <section id="taxa-frequencia-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">Taxa de frequência (TF)</h2>
+            <select
+              className="px-3 py-2 rounded bg-card border border-border text-sm min-w-[8rem]"
+              value={tfAno}
+              onChange={(e) => setTfAno(e.target.value)}
+              disabled={tfLoading}
+            >
+              {[
+                ...new Set([
+                  ...tfAnosComDados,
+                  new Date().getFullYear(),
+                  new Date().getFullYear() - 1,
+                  new Date().getFullYear() - 2,
+                  new Date().getFullYear() - 3,
+                  new Date().getFullYear() - 4,
+                ]),
+              ]
+                .filter((y) => !Number.isNaN(y))
+                .sort((a, b) => b - a)
+                .map((y) => (
+                  <option key={y} value={String(y)}>
+                    {y}
+                    {tfAnosComDados.includes(y) ? ' · dados' : ''}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <p className="text-xs text-muted">
+            HHT = ativos × 150 por mês. Acidentes vêm da base. Ativos: preencha ou use Alterdata.
+            {tfLoading ? <span className="ml-2 text-text">Carregando…</span> : null}
+          </p>
+          {tfAnosComDados.length > 0 && (
+            <p className="text-[11px] text-muted">Anos com registros na base: {tfAnosComDados.join(', ')}.</p>
+          )}
 
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <span className="text-xs font-medium text-muted">
-                  Ano de referência
-                  {tfLoading && <span className="ml-2 text-emerald-600">Carregando...</span>}
-                </span>
-                <select
-                  className="rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500/50 min-w-[8rem] disabled:opacity-70"
-                  value={tfAno}
-                  onChange={(e) => setTfAno(e.target.value)}
-                  disabled={tfLoading}
-                >
-                  {[
-                    ...new Set([
-                      ...tfAnosComDados,
-                      new Date().getFullYear(),
-                      new Date().getFullYear() - 1,
-                      new Date().getFullYear() - 2,
-                      new Date().getFullYear() - 3,
-                      new Date().getFullYear() - 4,
-                    ]),
-                  ]
-                    .filter((y) => !Number.isNaN(y))
-                    .sort((a, b) => b - a)
-                    .map((y) => (
-                      <option key={y} value={String(y)}>
-                        {y}
-                        {tfAnosComDados.includes(y) ? ' (com dados)' : ''}
-                      </option>
-                    ))}
-                </select>
-              </div>
-              {tfAnosComDados.length > 0 && (
-                <p className="text-xs text-muted">
-                  Anos com acidentes na base: {tfAnosComDados.join(', ')}. Selecione o ano para ver Nº de Acidentes e TF por mês.
-                </p>
-              )}
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="min-w-[56rem] w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-border bg-card/10">
+                  <th className="px-2 py-2 text-left text-muted font-medium w-36 sticky left-0 bg-card/10 z-[1]">Indicador</th>
+                  {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((nome) => (
+                    <th key={nome} className="px-1 py-2 text-center text-muted font-medium min-w-[3.25rem]">
+                      {nome}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t border-border">
+                  <td className="px-2 py-1.5 text-muted sticky left-0 bg-panel z-[1]">
+                    Colab. ativos
+                    {tfFonteAtivos === 'alterdata' ? <span className="block text-[10px] text-emerald-600">Alterdata</span> : null}
+                  </td>
+                  {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((m) => {
+                    const linha = tfMeses[m];
+                    return (
+                      <td key={m} className="px-0.5 py-1">
+                        <input
+                          type="number"
+                          min={0}
+                          className="w-full min-w-[2.75rem] px-1 py-1.5 rounded border border-border bg-card text-center tabular-nums text-xs"
+                          placeholder="0"
+                          value={linha?.ativos ?? ''}
+                          onChange={(e) => {
+                            const ativos = e.target.value;
+                            const ativosNum = parseInt(ativos, 10);
+                            const hht = Number.isNaN(ativosNum) || ativosNum < 0 ? 0 : ativosNum * 150;
+                            const acidentes = parseInt(linha?.accidentes ?? '0', 10) || 0;
+                            const tf = hht > 0 ? ((acidentes * 1_000_000) / hht).toFixed(2) : '--';
+                            setTfMeses((prev) => ({
+                              ...prev,
+                              [m]: {
+                                ...(prev[m] || { ativos: '', accidentes: '', horas: '', tf: '--' }),
+                                ativos,
+                                accidentes: String(linha?.accidentes ?? prev[m]?.accidentes ?? '0'),
+                                horas: String(hht),
+                                tf,
+                              },
+                            }));
+                          }}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr className="border-t border-border">
+                  <td className="px-2 py-1.5 text-muted sticky left-0 bg-panel z-[1]">HHT</td>
+                  {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((m) => {
+                    const linha = tfMeses[m];
+                    const horasNum = parseInt(linha?.horas ?? '', 10);
+                    const horasStr = Number.isNaN(horasNum) ? '—' : horasNum.toLocaleString('pt-BR');
+                    return (
+                      <td key={m} className="px-1 py-1.5 text-center tabular-nums text-text">
+                        {horasStr}
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr className="border-t border-border">
+                  <td className="px-2 py-1.5 text-muted sticky left-0 bg-panel z-[1]">Nº acidentes</td>
+                  {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((m) => {
+                    const linha = tfMeses[m];
+                    const acc = linha?.accidentes ?? '0';
+                    const n = parseInt(acc, 10);
+                    const accStr = Number.isNaN(n) ? '0' : n.toLocaleString('pt-BR');
+                    return (
+                      <td key={m} className="px-1 py-1.5 text-center tabular-nums font-medium">
+                        {accStr}
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr className="border-t border-border">
+                  <td className="px-2 py-1.5 text-muted sticky left-0 bg-panel z-[1]">TF</td>
+                  {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((m) => {
+                    const linha = tfMeses[m];
+                    return (
+                      <td key={m} className="px-1 py-1.5 text-center tabular-nums">
+                        {linha?.tf && linha.tf !== '--'
+                          ? Number(linha.tf).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          : '—'}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-              <div className="space-y-3 overflow-x-auto rounded-xl border border-border/80 bg-muted/20 p-5">
-                <div className="flex items-center gap-3 px-0.5">
-                  <span className="w-40 shrink-0 text-xs font-semibold uppercase tracking-wide text-muted">
-                    Mês
-                  </span>
-                  <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
-                    {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((nome) => (
-                      <div
-                        key={nome}
-                        className="min-w-[3rem] rounded-lg bg-muted/40 py-2 flex items-center justify-center text-xs font-semibold text-muted"
-                      >
-                        {nome}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <span className="w-40 shrink-0 text-xs font-medium text-muted">
-                      Colaboradores ativos
-                      {tfFonteAtivos === 'alterdata' && (
-                        <span className="ml-1 text-emerald-600 dark:text-emerald-400" title="Contagem automática">
-                          (Alterdata)
-                        </span>
-                      )}
-                    </span>
-                    <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
-                      {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
-                        (m) => {
-                          const linha = tfMeses[m];
-                          return (
-                            <input
-                              key={m}
-                              type="number"
-                              min={0}
-                              className="min-w-[3rem] rounded-lg border border-border bg-card px-2 py-2 text-sm text-center tabular-nums outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
-                              placeholder="0"
-                              value={linha?.ativos ?? ''}
-                              onChange={(e) => {
-                                const ativos = e.target.value;
-                                const ativosNum = parseInt(ativos, 10);
-                                const hht = Number.isNaN(ativosNum) || ativosNum < 0 ? 0 : ativosNum * 150;
-                                const acidentes = parseInt(linha?.accidentes ?? '0', 10) || 0;
-                                const tf = hht > 0 ? ((acidentes * 1_000_000) / hht).toFixed(2) : '--';
-                                setTfMeses((prev) => ({
-                                  ...prev,
-                                  [m]: {
-                                    ...(prev[m] || { ativos: '', accidentes: '', horas: '', tf: '--' }),
-                                    ativos,
-                                    accidentes: String(linha?.accidentes ?? prev[m]?.accidentes ?? '0'),
-                                    horas: String(hht),
-                                    tf,
-                                  },
-                                }));
-                              }}
-                            />
-                          );
-                        },
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="w-40 shrink-0 text-xs font-medium text-muted">
-                      HHT (ativos × 150)
-                    </span>
-                    <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
-                      {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
-                        (m) => {
-                          const linha = tfMeses[m];
-                          const horasNum = parseInt(linha?.horas ?? '', 10);
-                          const horasStr = Number.isNaN(horasNum) ? '--' : horasNum.toLocaleString('pt-BR');
-                          return (
-                            <div
-                              key={m}
-                              className="min-w-[3rem] rounded-lg border border-border bg-panel/60 px-2 py-2 flex items-center justify-center text-sm tabular-nums text-foreground"
-                            >
-                              {horasStr}
-                            </div>
-                          );
-                        },
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="w-40 shrink-0 text-xs font-medium text-muted">
-                      Nº de Acidentes
-                    </span>
-                    <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
-                      {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
-                        (m) => {
-                          const linha = tfMeses[m];
-                          const acc = linha?.accidentes ?? '0';
-                          const n = parseInt(acc, 10);
-                          const accStr = Number.isNaN(n) ? '0' : n.toLocaleString('pt-BR');
-                          return (
-                            <div
-                              key={m}
-                              className="min-w-[3rem] rounded-lg border border-border bg-card px-2 py-2 flex items-center justify-center text-sm tabular-nums text-foreground"
-                            >
-                              {accStr}
-                            </div>
-                          );
-                        },
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="w-40 shrink-0 text-xs font-medium text-muted">
-                      TF (por milhão de horas)
-                    </span>
-                    <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
-                      {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
-                        (m) => {
-                          const linha = tfMeses[m];
-                          return (
-                            <div
-                              key={m}
-                              className="min-w-[3rem] rounded-lg border border-border bg-panel/60 px-2 py-2 flex items-center justify-center text-sm tabular-nums text-foreground"
-                            >
-                              {linha?.tf && linha.tf !== '--'
-                                ? Number(linha.tf).toLocaleString('pt-BR', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2,
-                                  })
-                                : '--'}
-                            </div>
-                          );
-                        },
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-4 pt-4 border-t border-border mt-4 flex-wrap">
-              <p className="text-xs text-muted">
-                Salve os ativos por mês para que o HHT e a TF sejam calculados automaticamente.
-              </p>
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border">
+              <p className="text-xs text-muted">Salve os ativos do ano para persistir e recalcular a TF.</p>
               <button
                 type="button"
                 disabled={tfSavingAtivos}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
                 onClick={async () => {
                   try {
                     setTfSavingAtivos(true);
@@ -1284,112 +1062,62 @@ export default function AcidentesView() {
 
       </div>
 
-      <section
-        id="registros-acidentes"
-        className="scroll-mt-24 rounded-2xl border border-border/80 bg-card shadow-sm"
-      >
-        <div className="flex flex-col gap-4 border-b border-border/60 p-6 md:flex-row md:items-center md:justify-between md:p-8">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-              <Table2 className="h-5 w-5 text-muted-foreground" aria-hidden />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-foreground md:text-lg">Registros de acidentes</h2>
-              <p className="mt-1 text-xs text-muted">
-                Base importada · {listRangeLabel}
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="rounded-full border border-border/80 bg-muted/40 px-3 py-1.5 font-semibold tabular-nums text-foreground">
-              {total.toLocaleString('pt-BR')} no filtro
-            </span>
-            <span className="text-muted">
-              Página {page} / {totalPages}
-            </span>
-          </div>
+      <section id="registros-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel">
+        <div className="p-4 border-b border-border">
+          <h2 className="text-lg font-semibold">Registros</h2>
+          <p className="text-xs text-muted mt-1">
+            {listRangeLabel} · Total no filtro: <span className="font-semibold text-text">{total.toLocaleString('pt-BR')}</span>
+          </p>
         </div>
-
-        <div className="overflow-x-auto px-2 pb-2 md:px-4">
-          <table className="min-w-[72rem] w-full border-collapse text-left text-[11px] md:min-w-full">
-            <thead className="sticky top-0 z-10 border-b border-border/80 bg-card/95 text-[10px] font-semibold uppercase tracking-wider text-muted backdrop-blur-sm">
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-[11px]">
+            <thead className="bg-card/10">
               <tr>
-                <th className="w-10 px-2 py-3 text-center" scope="col" aria-label="Expandir" />
-                <th className="min-w-[9rem] px-3 py-3" scope="col">
-                  Trabalhador
-                </th>
-                <th className="px-2 py-3 text-center" scope="col">
-                  Empresa
-                </th>
-                <th className="min-w-[10rem] px-3 py-3" scope="col">
-                  Unidade
-                </th>
-                <th className="min-w-[8rem] px-3 py-3" scope="col">
-                  Tipo
-                </th>
-                <th className="px-2 py-3 text-center" scope="col">
-                  Afast.
-                </th>
-                <th className="px-2 py-3 text-center whitespace-nowrap" scope="col">
-                  Data
-                </th>
-                <th className="px-2 py-3 text-center" scope="col">
-                  Hora
-                </th>
-                <th className="px-2 py-3 text-center" scope="col">
-                  Mês
-                </th>
-                <th className="min-w-[6rem] px-2 py-3 text-center font-mono text-[9px]" scope="col">
-                  CAT
-                </th>
-                <th className="px-2 py-3 text-center" scope="col">
-                  RIAT
-                </th>
-                <th className="px-2 py-3 text-center" scope="col">
-                  SINAN
-                </th>
-                <th className="px-2 py-3 text-center" scope="col">
-                  Status
-                </th>
-                <th className="min-w-[7rem] px-3 py-3 text-center" scope="col">
-                  Ações
-                </th>
+                <th className="px-2 py-2 text-center w-8" aria-label="Expandir" />
+                <th className="px-3 py-2 text-left">Nome</th>
+                <th className="px-3 py-2 text-left">Empresa</th>
+                <th className="px-3 py-2 text-left">Unidade</th>
+                <th className="px-3 py-2 text-left">Tipo</th>
+                <th className="px-3 py-2 text-center">Afastamento</th>
+                <th className="px-3 py-2 text-center">Data</th>
+                <th className="px-3 py-2 text-center">Hora</th>
+                <th className="px-3 py-2 text-center">Mês</th>
+                <th className="px-3 py-2 text-center">CAT</th>
+                <th className="px-3 py-2 text-center">RIAT</th>
+                <th className="px-3 py-2 text-center">SINAN</th>
+                <th className="px-3 py-2 text-center">Status</th>
+                <th className="px-3 py-2 text-center">Ações</th>
               </tr>
             </thead>
-              <tbody className="divide-y divide-border/50">
+            <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={14} className="px-6 py-16 text-center">
-                      <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
-                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" aria-hidden />
-                        <p className="text-sm font-medium text-muted">Carregando registros…</p>
-                      </div>
+                    <td colSpan={14} className="px-3 py-8 text-center text-muted">
+                      Carregando…
                     </td>
                   </tr>
                 )}
                 {!loading && rows.length === 0 && (
                   <tr>
-                    <td colSpan={14} className="px-6 py-16 text-center">
+                    <td colSpan={14} className="px-3 py-8 text-center">
                       {listError ? (
-                        <div className="mx-auto max-w-md rounded-xl border border-destructive/30 bg-destructive/5 p-6">
-                          <p className="text-sm font-medium text-destructive">{listError}</p>
+                        <>
+                          <p className="text-sm text-red-400">{listError}</p>
                           <button
                             type="button"
-                            className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
+                            className="mt-2 px-3 py-1.5 text-xs border border-border rounded bg-card"
                             onClick={() => setListKey((k) => k + 1)}
                           >
-                            Tentar novamente
+                            Recarregar
                           </button>
-                        </div>
+                        </>
                       ) : (
-                        <div className="mx-auto max-w-md text-muted">
-                          <p className="text-sm font-medium text-foreground">Nenhum acidente encontrado com estes filtros.</p>
+                        <>
+                          <p className="text-muted">Nenhum acidente encontrado.</p>
                           {total === 0 && (
-                            <p className="mt-3 text-xs leading-relaxed">
-                              Experimente <strong className="text-foreground">Todos os anos</strong> no filtro de ano ou limpe os filtros.
-                            </p>
+                            <p className="mt-2 text-[11px] text-muted">Tente «Todos os anos» no filtro.</p>
                           )}
-                        </div>
+                        </>
                       )}
                     </td>
                   </tr>
@@ -1399,117 +1127,107 @@ export default function AcidentesView() {
                     const isExpanded = expandedRows.has(row.id);
                     return (
                       <React.Fragment key={row.id}>
-                        <tr className="transition-colors hover:bg-muted/25">
-                          <td className="px-2 py-2.5 text-center align-middle">
+                        <tr className="border-t border-border hover:bg-card/10">
+                          <td className="px-2 py-2 text-center">
                             <button
                               type="button"
                               onClick={() => toggleExpand(row.id)}
-                              className="inline-flex rounded-md p-1 text-muted transition hover:bg-muted hover:text-foreground"
+                              className="text-muted hover:text-text p-0.5"
                               aria-expanded={isExpanded}
-                              title={isExpanded ? 'Recolher detalhes' : 'Ver detalhes resumidos'}
                             >
                               {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </button>
                           </td>
-                          <td className="px-3 py-2.5 align-middle font-medium text-foreground">{row.nome}</td>
-                          <td className="px-2 py-2.5 text-center align-middle">
-                            <span className="inline-flex rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                              {row.empresa}
-                            </span>
-                          </td>
-                          <td className="max-w-[14rem] truncate px-3 py-2.5 align-middle text-muted" title={row.unidadeHospitalar}>
+                          <td className="px-3 py-2">{row.nome}</td>
+                          <td className="px-3 py-2">{row.empresa}</td>
+                          <td className="px-3 py-2 max-w-[14rem] truncate" title={row.unidadeHospitalar}>
                             {row.unidadeHospitalar}
                           </td>
-                          <td className="max-w-[12rem] px-3 py-2.5 align-middle text-[10px] leading-snug text-muted">
+                          <td className="px-3 py-2 text-[10px] leading-snug">
                             {TIPOS_ACIDENTE.find((t) => t.value === row.tipo)?.label || row.tipo}
                           </td>
-                          <td className="px-2 py-2.5 text-center align-middle">
+                          <td className="px-3 py-2 text-center">
                             {row.comAfastamento ? (
-                              <span className="inline-flex rounded-md bg-red-500/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-red-700 ring-1 ring-red-500/25 dark:text-red-300">
-                                Com afast.
+                              <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-medium text-white dark:bg-red-900/40 dark:text-red-100">
+                                Com afastamento
                               </span>
                             ) : (
-                              <span className="inline-flex rounded-md bg-emerald-500/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-500/25 dark:text-emerald-300">
-                                Sem afast.
+                              <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-medium text-white dark:bg-emerald-900/40 dark:text-emerald-100">
+                                Sem afastamento
                               </span>
                             )}
                           </td>
-                          <td className="whitespace-nowrap px-2 py-2.5 text-center align-middle tabular-nums text-muted">
-                            {formatDate(row.data)}
-                          </td>
-                          <td className="px-2 py-2.5 text-center align-middle tabular-nums text-muted">{row.hora || '—'}</td>
-                          <td className="px-2 py-2.5 text-center align-middle text-muted">
+                          <td className="px-3 py-2 text-center tabular-nums">{formatDate(row.data)}</td>
+                          <td className="px-3 py-2 text-center">{row.hora || '-'}</td>
+                          <td className="px-3 py-2 text-center">
                             {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][row.mes - 1]}
                           </td>
-                          <td className="px-2 py-2.5 text-center align-middle font-mono text-[10px] text-muted">{row.numeroCAT || '—'}</td>
-                          <td className="max-w-[5rem] truncate px-2 py-2.5 text-center align-middle text-muted" title={row.riat || undefined}>
-                            {row.riat || '—'}
+                          <td className="px-3 py-2 text-center font-mono text-[10px]">{row.numeroCAT || '-'}</td>
+                          <td className="px-3 py-2 text-center truncate max-w-[4rem]" title={row.riat || undefined}>
+                            {row.riat || '-'}
                           </td>
-                          <td className="max-w-[5rem] truncate px-2 py-2.5 text-center align-middle text-muted" title={row.sinan || undefined}>
-                            {row.sinan || '—'}
+                          <td className="px-3 py-2 text-center truncate max-w-[4rem]" title={row.sinan || undefined}>
+                            {row.sinan || '-'}
                           </td>
-                          <td className="px-2 py-2.5 text-center align-middle">
+                          <td className="px-3 py-2 text-center">
                             <span
-                              className={`inline-flex rounded-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ${
+                              className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
                                 row.status === 'concluido'
-                                  ? 'bg-emerald-500/15 text-emerald-800 ring-emerald-500/30 dark:text-emerald-300'
+                                  ? 'bg-emerald-500 text-white dark:bg-emerald-900/40 dark:text-emerald-100'
                                   : row.status === 'cancelado'
-                                  ? 'bg-neutral-500/15 text-neutral-700 ring-neutral-500/25 dark:text-neutral-300'
+                                  ? 'bg-neutral-600 text-white dark:bg-neutral-900/40 dark:text-neutral-100'
                                   : row.status === 'em_analise'
-                                  ? 'bg-amber-500/15 text-amber-900 ring-amber-500/30 dark:text-amber-200'
-                                  : 'bg-sky-500/15 text-sky-900 ring-sky-500/30 dark:text-sky-200'
+                                  ? 'bg-amber-500 text-white dark:bg-amber-900/40 dark:text-amber-100'
+                                  : 'bg-blue-500 text-white dark:bg-blue-900/40 dark:text-blue-100'
                               }`}
                             >
                               {STATUS_ACIDENTE.find((s) => s.value === row.status)?.label || row.status}
                             </span>
                           </td>
-                          <td className="px-3 py-2.5 text-center align-middle">
-                            <div className="flex flex-col items-center gap-1 sm:flex-row sm:justify-center">
+                          <td className="px-3 py-2 text-center">
+                            <div className="inline-flex items-center gap-1 flex-wrap justify-center">
                               {row.hasInvestigacao && (
-                                <span
-                                  className="rounded-md bg-emerald-600/90 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-white shadow-sm"
-                                  title="Investigação registrada"
-                                >
-                                  RIAT
+                                <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-[9px] font-medium text-white" title="Investigação">
+                                  OK
                                 </span>
                               )}
                               <button
                                 type="button"
                                 onClick={() => openInvestigacao(row)}
-                                className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-amber-500"
+                                className="inline-flex items-center gap-1 rounded bg-amber-600 px-2 py-1.5 text-[10px] font-semibold text-white hover:bg-amber-500"
                               >
-                                <FileSpreadsheet className="h-3 w-3 opacity-90" aria-hidden />
-                                {row.hasInvestigacao ? 'Ver' : 'Investigar'}
+                                <FileSpreadsheet className="h-3 w-3" aria-hidden />
+                                {row.hasInvestigacao ? 'Ver/Editar' : 'Investigar'}
                               </button>
                             </div>
                           </td>
                         </tr>
                         {isExpanded && (
-                          <tr className="bg-muted/20">
-                            <td colSpan={14} className="border-t border-border/50 px-4 py-3">
-                              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px]">
-                                <span className="text-muted">
-                                  <span className="font-semibold text-foreground">Data/Hora: </span>
+                          <tr className="bg-card/5">
+                            <td colSpan={14} className="px-4 py-2 border-t border-border">
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
+                                <span>
+                                  <span className="font-medium text-text">Data/Hora: </span>
                                   {formatDate(row.data)} {row.hora || ''}
                                 </span>
-                                <span className="text-muted">
-                                  <span className="font-semibold text-foreground">Unidade: </span>
+                                <span>
+                                  <span className="font-medium text-text">Unidade: </span>
                                   {row.unidadeHospitalar}
                                 </span>
-                                <span className="text-muted">
-                                  <span className="font-semibold text-foreground">Regional: </span>
+                                <span>
+                                  <span className="font-medium text-text">Regional: </span>
                                   {row.regional || '—'}
                                 </span>
-                                <span className="text-muted">
-                                  <span className="font-semibold text-foreground">Função: </span>
+                                <span>
+                                  <span className="font-medium text-text">Função: </span>
                                   {row.funcaoTrabalhador || '—'}
                                 </span>
-                                <span className="text-muted">
-                                  <span className="font-semibold text-foreground">CAT: </span>
+                                <span>
+                                  <span className="font-medium text-text">CAT: </span>
                                   {row.numeroCAT || '—'}
                                 </span>
-                                <span className="mt-1 w-full text-[10px] italic text-muted sm:mt-0 sm:w-auto">
-                                  Detalhamento completo (descrição, causas, plano de ação): preencha a RIAT em Excel e anexe o link em Investigar.
+                                <span className="w-full text-[10px] italic sm:w-auto">
+                                  RIAT em Excel: use Investigar para modelo e link.
                                 </span>
                               </div>
                             </td>
@@ -1518,33 +1236,30 @@ export default function AcidentesView() {
                       </React.Fragment>
                     );
                   })}
-              </tbody>
-            </table>
+            </tbody>
+          </table>
         </div>
-
-        <div className="flex flex-col gap-3 border-t border-border/60 bg-muted/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-8">
-          <p className="text-xs text-muted">{listRangeLabel}</p>
-          <div className="inline-flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 p-3 text-xs text-text border-t border-border">
+          <span className="text-muted">{listRangeLabel}</span>
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              className="inline-flex items-center gap-1 rounded-lg border border-border/80 bg-background px-3 py-2 text-xs font-semibold shadow-sm transition hover:border-amber-500/40 disabled:pointer-events-none disabled:opacity-40"
+              className="px-2 py-1 border border-border rounded disabled:opacity-40 bg-card"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
             >
-              <ChevronLeft className="h-4 w-4" aria-hidden />
               Anterior
             </button>
-            <span className="px-2 text-xs font-medium tabular-nums text-muted">
-              {page} / {totalPages}
+            <span>
+              Página {page} / {totalPages}
             </span>
             <button
               type="button"
-              className="inline-flex items-center gap-1 rounded-lg border border-border/80 bg-background px-3 py-2 text-xs font-semibold shadow-sm transition hover:border-amber-500/40 disabled:pointer-events-none disabled:opacity-40"
+              className="px-2 py-1 border border-border rounded disabled:opacity-40 bg-card"
               onClick={() => setPage((p) => (p < totalPages ? p + 1 : p))}
               disabled={page >= totalPages}
             >
               Próxima
-              <ChevronRight className="h-4 w-4" aria-hidden />
             </button>
           </div>
         </div>
@@ -1553,29 +1268,25 @@ export default function AcidentesView() {
       {investigacaoRow && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={closeInvestigacao} aria-hidden />
-          <div className="relative flex h-full w-full max-w-xl flex-col overflow-hidden border-l border-border/80 bg-card shadow-2xl md:max-w-2xl">
-            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border/80 bg-gradient-to-r from-amber-500/10 via-card to-card px-5 py-4">
+          <div className="relative flex h-full w-full max-w-xl flex-col overflow-hidden border-l border-border bg-panel shadow-xl md:max-w-2xl">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-panel px-4 py-3">
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-800 dark:text-amber-300">
-                  Investigação SST
-                </p>
-                <h2 className="mt-1 truncate text-base font-bold text-foreground">RIAT, CAT e SINAN</h2>
-                <p className="mt-0.5 truncate text-xs text-muted">{investigacaoRow.nome}</p>
+                <h2 className="text-sm font-semibold text-text truncate">Investigação (RIAT, CAT, SINAN)</h2>
+                <p className="text-xs text-muted truncate">{investigacaoRow.nome}</p>
               </div>
               <button
                 type="button"
                 onClick={closeInvestigacao}
-                className="shrink-0 rounded-lg border border-border/80 bg-background p-2 text-muted transition hover:bg-muted hover:text-foreground"
-                aria-label="Fechar painel"
+                className="shrink-0 rounded-lg border border-border bg-card p-2 text-muted hover:bg-card/80"
+                aria-label="Fechar"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="flex-1 space-y-6 overflow-y-auto p-5 text-xs md:p-6">
-              <section className="rounded-xl border border-border/80 bg-muted/20 p-4 md:p-5">
-                <h3 className="mb-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-muted">
-                  <ClipboardList className="h-4 w-4" aria-hidden />
-                  Dados do acidente (leitura)
+              <section className="rounded-xl border border-border bg-card p-4">
+                <h3 className="mb-3 text-xs font-semibold text-muted uppercase tracking-wide">
+                  Dados do acidente
                 </h3>
                 <dl className="grid gap-3 sm:grid-cols-2">
                   {[
@@ -1591,20 +1302,17 @@ export default function AcidentesView() {
                   ].map(([k, v]) => (
                     <div key={String(k)} className="min-w-0">
                       <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted">{k}</dt>
-                      <dd className="mt-0.5 break-words text-sm text-foreground">{v}</dd>
+                      <dd className="mt-0.5 break-words text-sm text-text">{v}</dd>
                     </div>
                   ))}
                 </dl>
               </section>
 
-              <section className="space-y-4 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-4 md:p-5 dark:bg-amber-950/20">
+              <section className="space-y-4 rounded-xl border border-border bg-panel p-4">
                 <div>
-                  <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-amber-950 dark:text-amber-200">
-                    <FileSpreadsheet className="h-4 w-4" aria-hidden />
-                    Documentos e status
-                  </h3>
-                  <p className="mt-2 text-[11px] leading-relaxed text-muted">
-                    Informe o <strong className="text-foreground">link</strong> de cada arquivo (Google Drive, OneDrive ou URL direta) e, se quiser, um nome para exibição.
+                  <h3 className="text-xs font-semibold text-text">Documentos e status</h3>
+                  <p className="mt-1 text-[11px] text-muted leading-relaxed">
+                    Informe o <strong className="text-text">link</strong> de cada arquivo (Drive, OneDrive ou URL) e o nome opcional.
                   </p>
                 </div>
                 {investigacaoLoading ? (
@@ -1613,7 +1321,7 @@ export default function AcidentesView() {
                   <>
                     <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-background/80 p-4">
                       <p className="text-[11px] leading-relaxed text-muted">
-                        Baixe o modelo RIAT <strong className="text-foreground">em branco</strong>. Na primeira investigação o
+                        Baixe o modelo RIAT <strong className="text-text">em branco</strong>. Na primeira investigação o
                         download pode iniciar automaticamente; use o botão para baixar novamente. Depois de preencher, envie à
                         pasta do Drive e cole o link no campo RIAT.
                       </p>
@@ -1648,7 +1356,7 @@ export default function AcidentesView() {
                       <select
                         value={investigacaoForm.statusInvestigacao}
                         onChange={(e) => setInvestigacaoForm((f) => ({ ...f, statusInvestigacao: e.target.value }))}
-                        className="w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm shadow-sm outline-none focus:ring-2 focus:ring-amber-500/25"
+                        className="w-full rounded border border-border bg-card px-3 py-2 text-sm outline-none"
                       >
                         <option value="">Selecione</option>
                         <option value="em_andamento">Em andamento</option>
@@ -1657,21 +1365,21 @@ export default function AcidentesView() {
                     </div>
 
                     <div className="grid gap-4">
-                      <div className="space-y-2 rounded-xl border border-border/80 bg-background p-4 shadow-sm">
-                        <span className="text-xs font-bold text-foreground">RIAT</span>
+                      <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+                        <span className="text-xs font-semibold text-text">RIAT</span>
                         <input
                           type="url"
                           placeholder="https://… (link do arquivo)"
                           value={investigacaoForm.riatUrl}
                           onChange={(e) => setInvestigacaoForm((f) => ({ ...f, riatUrl: e.target.value }))}
-                          className="w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                          className={fieldClass}
                         />
                         <input
                           type="text"
                           placeholder="Nome do arquivo (opcional)"
                           value={investigacaoForm.riatNome}
                           onChange={(e) => setInvestigacaoForm((f) => ({ ...f, riatNome: e.target.value }))}
-                          className="w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                          className={fieldClass}
                         />
                         {investigacaoForm.riatUrl && (
                           <a href={investigacaoForm.riatUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline">
@@ -1679,21 +1387,21 @@ export default function AcidentesView() {
                           </a>
                         )}
                       </div>
-                      <div className="space-y-2 rounded-xl border border-border/80 bg-background p-4 shadow-sm">
-                        <span className="text-xs font-bold text-foreground">CAT</span>
+                      <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+                        <span className="text-xs font-semibold text-text">CAT</span>
                         <input
                           type="url"
                           placeholder="https://… (link do arquivo)"
                           value={investigacaoForm.catUrl}
                           onChange={(e) => setInvestigacaoForm((f) => ({ ...f, catUrl: e.target.value }))}
-                          className="w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                          className={fieldClass}
                         />
                         <input
                           type="text"
                           placeholder="Nome do arquivo (opcional)"
                           value={investigacaoForm.catNome}
                           onChange={(e) => setInvestigacaoForm((f) => ({ ...f, catNome: e.target.value }))}
-                          className="w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                          className={fieldClass}
                         />
                         {investigacaoForm.catUrl && (
                           <a href={investigacaoForm.catUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline">
@@ -1701,21 +1409,21 @@ export default function AcidentesView() {
                           </a>
                         )}
                       </div>
-                      <div className="space-y-2 rounded-xl border border-border/80 bg-background p-4 shadow-sm">
-                        <span className="text-xs font-bold text-foreground">SINAN</span>
+                      <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+                        <span className="text-xs font-semibold text-text">SINAN</span>
                         <input
                           type="url"
                           placeholder="https://… (link do arquivo)"
                           value={investigacaoForm.sinanUrl}
                           onChange={(e) => setInvestigacaoForm((f) => ({ ...f, sinanUrl: e.target.value }))}
-                          className="w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                          className={fieldClass}
                         />
                         <input
                           type="text"
                           placeholder="Nome do arquivo (opcional)"
                           value={investigacaoForm.sinanNome}
                           onChange={(e) => setInvestigacaoForm((f) => ({ ...f, sinanNome: e.target.value }))}
-                          className="w-full rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                          className={fieldClass}
                         />
                         {investigacaoForm.sinanUrl && (
                           <a href={investigacaoForm.sinanUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline">
@@ -1733,7 +1441,7 @@ export default function AcidentesView() {
                         placeholder="Conclusões, medidas, pendências…"
                         value={investigacaoForm.observacoes}
                         onChange={(e) => setInvestigacaoForm((f) => ({ ...f, observacoes: e.target.value }))}
-                        className="w-full min-h-[100px] rounded-lg border border-border/80 bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                        className="w-full min-h-[100px] px-3 py-2 rounded border border-border bg-card text-sm outline-none"
                         rows={4}
                       />
                     </div>
@@ -1742,7 +1450,7 @@ export default function AcidentesView() {
                       <button
                         type="button"
                         onClick={closeInvestigacao}
-                        className="rounded-lg border border-border/80 bg-background px-4 py-2.5 text-xs font-semibold shadow-sm transition hover:bg-muted"
+                        className="rounded border border-border bg-card px-4 py-2 text-xs font-medium hover:bg-card/80"
                       >
                         Cancelar
                       </button>
