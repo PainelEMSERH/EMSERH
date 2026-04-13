@@ -21,8 +21,11 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const ano = parseInt(url.searchParams.get('ano') || String(new Date().getFullYear()), 10);
-    if (Number.isNaN(ano) || ano < 2000) {
-      return NextResponse.json({ ok: false, error: 'Ano inválido' }, { status: 400 });
+    if (Number.isNaN(ano) || ano < 2026) {
+      return NextResponse.json(
+        { ok: false, error: 'Indicadores disponíveis a partir de 2026.' },
+        { status: 400 }
+      );
     }
 
     const { registros, fonteAtivos } = await getTaxaFrequenciaRegistros(ano, '');

@@ -2,14 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { REGIONALS } from '@/lib/unidReg';
-import {
-  ChevronDown,
-  ChevronUp,
-  ClipboardList,
-  FileSpreadsheet,
-  FolderOpen,
-  X,
-} from 'lucide-react';
+import { ChevronDown, ChevronUp, FileSpreadsheet, FolderOpen, X } from 'lucide-react';
 
 type AcidenteRow = {
   id: string;
@@ -130,6 +123,29 @@ const LS_REGIONAL_KEY = 'acidentes:regional';
 const RIAT_GOOGLE_DRIVE_FOLDER_URL =
   'https://drive.google.com/drive/folders/1ULAaRsKcD0vXqMocTaITcBupLUD5kCse';
 
+/** Painel, TF e filtros de ano: apenas 2026 em diante. */
+const ANO_MIN_ACIDENTES = 2026;
+
+function anosAcidentesSelect(): number[] {
+  const cy = new Date().getFullYear();
+  const end = Math.max(cy, ANO_MIN_ACIDENTES) + 1;
+  const out: number[] = [];
+  for (let y = end; y >= ANO_MIN_ACIDENTES; y--) out.push(y);
+  return out;
+}
+
+const MESES_CURTOS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+type MensalRegionalPayload = {
+  ano: number;
+  porRegionalMes: Record<string, number[]>;
+  outrosPorMes: number[] | null;
+  totalPorMes: number[];
+  totalPorRegional: Record<string, number>;
+  totalOutros: number;
+  totalAno: number;
+};
+
 /** Chave estável do acidente (planilha) para vincular investigação */
 function acidenteRef(row: AcidenteRow): string {
   const cat = (row.numeroCAT || '').trim();
@@ -200,12 +216,16 @@ export default function AcidentesView() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
-  const [painelAno, setPainelAno] = useState(String(new Date().getFullYear()));
+  const defaultAnoAcidentes = String(Math.max(ANO_MIN_ACIDENTES, new Date().getFullYear()));
+  const [painelAno, setPainelAno] = useState(defaultAnoAcidentes);
   const [painelData, setPainelData] = useState<PainelIndicadoresData | null>(null);
   const [painelLoading, setPainelLoading] = useState(false);
 
+  const [mensalRegional, setMensalRegional] = useState<MensalRegionalPayload | null>(null);
+  const [mensalRegionalLoading, setMensalRegionalLoading] = useState(false);
+
   // Taxa de Frequência (TF) - edição anual (12 meses)
-  const [tfAno, setTfAno] = useState<string>(String(new Date().getFullYear() - 1));
+  const [tfAno, setTfAno] = useState<string>(defaultAnoAcidentes);
   const [tfAnosComDados, setTfAnosComDados] = useState<number[]>([]);
   const [tfLoading, setTfLoading] = useState(false);
   const [tfMeses, setTfMeses] = useState<Record<string, { ativos: string; accidentes: string; horas: string; tf: string }>>(() => {
@@ -250,8 +270,8 @@ export default function AcidentesView() {
         });
         setTfMeses(base);
         if (totalAcidentesNoAno === 0 && (d.anosComDados?.length ?? 0) > 0) {
-          const anoComDados = Math.max(...d.anosComDados!);
-          setTfAno(String(anoComDados));
+          const candidatos = d.anosComDados!.filter((y) => y >= ANO_MIN_ACIDENTES);
+          if (candidatos.length > 0) setTfAno(String(Math.max(...candidatos)));
         }
       })
       .catch(() => {
@@ -331,7 +351,7 @@ export default function AcidentesView() {
   useEffect(() => {
     setPainelLoading(true);
     const y = parseInt(painelAno, 10);
-    if (Number.isNaN(y)) {
+    if (Number.isNaN(y) || y < ANO_MIN_ACIDENTES) {
       setPainelData(null);
       setPainelLoading(false);
       return;
@@ -344,6 +364,46 @@ export default function AcidentesView() {
       })
       .catch(() => setPainelData(null))
       .finally(() => setPainelLoading(false));
+  }, [painelAno]);
+
+  useEffect(() => {
+    const y = parseInt(painelAno, 10);
+    if (Number.isNaN(y) || y < ANO_MIN_ACIDENTES) {
+      setMensalRegional(null);
+      return;
+    }
+    setMensalRegionalLoading(true);
+    fetch(`/api/acidentes/mensal-regional?ano=${y}`, { cache: 'no-store' })
+      .then(async (r) => {
+        const data = await r.json().catch(() => null);
+        if (r.ok && data?.porRegionalMes && Array.isArray(data.totalPorMes)) {
+          setMensalRegional(data as MensalRegionalPayload);
+        } else {
+          setMensalRegional(null);
+        }
+      })
+      .catch(() => setMensalRegional(null))
+      .finally(() => setMensalRegionalLoading(false));
+  }, [painelAno]);
+
+  const tfAnosComDadosFiltrados = useMemo(
+    () => tfAnosComDados.filter((y) => y >= ANO_MIN_ACIDENTES),
+    [tfAnosComDados]
+  );
+
+  const tfYearOptions = useMemo(() => {
+    const set = new Set(anosAcidentesSelect());
+    for (const y of tfAnosComDadosFiltrados) set.add(y);
+    const cur = parseInt(tfAno, 10);
+    if (!Number.isNaN(cur) && cur >= ANO_MIN_ACIDENTES) set.add(cur);
+    return [...set].sort((a, b) => b - a);
+  }, [tfAnosComDadosFiltrados, tfAno]);
+
+  const painelYearOptions = useMemo(() => {
+    const set = new Set(anosAcidentesSelect());
+    const cur = parseInt(painelAno, 10);
+    if (!Number.isNaN(cur) && cur >= ANO_MIN_ACIDENTES) set.add(cur);
+    return [...set].sort((a, b) => b - a);
   }, [painelAno]);
 
   const unidadesDaRegional = useMemo(() => {
@@ -521,29 +581,110 @@ export default function AcidentesView() {
               onChange={(e) => setPainelAno(e.target.value)}
               disabled={painelLoading}
             >
-              {[
-                ...new Set([
-                  new Date().getFullYear(),
-                  new Date().getFullYear() - 1,
-                  new Date().getFullYear() - 2,
-                  new Date().getFullYear() - 3,
-                  new Date().getFullYear() - 4,
-                  parseInt(painelAno, 10),
-                ]),
-              ]
-                .filter((y) => !Number.isNaN(y))
-                .sort((a, b) => b - a)
-                .map((y) => (
-                  <option key={y} value={String(y)}>
-                    {y}
-                  </option>
-                ))}
+              {painelYearOptions.map((y) => (
+                <option key={y} value={String(y)}>
+                  {y}
+                </option>
+              ))}
             </select>
           </div>
         </div>
         <p className="text-xs text-muted -mt-2">
           TF e totais por regional vêm da base importada (sem digitação manual aqui).
         </p>
+
+        <div className="rounded-lg border border-border bg-card/40 overflow-hidden">
+          <div className="px-3 py-2.5 border-b border-border bg-card/60">
+            <p className="text-sm font-semibold text-text">Distribuição mensal por regional</p>
+            <p className="text-[11px] text-muted mt-0.5">
+              Quantidade de acidentes registrados em cada mês (Norte, Leste, Centro, Sul) — ano {painelAno}.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            {mensalRegionalLoading ? (
+              <p className="text-sm text-muted py-8 text-center px-3">Carregando tabela mensal…</p>
+            ) : mensalRegional ? (
+              <table className="w-full text-[11px] min-w-[44rem] border-collapse">
+                <thead>
+                  <tr className="border-b border-border bg-card/30">
+                    <th className="text-left font-medium text-muted px-3 py-2 sticky left-0 z-[1] bg-card/95 backdrop-blur-sm min-w-[7rem]">
+                      Regional
+                    </th>
+                    {MESES_CURTOS.map((nome, i) => (
+                      <th key={nome} className="text-center font-medium text-muted px-1 py-2 min-w-[2.5rem]">
+                        {nome}
+                      </th>
+                    ))}
+                    <th className="text-center font-semibold text-text px-2 py-2 min-w-[3rem] border-l border-border">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {REGIONALS.map((r) => {
+                    const meses = mensalRegional.porRegionalMes?.[r] ?? Array(12).fill(0);
+                    const rowTotal = mensalRegional.totalPorRegional?.[r] ?? meses.reduce((a, b) => a + b, 0);
+                    return (
+                      <tr key={r} className="border-b border-border/80 hover:bg-card/20">
+                        <td className="px-3 py-1.5 font-medium text-text sticky left-0 z-[1] bg-panel/95 backdrop-blur-sm">
+                          {r}
+                        </td>
+                        {meses.map((v, idx) => (
+                          <td
+                            key={idx}
+                            className={`text-center tabular-nums py-1.5 px-0.5 ${
+                              v > 0 ? 'text-text font-medium' : 'text-muted'
+                            }`}
+                          >
+                            {v}
+                          </td>
+                        ))}
+                        <td className="text-center tabular-nums font-semibold text-text py-1.5 border-l border-border">
+                          {rowTotal}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {mensalRegional.outrosPorMes && mensalRegional.totalOutros > 0 ? (
+                    <tr className="border-b border-border/80 hover:bg-card/20">
+                      <td className="px-3 py-1.5 text-muted italic sticky left-0 z-[1] bg-panel/95 backdrop-blur-sm">
+                        Demais / não informado
+                      </td>
+                      {mensalRegional.outrosPorMes.map((v, idx) => (
+                        <td
+                          key={idx}
+                          className={`text-center tabular-nums py-1.5 ${v > 0 ? 'text-text' : 'text-muted'}`}
+                        >
+                          {v}
+                        </td>
+                      ))}
+                      <td className="text-center tabular-nums font-medium border-l border-border">
+                        {mensalRegional.totalOutros}
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-card/25 border-t border-border">
+                    <td className="px-3 py-2 font-semibold text-text sticky left-0 z-[1] bg-card/90 backdrop-blur-sm">
+                      Total EMSERH
+                    </td>
+                    {(mensalRegional.totalPorMes ?? []).map((v, idx) => (
+                      <td key={idx} className="text-center tabular-nums font-semibold text-text py-2">
+                        {v}
+                      </td>
+                    ))}
+                    <td className="text-center tabular-nums font-bold text-text py-2 border-l border-border">
+                      {mensalRegional.totalAno ?? 0}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            ) : (
+              <p className="text-sm text-muted py-8 text-center px-3">Não foi possível carregar a distribuição mensal.</p>
+            )}
+          </div>
+        </div>
 
         {painelLoading ? (
           <p className="text-sm text-muted py-4">Carregando indicadores…</p>
@@ -733,7 +874,7 @@ export default function AcidentesView() {
             }}
           >
             <option value="todos">Todos os anos</option>
-            {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+            {anosAcidentesSelect().map((y) => (
               <option key={y} value={String(y)}>
                 {y}
               </option>
@@ -885,32 +1026,22 @@ export default function AcidentesView() {
               onChange={(e) => setTfAno(e.target.value)}
               disabled={tfLoading}
             >
-              {[
-                ...new Set([
-                  ...tfAnosComDados,
-                  new Date().getFullYear(),
-                  new Date().getFullYear() - 1,
-                  new Date().getFullYear() - 2,
-                  new Date().getFullYear() - 3,
-                  new Date().getFullYear() - 4,
-                ]),
-              ]
-                .filter((y) => !Number.isNaN(y))
-                .sort((a, b) => b - a)
-                .map((y) => (
-                  <option key={y} value={String(y)}>
-                    {y}
-                    {tfAnosComDados.includes(y) ? ' · dados' : ''}
-                  </option>
-                ))}
+              {tfYearOptions.map((y) => (
+                <option key={y} value={String(y)}>
+                  {y}
+                  {tfAnosComDadosFiltrados.includes(y) ? ' · dados' : ''}
+                </option>
+              ))}
             </select>
           </div>
           <p className="text-xs text-muted">
             HHT = ativos × 150 por mês. Acidentes vêm da base. Ativos: preencha ou use Alterdata.
             {tfLoading ? <span className="ml-2 text-text">Carregando…</span> : null}
           </p>
-          {tfAnosComDados.length > 0 && (
-            <p className="text-[11px] text-muted">Anos com registros na base: {tfAnosComDados.join(', ')}.</p>
+          {tfAnosComDadosFiltrados.length > 0 && (
+            <p className="text-[11px] text-muted">
+              Anos com dados na TF (a partir de {ANO_MIN_ACIDENTES}): {tfAnosComDadosFiltrados.join(', ')}.
+            </p>
           )}
 
           <div className="overflow-x-auto rounded-lg border border-border">
@@ -1016,7 +1147,10 @@ export default function AcidentesView() {
                 onClick={async () => {
                   try {
                     setTfSavingAtivos(true);
-                    const anoNum = parseInt(tfAno || String(new Date().getFullYear()), 10);
+                    const anoNum = Math.max(
+                      ANO_MIN_ACIDENTES,
+                      parseInt(tfAno || defaultAnoAcidentes, 10) || ANO_MIN_ACIDENTES
+                    );
                     const registros = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(
                       (m) => {
                         const linha = tfMeses[m];
