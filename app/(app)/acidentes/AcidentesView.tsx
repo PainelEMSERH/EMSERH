@@ -2,7 +2,18 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { REGIONALS } from '@/lib/unidReg';
-import { ChevronDown, ChevronUp, FileSpreadsheet, FolderOpen, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  FileSpreadsheet,
+  Filter,
+  FolderOpen,
+  LayoutGrid,
+  Table2,
+  TrendingUp,
+  X,
+} from 'lucide-react';
 
 type AcidenteRow = {
   id: string;
@@ -97,6 +108,13 @@ function anosAcidentesSelect(): number[] {
 }
 
 const MESES_CURTOS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+const ACIDENTES_NAV = [
+  { href: '#painel-indicadores-acidentes', label: 'Mapa mensal', icon: LayoutGrid },
+  { href: '#filtros-acidentes', label: 'Filtros', icon: Filter },
+  { href: '#taxa-frequencia-acidentes', label: 'Taxa de frequência', icon: TrendingUp },
+  { href: '#registros-acidentes', label: 'Registros', icon: Table2 },
+] as const;
 
 type MensalRegionalPayload = {
   ano: number;
@@ -472,34 +490,77 @@ export default function AcidentesView() {
     }
   };
 
-  const fieldClass = 'w-full px-3 py-2 rounded bg-card border border-border text-sm outline-none';
+  const fieldClass =
+    'w-full rounded-lg border border-border/90 bg-card px-3 py-2.5 text-sm text-text shadow-sm outline-none transition placeholder:text-muted/60 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 dark:focus:border-blue-400/40 dark:focus:ring-blue-400/20';
 
   return (
-    <div className="space-y-4 text-text">
-      <div className="rounded-xl border border-border bg-panel p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-medium tracking-wide text-muted uppercase">SST · Acidentes</p>
-            <h1 className="text-xl font-semibold">Acidentes de Trabalho</h1>
-            <p className="mt-1 text-xs text-muted max-w-3xl">
-              Indicadores, taxa de frequência (TF) e registros importados. Investigação via RIAT/CAT/SINAN. Atualize a base em{' '}
-              <span className="text-text">Admin → Importar bases</span>.
-            </p>
+    <div className="mx-auto max-w-[1360px] space-y-6 pb-10 text-text">
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-panel to-card p-6 shadow-sm ring-1 ring-black/[0.04] dark:from-panel dark:via-card dark:to-panel dark:ring-white/[0.06]">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-amber-500/[0.07] blur-3xl dark:bg-amber-400/[0.08]" aria-hidden />
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 gap-4">
+            <div
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 shadow-inner ring-1 ring-amber-500/20 dark:text-amber-400 dark:ring-amber-400/25"
+              aria-hidden
+            >
+              <AlertTriangle className="h-7 w-7" strokeWidth={1.75} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">SST · Indicadores</p>
+              <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-text sm:text-[1.65rem]">
+                Acidentes de trabalho
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
+                Mapa mensal por regional, taxa de frequência e registros da base importada. Use{' '}
+                <strong className="font-medium text-text">Investigar</strong> para RIAT, CAT e SINAN. Atualização dos dados:{' '}
+                <span className="font-medium text-text">Admin → Importar bases</span>.
+              </p>
+            </div>
           </div>
-          <span className="rounded-lg border border-border bg-card px-3 py-2 text-[11px] text-muted shrink-0">
-            Lista somente leitura
-          </span>
+          <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+            <span className="inline-flex items-center justify-center rounded-full border border-border/80 bg-card/90 px-4 py-2 text-center text-[11px] font-medium text-muted shadow-sm backdrop-blur-sm">
+              Lista somente leitura · EMSERH
+            </span>
+          </div>
         </div>
+        <nav
+          className="relative mt-6 flex flex-wrap gap-2 border-t border-border/50 pt-5"
+          aria-label="Ir para seção"
+        >
+          {ACIDENTES_NAV.map(({ href, label, icon: Icon }) => (
+            <a
+              key={href}
+              href={href}
+              className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1.5 text-[11px] font-medium text-muted shadow-sm backdrop-blur-sm transition hover:border-blue-500/30 hover:bg-blue-500/[0.06] hover:text-text dark:hover:bg-blue-400/[0.08]"
+            >
+              <Icon className="h-3.5 w-3.5 opacity-70" aria-hidden />
+              {label}
+            </a>
+          ))}
+        </nav>
       </div>
 
-      <section id="painel-indicadores-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel p-4 space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-lg font-semibold">Acidentes no ano</h2>
+      <section
+        id="painel-indicadores-acidentes"
+        className="scroll-mt-6 overflow-hidden rounded-2xl border border-border/80 bg-panel shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05]"
+      >
+        <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border/60 bg-card/50 px-5 py-4 backdrop-blur-sm">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+              <LayoutGrid className="h-4 w-4" aria-hidden />
+              <span className="text-[11px] font-semibold uppercase tracking-wide">Mapa anual</span>
+            </div>
+            <h2 className="mt-1 text-lg font-semibold tracking-tight text-text">Acidentes no ano</h2>
+            <p className="mt-1 text-xs text-muted">Contagens importadas por mês e regional.</p>
+          </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted">Ano</span>
+            <label htmlFor="painel-ano" className="text-[11px] font-medium text-muted">
+              Ano
+            </label>
             <select
               id="painel-ano"
-              className="px-3 py-2 rounded bg-card border border-border text-sm min-w-[5.5rem]"
+              className="rounded-lg border border-border/90 bg-card px-3 py-2 text-sm font-medium tabular-nums shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 min-w-[5.5rem]"
               value={painelAno}
               onChange={(e) => setPainelAno(e.target.value)}
             >
@@ -511,108 +572,123 @@ export default function AcidentesView() {
             </select>
           </div>
         </div>
-        <p className="text-xs text-muted -mt-2">Contagens mensais por regional, conforme a base importada.</p>
 
-        <div className="rounded-lg border border-border bg-card/40 overflow-hidden">
-          <div className="px-3 py-2.5 border-b border-border bg-card/60">
-            <p className="text-sm font-semibold text-text">Distribuição mensal por regional</p>
-            <p className="text-[11px] text-muted mt-0.5">
-              Quantidade de acidentes registrados em cada mês (Norte, Leste, Centro, Sul) — ano {painelAno}.
-            </p>
-          </div>
-          <div className="overflow-x-auto">
-            {mensalRegionalLoading ? (
-              <p className="text-sm text-muted py-8 text-center px-3">Carregando tabela mensal…</p>
-            ) : mensalRegional ? (
-              <table className="w-full text-[11px] min-w-[44rem] border-collapse">
-                <thead>
-                  <tr className="border-b border-border bg-card/30">
-                    <th className="text-left font-medium text-muted px-3 py-2 sticky left-0 z-[1] bg-card/95 backdrop-blur-sm min-w-[7rem]">
-                      Regional
-                    </th>
-                    {MESES_CURTOS.map((nome, i) => (
-                      <th key={nome} className="text-center font-medium text-muted px-1 py-2 min-w-[2.5rem]">
-                        {nome}
+        <div className="p-5">
+          <div className="overflow-hidden rounded-xl border border-border/60 bg-card/50 shadow-inner">
+            <div className="border-b border-border/50 bg-card/70 px-4 py-3">
+              <p className="text-sm font-semibold text-text">Distribuição mensal por regional</p>
+              <p className="mt-0.5 text-[11px] text-muted">
+                Norte, Leste, Centro e Sul — ano <span className="font-medium tabular-nums text-text">{painelAno}</span>
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              {mensalRegionalLoading ? (
+                <p className="px-4 py-12 text-center text-sm text-muted">Carregando mapa mensal…</p>
+              ) : mensalRegional ? (
+                <table className="w-full min-w-[44rem] border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-border/60 bg-card/90">
+                      <th className="sticky left-0 z-[1] min-w-[7rem] bg-card/95 px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted backdrop-blur-sm">
+                        Regional
                       </th>
-                    ))}
-                    <th className="text-center font-semibold text-text px-2 py-2 min-w-[3rem] border-l border-border">
-                      Total
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {REGIONALS.map((r) => {
-                    const meses = mensalRegional.porRegionalMes?.[r] ?? Array(12).fill(0);
-                    const rowTotal = mensalRegional.totalPorRegional?.[r] ?? meses.reduce((a, b) => a + b, 0);
-                    return (
-                      <tr key={r} className="border-b border-border/80 hover:bg-card/20">
-                        <td className="px-3 py-1.5 font-medium text-text sticky left-0 z-[1] bg-panel/95 backdrop-blur-sm">
-                          {r}
+                      {MESES_CURTOS.map((nome) => (
+                        <th
+                          key={nome}
+                          className="min-w-[2.5rem] px-1 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted"
+                        >
+                          {nome}
+                        </th>
+                      ))}
+                      <th className="min-w-[3rem] border-l border-border/50 px-2 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-text">
+                        Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {REGIONALS.map((r) => {
+                      const meses = mensalRegional.porRegionalMes?.[r] ?? Array(12).fill(0);
+                      const rowTotal = mensalRegional.totalPorRegional?.[r] ?? meses.reduce((a, b) => a + b, 0);
+                      return (
+                        <tr key={r} className="transition-colors hover:bg-blue-500/[0.04] dark:hover:bg-blue-400/[0.06]">
+                          <td className="sticky left-0 z-[1] bg-panel/95 px-3 py-2 font-medium text-text backdrop-blur-sm">
+                            {r}
+                          </td>
+                          {meses.map((v, idx) => (
+                            <td
+                              key={idx}
+                              className={`px-0.5 py-2 text-center tabular-nums ${
+                                v > 0 ? 'font-medium text-text' : 'text-muted/80'
+                              }`}
+                            >
+                              {v}
+                            </td>
+                          ))}
+                          <td className="border-l border-border/50 px-2 py-2 text-center text-sm font-semibold tabular-nums text-text">
+                            {rowTotal}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {mensalRegional.outrosPorMes && mensalRegional.totalOutros > 0 ? (
+                      <tr className="transition-colors hover:bg-blue-500/[0.04]">
+                        <td className="sticky left-0 z-[1] bg-panel/95 px-3 py-2 text-muted italic backdrop-blur-sm">
+                          Demais / não informado
                         </td>
-                        {meses.map((v, idx) => (
+                        {mensalRegional.outrosPorMes.map((v, idx) => (
                           <td
                             key={idx}
-                            className={`text-center tabular-nums py-1.5 px-0.5 ${
-                              v > 0 ? 'text-text font-medium' : 'text-muted'
-                            }`}
+                            className={`py-2 text-center tabular-nums ${v > 0 ? 'text-text' : 'text-muted/80'}`}
                           >
                             {v}
                           </td>
                         ))}
-                        <td className="text-center tabular-nums font-semibold text-text py-1.5 border-l border-border">
-                          {rowTotal}
+                        <td className="border-l border-border/50 py-2 text-center font-medium tabular-nums">
+                          {mensalRegional.totalOutros}
                         </td>
                       </tr>
-                    );
-                  })}
-                  {mensalRegional.outrosPorMes && mensalRegional.totalOutros > 0 ? (
-                    <tr className="border-b border-border/80 hover:bg-card/20">
-                      <td className="px-3 py-1.5 text-muted italic sticky left-0 z-[1] bg-panel/95 backdrop-blur-sm">
-                        Demais / não informado
+                    ) : null}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-border/60 bg-blue-500/[0.06] dark:bg-blue-950/30">
+                      <td className="sticky left-0 z-[1] bg-blue-500/[0.08] px-3 py-2.5 text-sm font-semibold text-text backdrop-blur-sm dark:bg-blue-950/40">
+                        Total EMSERH
                       </td>
-                      {mensalRegional.outrosPorMes.map((v, idx) => (
-                        <td
-                          key={idx}
-                          className={`text-center tabular-nums py-1.5 ${v > 0 ? 'text-text' : 'text-muted'}`}
-                        >
+                      {(mensalRegional.totalPorMes ?? []).map((v, idx) => (
+                        <td key={idx} className="py-2.5 text-center text-sm font-semibold tabular-nums text-text">
                           {v}
                         </td>
                       ))}
-                      <td className="text-center tabular-nums font-medium border-l border-border">
-                        {mensalRegional.totalOutros}
+                      <td className="border-l border-border/50 py-2.5 text-center text-base font-bold tabular-nums text-text">
+                        {mensalRegional.totalAno ?? 0}
                       </td>
                     </tr>
-                  ) : null}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-card/25 border-t border-border">
-                    <td className="px-3 py-2 font-semibold text-text sticky left-0 z-[1] bg-card/90 backdrop-blur-sm">
-                      Total EMSERH
-                    </td>
-                    {(mensalRegional.totalPorMes ?? []).map((v, idx) => (
-                      <td key={idx} className="text-center tabular-nums font-semibold text-text py-2">
-                        {v}
-                      </td>
-                    ))}
-                    <td className="text-center tabular-nums font-bold text-text py-2 border-l border-border">
-                      {mensalRegional.totalAno ?? 0}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            ) : (
-              <p className="text-sm text-muted py-8 text-center px-3">Não foi possível carregar a distribuição mensal.</p>
-            )}
+                  </tfoot>
+                </table>
+              ) : (
+                <p className="px-4 py-12 text-center text-sm text-muted">Não foi possível carregar o mapa mensal.</p>
+              )}
+            </div>
           </div>
         </div>
       </section>
 
-      <div id="filtros-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <h2 className="text-lg font-semibold">Filtros</h2>
+      <div
+        id="filtros-acidentes"
+        className="scroll-mt-6 overflow-hidden rounded-2xl border border-border/80 bg-panel shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05]"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-card/50 px-5 py-4 backdrop-blur-sm">
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-card text-blue-600 shadow-sm ring-1 ring-border/60 dark:text-blue-400">
+              <Filter className="h-4 w-4" aria-hidden />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight text-text">Filtros da lista</h2>
+              <p className="text-[11px] text-muted">Refinam os registros abaixo.</p>
+            </div>
+          </div>
           <button
             type="button"
-            className="px-2 py-1 text-xs border border-border rounded bg-card text-muted hover:text-text"
+            className="rounded-lg border border-border/80 bg-card px-3 py-2 text-xs font-medium text-muted shadow-sm transition hover:border-red-500/25 hover:bg-red-500/[0.04] hover:text-text"
             onClick={() => {
               setRegional('');
               setUnidade('');
@@ -624,131 +700,161 @@ export default function AcidentesView() {
               setPage(1);
             }}
           >
-            Limpar
+            Limpar filtros
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-          <select
-            className={fieldClass}
-            value={regional}
-            onChange={(e) => {
-              setRegional(e.target.value || '');
-              setUnidade('');
-              setPage(1);
-            }}
-          >
-            <option value="">Todas as regionais</option>
-            {REGIONALS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-          <select
-            className={fieldClass}
-            value={unidade}
-            onChange={(e) => {
-              setUnidade(e.target.value || '');
-              setPage(1);
-            }}
-          >
-            <option value="">Todas as unidades</option>
-            {unidadesDaRegional.map((u) => (
-              <option key={`${u.regional}-${u.unidade}`} value={u.unidade}>
-                {u.unidade}
-              </option>
-            ))}
-          </select>
-          <select
-            className={fieldClass}
-            value={tipo}
-            onChange={(e) => {
-              setTipo(e.target.value || '');
-              setPage(1);
-            }}
-          >
-            <option value="">Todos os tipos</option>
-            {TIPOS_ACIDENTE.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-          <select
-            className={fieldClass}
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value || '');
-              setPage(1);
-            }}
-          >
-            <option value="">Todos os status</option>
-            {STATUS_ACIDENTE.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-          <select
-            className={fieldClass}
-            value={ano}
-            onChange={(e) => {
-              setAno(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="todos">Todos os anos</option>
-            {anosAcidentesSelect().map((y) => (
-              <option key={y} value={String(y)}>
-                {y}
-              </option>
-            ))}
-          </select>
-          <select
-            className={fieldClass}
-            value={mes}
-            onChange={(e) => {
-              setMes(e.target.value || '');
-              setPage(1);
-            }}
-          >
-            <option value="">Todos os meses</option>
-            {[
-              { value: '1', label: 'Janeiro' },
-              { value: '2', label: 'Fevereiro' },
-              { value: '3', label: 'Março' },
-              { value: '4', label: 'Abril' },
-              { value: '5', label: 'Maio' },
-              { value: '6', label: 'Junho' },
-              { value: '7', label: 'Julho' },
-              { value: '8', label: 'Agosto' },
-              { value: '9', label: 'Setembro' },
-              { value: '10', label: 'Outubro' },
-              { value: '11', label: 'Novembro' },
-              { value: '12', label: 'Dezembro' },
-            ].map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-          <input
-            type="search"
-            className={fieldClass}
-            placeholder="Buscar nome, unidade, CAT…"
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
-              setPage(1);
-            }}
-          />
+        <div className="p-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium uppercase tracking-wide text-muted">Regional</label>
+              <select
+                className={fieldClass}
+                value={regional}
+                onChange={(e) => {
+                  setRegional(e.target.value || '');
+                  setUnidade('');
+                  setPage(1);
+                }}
+              >
+                <option value="">Todas</option>
+                {REGIONALS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium uppercase tracking-wide text-muted">Unidade</label>
+              <select
+                className={fieldClass}
+                value={unidade}
+                onChange={(e) => {
+                  setUnidade(e.target.value || '');
+                  setPage(1);
+                }}
+              >
+                <option value="">Todas</option>
+                {unidadesDaRegional.map((u) => (
+                  <option key={`${u.regional}-${u.unidade}`} value={u.unidade}>
+                    {u.unidade}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium uppercase tracking-wide text-muted">Tipo</label>
+              <select
+                className={fieldClass}
+                value={tipo}
+                onChange={(e) => {
+                  setTipo(e.target.value || '');
+                  setPage(1);
+                }}
+              >
+                <option value="">Todos</option>
+                {TIPOS_ACIDENTE.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium uppercase tracking-wide text-muted">Status</label>
+              <select
+                className={fieldClass}
+                value={status}
+                onChange={(e) => {
+                  setStatus(e.target.value || '');
+                  setPage(1);
+                }}
+              >
+                <option value="">Todos</option>
+                {STATUS_ACIDENTE.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium uppercase tracking-wide text-muted">Ano</label>
+              <select
+                className={fieldClass}
+                value={ano}
+                onChange={(e) => {
+                  setAno(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="todos">Todos</option>
+                {anosAcidentesSelect().map((y) => (
+                  <option key={y} value={String(y)}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium uppercase tracking-wide text-muted">Mês</label>
+              <select
+                className={fieldClass}
+                value={mes}
+                onChange={(e) => {
+                  setMes(e.target.value || '');
+                  setPage(1);
+                }}
+              >
+                <option value="">Todos</option>
+                {[
+                  { value: '1', label: 'Janeiro' },
+                  { value: '2', label: 'Fevereiro' },
+                  { value: '3', label: 'Março' },
+                  { value: '4', label: 'Abril' },
+                  { value: '5', label: 'Maio' },
+                  { value: '6', label: 'Junho' },
+                  { value: '7', label: 'Julho' },
+                  { value: '8', label: 'Agosto' },
+                  { value: '9', label: 'Setembro' },
+                  { value: '10', label: 'Outubro' },
+                  { value: '11', label: 'Novembro' },
+                  { value: '12', label: 'Dezembro' },
+                ].map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-[11px] font-medium uppercase tracking-wide text-muted">Busca</label>
+              <input
+                type="search"
+                className={fieldClass}
+                placeholder="Nome, unidade, CAT…"
+                value={q}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      <section id="taxa-frequencia-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card/40 px-4 py-3">
+      <section
+        id="taxa-frequencia-acidentes"
+        className="scroll-mt-6 overflow-hidden rounded-2xl border border-border/80 bg-panel shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05]"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-card/50 px-5 py-4 backdrop-blur-sm">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold tracking-tight text-text">Taxa de frequência</h2>
+            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+              <TrendingUp className="h-4 w-4" aria-hidden />
+              <span className="text-[11px] font-semibold uppercase tracking-wide">TF mensal</span>
+            </div>
+            <h2 className="mt-1 text-lg font-semibold tracking-tight text-text">Taxa de frequência</h2>
             {tfFonteAtivos === 'alterdata' ? (
               <p className="mt-1">
                 <span className="inline-flex items-center rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
@@ -768,7 +874,7 @@ export default function AcidentesView() {
             </label>
             <select
               id="tf-ano"
-              className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium tabular-nums shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 min-w-[5.5rem]"
+              className="rounded-lg border border-border/90 bg-card px-3 py-2 text-sm font-medium tabular-nums shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/25 min-w-[5.5rem]"
               value={tfAno}
               onChange={(e) => setTfAno(e.target.value)}
               disabled={tfLoading}
@@ -787,18 +893,18 @@ export default function AcidentesView() {
           </div>
         </div>
 
-        <div className="p-4">
-          <div className="overflow-x-auto rounded-lg border border-border bg-card/30 shadow-inner">
+        <div className="p-5">
+          <div className="overflow-x-auto rounded-xl border border-border/60 bg-card/40 shadow-inner">
             <table className="min-w-[56rem] w-full text-xs">
               <thead>
-                <tr className="border-b border-border bg-card/80">
-                  <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted w-40 sticky left-0 z-[1] bg-card/95 backdrop-blur-sm">
+                <tr className="border-b border-border/60 bg-card/90">
+                  <th className="sticky left-0 z-[1] w-40 bg-card/95 px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted backdrop-blur-sm">
                     Indicador
                   </th>
                   {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((nome) => (
                     <th
                       key={nome}
-                      className="px-1 py-2.5 text-center text-[11px] font-semibold text-muted min-w-[3.25rem]"
+                      className="min-w-[3.25rem] px-1 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted"
                     >
                       {nome}
                     </th>
@@ -910,12 +1016,12 @@ export default function AcidentesView() {
             </table>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
+          <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-5">
             <button
                 type="button"
                 disabled={tfSavingAtivos}
                 title="Grava colaboradores ativos do ano e atualiza a TF no sistema."
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-500 disabled:opacity-50"
+                className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-500 disabled:opacity-50"
                 onClick={async () => {
                   try {
                     setTfSavingAtivos(true);
@@ -967,28 +1073,43 @@ export default function AcidentesView() {
         </div>
       </section>
 
-      <section id="registros-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel">
-        <div className="p-4 border-b border-border">
-          <h2 className="text-lg font-semibold">Registros</h2>
-          <p className="text-xs text-muted mt-1">
-            {listRangeLabel} · Total no filtro: <span className="font-semibold text-text">{total.toLocaleString('pt-BR')}</span>
-          </p>
+      <section
+        id="registros-acidentes"
+        className="scroll-mt-6 overflow-hidden rounded-2xl border border-border/80 bg-panel shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05]"
+      >
+        <div className="border-b border-border/60 bg-card/50 px-5 py-4 backdrop-blur-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card text-blue-600 shadow-sm ring-1 ring-border/60 dark:text-blue-400">
+                <Table2 className="h-5 w-5" aria-hidden />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight text-text">Registros</h2>
+                <p className="mt-1 text-xs text-muted">
+                  {listRangeLabel} ·{' '}
+                  <span className="font-semibold tabular-nums text-text">{total.toLocaleString('pt-BR')}</span> no filtro
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full text-[11px]">
-            <thead className="bg-card/10">
-              <tr>
-                <th className="px-2 py-2 text-center w-8" aria-label="Expandir" />
-                <th className="px-3 py-2 text-left">Nome</th>
-                <th className="px-3 py-2 text-left">Unidade</th>
-                <th className="px-3 py-2 text-left">Tipo</th>
-                <th className="px-3 py-2 text-center">Afastamento</th>
-                <th className="px-3 py-2 text-center">Data</th>
-                <th className="px-3 py-2 text-center">Hora</th>
-                <th className="px-3 py-2 text-center">Mês</th>
-                <th className="px-3 py-2 text-center">CAT</th>
-                <th className="px-3 py-2 text-center">Status</th>
-                <th className="px-3 py-2 text-center">Ações</th>
+          <table className="min-w-full text-xs">
+            <thead>
+              <tr className="border-b border-border/60 bg-card/90">
+                <th className="w-10 px-2 py-3 text-center" aria-label="Expandir" />
+                <th className="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-muted">Nome</th>
+                <th className="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-muted">Unidade</th>
+                <th className="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-muted">Tipo</th>
+                <th className="px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wide text-muted">
+                  Afastamento
+                </th>
+                <th className="px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wide text-muted">Data</th>
+                <th className="px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wide text-muted">Hora</th>
+                <th className="px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wide text-muted">Mês</th>
+                <th className="px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wide text-muted">CAT</th>
+                <th className="px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wide text-muted">Status</th>
+                <th className="px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wide text-muted">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -1029,77 +1150,80 @@ export default function AcidentesView() {
                     const isExpanded = expandedRows.has(row.id);
                     return (
                       <React.Fragment key={row.id}>
-                        <tr className="border-t border-border hover:bg-card/10">
-                          <td className="px-2 py-2 text-center">
+                        <tr className="border-t border-border/50 transition-colors hover:bg-blue-500/[0.03] dark:hover:bg-blue-400/[0.05]">
+                          <td className="px-2 py-2.5 text-center">
                             <button
                               type="button"
                               onClick={() => toggleExpand(row.id)}
-                              className="text-muted hover:text-text p-0.5"
+                              className="rounded-md p-1 text-muted transition hover:bg-card hover:text-text"
                               aria-expanded={isExpanded}
                             >
                               {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </button>
                           </td>
-                          <td className="px-3 py-2">{row.nome}</td>
-                          <td className="px-3 py-2 max-w-[14rem] truncate" title={row.unidadeHospitalar}>
+                          <td className="px-3 py-2.5 font-medium text-text">{row.nome}</td>
+                          <td className="max-w-[14rem] truncate px-3 py-2.5 text-muted" title={row.unidadeHospitalar}>
                             {row.unidadeHospitalar}
                           </td>
-                          <td className="px-3 py-2 text-[10px] leading-snug">
+                          <td className="px-3 py-2.5 text-[10px] leading-snug text-muted">
                             {TIPOS_ACIDENTE.find((t) => t.value === row.tipo)?.label || row.tipo}
                           </td>
-                          <td className="px-3 py-2 text-center">
+                          <td className="px-3 py-2.5 text-center">
                             {row.comAfastamento ? (
-                              <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-medium text-white dark:bg-red-900/40 dark:text-red-100">
+                              <span className="inline-flex rounded-full bg-red-500/10 px-2.5 py-0.5 text-[10px] font-medium text-red-700 ring-1 ring-inset ring-red-500/20 dark:text-red-300 dark:ring-red-400/30">
                                 Com afastamento
                               </span>
                             ) : (
-                              <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-medium text-white dark:bg-emerald-900/40 dark:text-emerald-100">
+                              <span className="inline-flex rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-800 ring-1 ring-inset ring-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-400/25">
                                 Sem afastamento
                               </span>
                             )}
                           </td>
-                          <td className="px-3 py-2 text-center tabular-nums">{formatDate(row.data)}</td>
-                          <td className="px-3 py-2 text-center">{row.hora || '-'}</td>
-                          <td className="px-3 py-2 text-center">
+                          <td className="px-3 py-2.5 text-center tabular-nums text-text">{formatDate(row.data)}</td>
+                          <td className="px-3 py-2.5 text-center tabular-nums text-muted">{row.hora || '—'}</td>
+                          <td className="px-3 py-2.5 text-center tabular-nums text-muted">
                             {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][row.mes - 1]}
                           </td>
-                          <td className="px-3 py-2 text-center font-mono text-[10px]">{row.numeroCAT || '-'}</td>
-                          <td className="px-3 py-2 text-center">
+                          <td className="px-3 py-2.5 text-center font-mono text-[10px] text-muted">{row.numeroCAT || '—'}</td>
+                          <td className="px-3 py-2.5 text-center">
                             <span
-                              className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                              className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${
                                 row.status === 'concluido'
-                                  ? 'bg-emerald-500 text-white dark:bg-emerald-900/40 dark:text-emerald-100'
+                                  ? 'bg-emerald-500/10 text-emerald-800 ring-emerald-500/25 dark:text-emerald-300 dark:ring-emerald-400/30'
                                   : row.status === 'cancelado'
-                                  ? 'bg-neutral-600 text-white dark:bg-neutral-900/40 dark:text-neutral-100'
+                                  ? 'bg-neutral-500/10 text-neutral-700 ring-neutral-500/20 dark:text-neutral-300'
                                   : row.status === 'em_analise'
-                                  ? 'bg-amber-500 text-white dark:bg-amber-900/40 dark:text-amber-100'
-                                  : 'bg-blue-500 text-white dark:bg-blue-900/40 dark:text-blue-100'
+                                  ? 'bg-amber-500/10 text-amber-900 ring-amber-500/25 dark:text-amber-200 dark:ring-amber-400/30'
+                                  : 'bg-blue-500/10 text-blue-800 ring-blue-500/25 dark:text-blue-300 dark:ring-blue-400/30'
                               }`}
                             >
                               {STATUS_ACIDENTE.find((s) => s.value === row.status)?.label || row.status}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-center">
-                            <div className="inline-flex items-center gap-1 flex-wrap justify-center">
+                          <td className="px-3 py-2.5 text-center">
+                            <div className="inline-flex flex-wrap items-center justify-center gap-1.5">
                               {row.hasInvestigacao && (
-                                <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-[9px] font-medium text-white" title="Investigação">
+                                <span
+                                  className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-500/25 dark:text-emerald-300"
+                                  title="Há registro de investigação"
+                                >
                                   OK
                                 </span>
                               )}
                               <button
                                 type="button"
                                 onClick={() => openInvestigacao(row)}
-                                className="inline-flex items-center gap-1 rounded bg-amber-600 px-2 py-1.5 text-[10px] font-semibold text-white hover:bg-amber-500"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-500"
                               >
-                                <FileSpreadsheet className="h-3 w-3" aria-hidden />
-                                {row.hasInvestigacao ? 'Ver/Editar' : 'Investigar'}
+                                <FileSpreadsheet className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+                                {row.hasInvestigacao ? 'Ver / editar' : 'Investigar'}
                               </button>
                             </div>
                           </td>
                         </tr>
                         {isExpanded && (
-                          <tr className="bg-card/5">
-                            <td colSpan={11} className="px-4 py-3 border-t border-border">
+                          <tr className="bg-gradient-to-r from-card/80 to-panel/40">
+                            <td colSpan={11} className="border-t border-border/50 px-5 py-4">
                               <div className="flex flex-col gap-2 text-[11px] text-muted">
                                 <div className="flex flex-wrap gap-x-4 gap-y-1">
                                   <span>
@@ -1132,7 +1256,7 @@ export default function AcidentesView() {
                                           href={row.riatInvestigacao.href}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="break-all text-amber-700 underline decoration-amber-700/40 hover:decoration-amber-700 dark:text-amber-400"
+                                          className="break-all text-blue-700 underline decoration-blue-600/35 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                                         >
                                           {row.riatInvestigacao.label}
                                         </a>
@@ -1151,7 +1275,7 @@ export default function AcidentesView() {
                                           href={row.sinanInvestigacao.href}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="break-all text-amber-700 underline decoration-amber-700/40 hover:decoration-amber-700 dark:text-amber-400"
+                                          className="break-all text-blue-700 underline decoration-blue-600/35 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                                         >
                                           {row.sinanInvestigacao.label}
                                         </a>
@@ -1173,23 +1297,23 @@ export default function AcidentesView() {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between gap-2 p-3 text-xs text-text border-t border-border">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-card/30 px-5 py-3.5 text-xs">
           <span className="text-muted">{listRangeLabel}</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="px-2 py-1 border border-border rounded disabled:opacity-40 bg-card"
+              className="rounded-lg border border-border/80 bg-card px-3 py-1.5 font-medium text-text shadow-sm transition hover:bg-card/80 disabled:opacity-40"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
             >
               Anterior
             </button>
-            <span>
-              Página {page} / {totalPages}
+            <span className="tabular-nums text-muted">
+              Página <span className="font-semibold text-text">{page}</span> / {totalPages}
             </span>
             <button
               type="button"
-              className="px-2 py-1 border border-border rounded disabled:opacity-40 bg-card"
+              className="rounded-lg border border-border/80 bg-card px-3 py-1.5 font-medium text-text shadow-sm transition hover:bg-card/80 disabled:opacity-40"
               onClick={() => setPage((p) => (p < totalPages ? p + 1 : p))}
               disabled={page >= totalPages}
             >
@@ -1201,27 +1325,32 @@ export default function AcidentesView() {
 
       {investigacaoRow && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={closeInvestigacao} aria-hidden />
-          <div className="relative flex h-full w-full max-w-xl flex-col overflow-hidden border-l border-border bg-panel shadow-xl md:max-w-2xl">
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-panel px-4 py-3">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity dark:bg-black/70"
+            onClick={closeInvestigacao}
+            aria-hidden
+          />
+          <div className="relative flex h-full w-full max-w-xl flex-col overflow-hidden border-l border-border/80 bg-panel shadow-2xl shadow-black/20 ring-1 ring-black/[0.06] dark:ring-white/[0.08] md:max-w-2xl">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/60 bg-gradient-to-r from-card/90 to-panel/80 px-5 py-4 backdrop-blur-md">
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-text truncate">Investigação (RIAT, CAT, SINAN)</h2>
-                <p className="text-xs text-muted truncate">{investigacaoRow.nome}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                  Investigação
+                </p>
+                <h2 className="truncate text-base font-semibold tracking-tight text-text">RIAT, CAT e SINAN</h2>
+                <p className="mt-0.5 truncate text-xs text-muted">{investigacaoRow.nome}</p>
               </div>
               <button
                 type="button"
                 onClick={closeInvestigacao}
-                className="shrink-0 rounded-lg border border-border bg-card p-2 text-muted hover:bg-card/80"
+                className="shrink-0 rounded-xl border border-border/80 bg-card p-2.5 text-muted shadow-sm transition hover:bg-card/80 hover:text-text"
                 aria-label="Fechar"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="flex-1 space-y-6 overflow-y-auto p-5 text-xs md:p-6">
-              <section className="rounded-xl border border-border bg-card p-4">
-                <h3 className="mb-3 text-xs font-semibold text-muted uppercase tracking-wide">
-                  Dados do acidente
-                </h3>
+            <div className="flex-1 space-y-5 overflow-y-auto p-5 text-xs md:p-6">
+              <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm">
+                <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted">Dados do acidente</h3>
                 <dl className="grid gap-3 sm:grid-cols-2">
                   {[
                     ['Trabalhador', investigacaoRow.nome],
@@ -1242,18 +1371,18 @@ export default function AcidentesView() {
                 </dl>
               </section>
 
-              <section className="space-y-4 rounded-xl border border-border bg-panel p-4">
+              <section className="space-y-4 rounded-2xl border border-border/70 bg-panel/90 p-4 shadow-inner">
                 <div>
-                  <h3 className="text-xs font-semibold text-text">Documentos e status</h3>
-                  <p className="mt-1 text-[11px] text-muted leading-relaxed">
-                    Informe o <strong className="text-text">link</strong> de cada arquivo (Drive, OneDrive ou URL) e o nome opcional.
+                  <h3 className="text-sm font-semibold text-text">Documentos e status</h3>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                    Informe o <strong className="font-medium text-text">link</strong> de cada arquivo (Drive, OneDrive ou URL) e o nome opcional.
                   </p>
                 </div>
                 {investigacaoLoading ? (
                   <p className="text-muted">Carregando...</p>
                 ) : (
                   <>
-                    <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-background/80 p-4">
+                    <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card/60 p-4">
                       <p className="text-[11px] leading-relaxed text-muted">
                         Baixe o modelo RIAT <strong className="text-text">em branco</strong>. Na primeira investigação o
                         download pode iniciar automaticamente; use o botão para baixar novamente. Depois de preencher, envie à
@@ -1290,7 +1419,7 @@ export default function AcidentesView() {
                       <select
                         value={investigacaoForm.statusInvestigacao}
                         onChange={(e) => setInvestigacaoForm((f) => ({ ...f, statusInvestigacao: e.target.value }))}
-                        className="w-full rounded border border-border bg-card px-3 py-2 text-sm outline-none"
+                        className="w-full rounded-lg border border-border/90 bg-card px-3 py-2 text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20"
                       >
                         <option value="">Selecione</option>
                         <option value="em_andamento">Em andamento</option>
@@ -1299,7 +1428,7 @@ export default function AcidentesView() {
                     </div>
 
                     <div className="grid gap-4">
-                      <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+                      <div className="space-y-2 rounded-xl border border-border/70 bg-card/90 p-3 shadow-sm">
                         <span className="text-xs font-semibold text-text">RIAT</span>
                         <input
                           type="url"
@@ -1321,7 +1450,7 @@ export default function AcidentesView() {
                           </a>
                         )}
                       </div>
-                      <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+                      <div className="space-y-2 rounded-xl border border-border/70 bg-card/90 p-3 shadow-sm">
                         <span className="text-xs font-semibold text-text">CAT</span>
                         <input
                           type="url"
@@ -1343,7 +1472,7 @@ export default function AcidentesView() {
                           </a>
                         )}
                       </div>
-                      <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+                      <div className="space-y-2 rounded-xl border border-border/70 bg-card/90 p-3 shadow-sm">
                         <span className="text-xs font-semibold text-text">SINAN</span>
                         <input
                           type="url"
@@ -1375,7 +1504,7 @@ export default function AcidentesView() {
                         placeholder="Conclusões, medidas, pendências…"
                         value={investigacaoForm.observacoes}
                         onChange={(e) => setInvestigacaoForm((f) => ({ ...f, observacoes: e.target.value }))}
-                        className="w-full min-h-[100px] px-3 py-2 rounded border border-border bg-card text-sm outline-none"
+                        className="min-h-[100px] w-full rounded-lg border border-border/90 bg-card px-3 py-2 text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20"
                         rows={4}
                       />
                     </div>
@@ -1384,7 +1513,7 @@ export default function AcidentesView() {
                       <button
                         type="button"
                         onClick={closeInvestigacao}
-                        className="rounded border border-border bg-card px-4 py-2 text-xs font-medium hover:bg-card/80"
+                        className="rounded-lg border border-border/80 bg-card px-4 py-2.5 text-xs font-medium text-muted shadow-sm transition hover:bg-card/80 hover:text-text"
                       >
                         Cancelar
                       </button>
@@ -1392,7 +1521,7 @@ export default function AcidentesView() {
                         type="button"
                         onClick={saveInvestigacao}
                         disabled={investigacaoSaving}
-                        className="rounded-lg bg-amber-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-50"
+                        className="rounded-lg bg-emerald-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-emerald-600/25 transition hover:bg-emerald-500 disabled:opacity-50"
                       >
                         {investigacaoSaving ? 'Salvando…' : 'Salvar investigação'}
                       </button>
