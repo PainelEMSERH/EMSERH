@@ -11,7 +11,6 @@ export async function GET(req: Request) {
     const unidade = url.searchParams.get('unidade') || '';
     const tipo = url.searchParams.get('tipo') || '';
     const status = url.searchParams.get('status') || '';
-    const empresa = url.searchParams.get('empresa') || '';
     const anoParam = url.searchParams.get('ano');
     const semFiltroAno = anoParam == null || anoParam === '' || String(anoParam).toLowerCase() === 'todos';
     const filterByYear = !semFiltroAno;
@@ -91,8 +90,6 @@ export async function GET(req: Request) {
         (CASE WHEN ${dataParsedExpr} IS NOT NULL THEN ${dataParsedExpr}::timestamptz ELSE NULL END) AS "data",
         NULLIF(TRIM(COALESCE(hora_formatada, '')), '') AS "hora",
         ${selectMesAno},
-        NULL::text AS "riat",
-        NULL::text AS "sinan",
         'aberto'::text AS "status",
         NULLIF(TRIM(COALESCE(descricao_complementar_lesao,'')),'') AS "descricao",
         NULLIF(TRIM(COALESCE(nmfuncao,'')),'') AS "funcaoTrabalhador",
@@ -129,24 +126,60 @@ export async function GET(req: Request) {
       return `${cat}|${data}|${nome}`;
     };
     const refs = rows.map(toRef).filter(Boolean);
-    let investigados: { acidenteRef: string }[] = [];
+    type InvSel = {
+      acidenteRef: string;
+      riatUrl: string | null;
+      riatNome: string | null;
+      sinanUrl: string | null;
+      sinanNome: string | null;
+    };
+    let investigacoes: InvSel[] = [];
     if (refs.length > 0) {
       try {
-        investigados = await prisma.acidenteInvestigacao.findMany({
+        investigacoes = await prisma.acidenteInvestigacao.findMany({
           where: { acidenteRef: { in: refs } },
-          select: { acidenteRef: true },
+          select: {
+            acidenteRef: true,
+            riatUrl: true,
+            riatNome: true,
+            sinanUrl: true,
+            sinanNome: true,
+          },
         });
       } catch {
-        // Tabela AcidenteInvestigacao pode não existir no Neon; lista segue sem flag de investigação
+        investigacoes = [];
       }
     }
-    const setRef = new Set(investigados.map((i) => i.acidenteRef));
+    const invByRef = new Map<string, InvSel>();
+    for (const i of investigacoes) invByRef.set(i.acidenteRef, i);
 
-    const rowsWithFlag = rows.map((r: any) => ({
-      ...r,
-      id: toRef(r),
-      hasInvestigacao: setRef.has(toRef(r)),
-    }));
+    function docLink(nome: string | null | undefined, url: string | null | undefined) {
+      const u = (url || '').trim();
+      const n = (nome || '').trim();
+      if (!u && !n) return null;
+      const label =
+        n ||
+        (u
+          ? u.replace(/^https?:\/\//i, '').length > 44
+            ? u.replace(/^https?:\/\//i, '').slice(0, 44) + '…'
+            : u.replace(/^https?:\/\//i, '')
+          : '');
+      return { label: label || 'Documento', href: u || null };
+    }
+
+    const rowsWithFlag = rows.map((r: any) => {
+      const ref = toRef(r);
+      const inv = invByRef.get(ref);
+      const riatInvestigacao = inv ? docLink(inv.riatNome, inv.riatUrl) : null;
+      const sinanInvestigacao = inv ? docLink(inv.sinanNome, inv.sinanUrl) : null;
+      return {
+        ...r,
+        id: ref,
+        hasInvestigacao: invByRef.has(ref),
+        riatInvestigacao,
+        sinanInvestigacao,
+      };
+    });
 
     return NextResponse.json({
       ok: true,

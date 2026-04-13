@@ -7,7 +7,6 @@ import { ChevronDown, ChevronUp, FileSpreadsheet, FolderOpen, X } from 'lucide-r
 type AcidenteRow = {
   id: string;
   nome: string;
-  empresa: 'IADVH' | 'EMSERH';
   unidadeHospitalar: string;
   regional: string | null;
   tipo: string;
@@ -17,8 +16,6 @@ type AcidenteRow = {
   mes: number;
   ano: number;
   numeroCAT: string | null;
-  riat: string | null;
-  sinan: string | null;
   status: string;
   descricao: string | null;
   setor?: string | null;
@@ -28,44 +25,9 @@ type AcidenteRow = {
   causaRaiz?: string | null;
   fatoresContrib?: string | null;
   hasInvestigacao?: boolean;
-};
-
-type StatsData = {
-  totalAno: number;
-  totalMes: number;
-  porRegional: Array<{ regional: string; quantidade: number }>;
-  porTipo: Array<{ tipo: string; quantidade: number }>;
-  porUnidade: Array<{ unidade: string; quantidade: number }>;
-  porMes: Record<string, number>;
-  porStatus: Array<{ status: string; quantidade: number }>;
-  comAfastamento: number;
-  semAfastamento: number;
-  totalInvestigados?: number;
-  porRegionalInvestigados?: Array<{ regional: string; quantidade: number }>;
-  porTipoInvestigados?: Array<{ tipo: string; quantidade: number }>;
-};
-
-type MetaRealData = {
-  meta: number;
-  real: Record<string, number>;
-  total: number;
-  ano: number;
-};
-
-type PainelIndicadoresData = {
-  ano: number;
-  taxaFrequenciaAnualEmserh: number | null;
-  totalAcidentesAno: number;
-  acidentesPorRegional: Record<string, number>;
-  investigadosNoAno: number;
-  investigadosPorRegional: Record<string, number>;
-  aderenciaPlanoAcaoPercent: number | null;
-  aderenciaPorRegional: Record<string, number | null>;
-  unidadesDivulgacaoProgramasLegaisPercent: number | null;
-  divulgacaoProgramasLegaisPorRegional: Record<string, number | null>;
-  notaAderencia?: string;
-  notaDivulgacao?: string;
-  fonteAtivosTF?: string;
+  /** Preenchidos a partir da investigação (links/nomes); exibidos na linha expandida. */
+  riatInvestigacao?: { label: string; href: string | null } | null;
+  sinanInvestigacao?: { label: string; href: string | null } | null;
 };
 
 async function fetchJSON<T = unknown>(url: string, init?: RequestInit): Promise<T> {
@@ -171,7 +133,6 @@ export default function AcidentesView() {
   const [unidade, setUnidade] = useState<string>('');
   const [tipo, setTipo] = useState<string>('');
   const [status, setStatus] = useState<string>('');
-  const [empresa, setEmpresa] = useState<string>('');
   const [ano, setAno] = useState<string>('todos');
   const [mes, setMes] = useState<string>('');
   const [q, setQ] = useState<string>('');
@@ -212,14 +173,8 @@ export default function AcidentesView() {
   const [investigacaoSaving, setInvestigacaoSaving] = useState(false);
   const [investigacaoRiatDownloading, setInvestigacaoRiatDownloading] = useState(false);
 
-  // Visão Geral
-  const [stats, setStats] = useState<StatsData | null>(null);
-  const [statsLoading, setStatsLoading] = useState(false);
-
   const defaultAnoAcidentes = String(Math.max(ANO_MIN_ACIDENTES, new Date().getFullYear()));
   const [painelAno, setPainelAno] = useState(defaultAnoAcidentes);
-  const [painelData, setPainelData] = useState<PainelIndicadoresData | null>(null);
-  const [painelLoading, setPainelLoading] = useState(false);
 
   const [mensalRegional, setMensalRegional] = useState<MensalRegionalPayload | null>(null);
   const [mensalRegionalLoading, setMensalRegionalLoading] = useState(false);
@@ -313,7 +268,6 @@ export default function AcidentesView() {
     if (unidade) params.set('unidade', unidade);
     if (tipo) params.set('tipo', tipo);
     if (status) params.set('status', status);
-    if (empresa) params.set('empresa', empresa);
     params.set('ano', ano || 'todos');
     if (mes) params.set('mes', mes);
     if (q) params.set('q', q);
@@ -333,38 +287,7 @@ export default function AcidentesView() {
         setListError(err?.message || 'Erro ao carregar a lista. Tente recarregar a página.');
       })
       .finally(() => setLoading(false));
-  }, [regional, unidade, tipo, status, empresa, ano, mes, q, page, listKey]);
-
-  // Carrega estatísticas
-  useEffect(() => {
-    setStatsLoading(true);
-    const params = new URLSearchParams();
-    if (regional) params.set('regional', regional);
-    params.set('ano', ano);
-
-    fetchJSON<StatsData>(`/api/acidentes/stats?${params.toString()}`)
-      .then((d) => setStats(d))
-      .catch(() => setStats(null))
-      .finally(() => setStatsLoading(false));
-  }, [regional, ano]);
-
-  useEffect(() => {
-    setPainelLoading(true);
-    const y = parseInt(painelAno, 10);
-    if (Number.isNaN(y) || y < ANO_MIN_ACIDENTES) {
-      setPainelData(null);
-      setPainelLoading(false);
-      return;
-    }
-    fetch(`/api/acidentes/painel-indicadores?ano=${y}`, { cache: 'no-store' })
-      .then(async (r) => {
-        const data = await r.json().catch(() => null);
-        if (r.ok && data && data.ano != null) setPainelData(data as PainelIndicadoresData);
-        else setPainelData(null);
-      })
-      .catch(() => setPainelData(null))
-      .finally(() => setPainelLoading(false));
-  }, [painelAno]);
+  }, [regional, unidade, tipo, status, ano, mes, q, page, listKey]);
 
   useEffect(() => {
     const y = parseInt(painelAno, 10);
@@ -571,7 +494,7 @@ export default function AcidentesView() {
 
       <section id="painel-indicadores-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel p-4 space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-lg font-semibold">Indicadores EMSERH</h2>
+          <h2 className="text-lg font-semibold">Acidentes no ano</h2>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted">Ano</span>
             <select
@@ -579,7 +502,6 @@ export default function AcidentesView() {
               className="px-3 py-2 rounded bg-card border border-border text-sm min-w-[5.5rem]"
               value={painelAno}
               onChange={(e) => setPainelAno(e.target.value)}
-              disabled={painelLoading}
             >
               {painelYearOptions.map((y) => (
                 <option key={y} value={String(y)}>
@@ -589,9 +511,7 @@ export default function AcidentesView() {
             </select>
           </div>
         </div>
-        <p className="text-xs text-muted -mt-2">
-          TF e totais por regional vêm da base importada (sem digitação manual aqui).
-        </p>
+        <p className="text-xs text-muted -mt-2">Contagens mensais por regional, conforme a base importada.</p>
 
         <div className="rounded-lg border border-border bg-card/40 overflow-hidden">
           <div className="px-3 py-2.5 border-b border-border bg-card/60">
@@ -685,89 +605,6 @@ export default function AcidentesView() {
             )}
           </div>
         </div>
-
-        {painelLoading ? (
-          <p className="text-sm text-muted py-4">Carregando indicadores…</p>
-        ) : (
-          <div className="space-y-4 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
-              <div className="rounded-lg border border-border bg-card p-3">
-                <p className="text-[11px] text-muted">Taxa de frequência (ano)</p>
-                <p className="text-2xl font-bold tabular-nums text-text mt-1">
-                  {painelData?.taxaFrequenciaAnualEmserh != null ? painelData.taxaFrequenciaAnualEmserh.toFixed(2) : '—'}
-                </p>
-                <p className="text-[10px] text-muted mt-2">
-                  {painelData != null
-                    ? `${painelData.totalAcidentesAno} acidentes no ano`
-                    : 'Indicadores indisponíveis.'}
-                  {painelData?.fonteAtivosTF === 'alterdata' ? ' · Ativos TF: Alterdata' : ''}
-                </p>
-              </div>
-              {REGIONALS.map((r) => (
-                <div key={`acc-${r}`} className="rounded-lg border border-border bg-card p-3">
-                  <p className="text-[11px] text-muted">Acidentes — {r}</p>
-                  <p className="text-xl font-bold tabular-nums text-text mt-1">{painelData?.acidentesPorRegional?.[r] ?? 0}</p>
-                </div>
-              ))}
-            </div>
-
-            <p className="text-sm font-semibold text-text pt-1">Investigados</p>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              <div className="rounded-lg border border-border bg-card p-3">
-                <p className="text-[11px] text-muted">Total EMSERH</p>
-                <p className="text-xl font-bold tabular-nums mt-1">{painelData?.investigadosNoAno ?? 0}</p>
-              </div>
-              {REGIONALS.map((r) => (
-                <div key={`inv-${r}`} className="rounded-lg border border-border bg-card p-3">
-                  <p className="text-[11px] text-muted">{r}</p>
-                  <p className="text-lg font-bold tabular-nums mt-1">{painelData?.investigadosPorRegional?.[r] ?? 0}</p>
-                </div>
-              ))}
-            </div>
-
-            <p className="text-sm font-semibold text-text">Aderência ao plano de ação (%)</p>
-            {painelData?.notaAderencia ? <p className="text-[11px] text-muted mb-2">{painelData.notaAderencia}</p> : null}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              <div className="rounded-lg border border-border bg-card p-3">
-                <p className="text-[11px] text-muted">EMSERH</p>
-                <p className="text-lg font-bold tabular-nums mt-1">
-                  {painelData?.aderenciaPlanoAcaoPercent != null ? `${painelData.aderenciaPlanoAcaoPercent.toFixed(1)}%` : '—'}
-                </p>
-              </div>
-              {REGIONALS.map((r) => {
-                const p = painelData?.aderenciaPorRegional?.[r];
-                return (
-                  <div key={`pa-${r}`} className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[11px] text-muted">{r}</p>
-                    <p className="text-lg font-bold tabular-nums mt-1">{p != null ? `${p.toFixed(0)}%` : '—'}</p>
-                  </div>
-                );
-              })}
-            </div>
-
-            <p className="text-sm font-semibold text-text">Divulgação programas legais (%)</p>
-            {painelData?.notaDivulgacao ? <p className="text-[11px] text-muted mb-2">{painelData.notaDivulgacao}</p> : null}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              <div className="rounded-lg border border-border bg-card p-3">
-                <p className="text-[11px] text-muted">EMSERH</p>
-                <p className="text-lg font-bold tabular-nums mt-1">
-                  {painelData?.unidadesDivulgacaoProgramasLegaisPercent != null
-                    ? `${painelData.unidadesDivulgacaoProgramasLegaisPercent}%`
-                    : '—'}
-                </p>
-              </div>
-              {REGIONALS.map((r) => {
-                const v = painelData?.divulgacaoProgramasLegaisPorRegional?.[r];
-                return (
-                  <div key={`div-${r}`} className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[11px] text-muted">{r}</p>
-                    <p className="text-lg font-bold tabular-nums mt-1">{v != null ? `${v}%` : '—'}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </section>
 
       <div id="filtros-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel p-4">
@@ -781,7 +618,6 @@ export default function AcidentesView() {
               setUnidade('');
               setTipo('');
               setStatus('');
-              setEmpresa('');
               setAno('todos');
               setMes('');
               setQ('');
@@ -855,18 +691,6 @@ export default function AcidentesView() {
           </select>
           <select
             className={fieldClass}
-            value={empresa}
-            onChange={(e) => {
-              setEmpresa(e.target.value || '');
-              setPage(1);
-            }}
-          >
-            <option value="">Todas empresas</option>
-            <option value="IADVH">IADVH</option>
-            <option value="EMSERH">EMSERH</option>
-          </select>
-          <select
-            className={fieldClass}
             value={ano}
             onChange={(e) => {
               setAno(e.target.value);
@@ -921,156 +745,84 @@ export default function AcidentesView() {
         </div>
       </div>
 
-      <div className="space-y-4">
-        <section id="visao-geral-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel p-4">
-          <h2 className="text-lg font-semibold mb-3">Resumo</h2>
-          <p className="text-xs text-muted mb-3">Conforme filtros regional e ano da lista.</p>
-          {statsLoading ? (
-            <p className="text-sm text-muted">Carregando…</p>
-          ) : stats ? (
-            <>
-              <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
-                <div className="rounded-lg border border-border bg-card px-3 py-2.5 min-w-[5rem] shrink-0">
-                  <p className="text-[11px] text-muted">Ano</p>
-                  <p className="text-lg font-bold tabular-nums">{stats.totalAno}</p>
-                </div>
-                <div className="rounded-lg border border-border bg-card px-3 py-2.5 min-w-[5rem] shrink-0">
-                  <p className="text-[11px] text-muted">Mês</p>
-                  <p className="text-lg font-bold tabular-nums">{stats.totalMes}</p>
-                </div>
-                <div className="rounded-lg border border-border bg-card px-3 py-2.5 min-w-[5rem] shrink-0">
-                  <p className="text-[11px] text-muted">Com afast.</p>
-                  <p className="text-lg font-bold tabular-nums text-red-500 dark:text-red-400">{stats.comAfastamento}</p>
-                </div>
-                <div className="rounded-lg border border-border bg-card px-3 py-2.5 min-w-[5rem] shrink-0">
-                  <p className="text-[11px] text-muted">Sem afast.</p>
-                  <p className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{stats.semAfastamento}</p>
-                </div>
-                <div className="rounded-lg border border-border bg-card px-3 py-2.5 min-w-[5rem] shrink-0">
-                  <p className="text-[11px] text-muted">Investig.</p>
-                  <p className="text-lg font-bold tabular-nums">{stats.totalInvestigados ?? 0}</p>
-                </div>
-                <div className="rounded-lg border border-border bg-card px-3 py-2.5 min-w-[12rem] shrink-0">
-                  <p className="text-[11px] text-muted mb-1">Por regional</p>
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
-                    {!stats.porRegional?.length ? (
-                      <span className="text-muted">—</span>
-                    ) : (
-                      (stats.porRegional ?? []).map((r) => (
-                        <span key={r.regional} className="whitespace-nowrap">
-                          <span className="text-muted">{r.regional}</span>{' '}
-                          <span className="font-semibold tabular-nums">{r.quantidade}</span>
-                        </span>
-                      ))
-                    )}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-border bg-card px-3 py-2.5 min-w-[12rem] shrink-0">
-                  <p className="text-[11px] text-muted mb-1">Por tipo</p>
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
-                    {!stats.porTipo?.length ? (
-                      <span className="text-muted">—</span>
-                    ) : (
-                      (stats.porTipo ?? []).map((t) => (
-                        <span key={t.tipo} className="whitespace-nowrap" title={TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label}>
-                          <span className="text-muted truncate inline-block max-w-[6rem] align-bottom">
-                            {TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}
-                          </span>{' '}
-                          <span className="font-semibold tabular-nums">{t.quantidade}</span>
-                        </span>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-              {((stats.porRegionalInvestigados?.length ?? 0) > 0 || (stats.porTipoInvestigados?.length ?? 0) > 0) && (
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] border-t border-border pt-3">
-                  <div className="rounded-lg border border-border bg-card p-2">
-                    <p className="font-semibold text-text mb-1">Investigados por regional</p>
-                    <div className="space-y-0.5 max-h-24 overflow-y-auto">
-                      {(stats.porRegionalInvestigados ?? []).map((r) => (
-                        <div key={r.regional} className="flex justify-between gap-2">
-                          <span className="truncate text-muted">{r.regional}</span>
-                          <span className="font-medium tabular-nums">{r.quantidade}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-border bg-card p-2">
-                    <p className="font-semibold text-text mb-1">Investigados por tipo</p>
-                    <div className="space-y-0.5 max-h-24 overflow-y-auto">
-                      {(stats.porTipoInvestigados ?? []).map((t) => (
-                        <div key={t.tipo} className="flex justify-between gap-2">
-                          <span className="truncate text-muted">
-                            {TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}
-                          </span>
-                          <span className="font-medium tabular-nums">{t.quantidade}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="text-xs text-muted">Nenhuma estatística disponível.</p>
-          )}
-        </section>
-
-        <section id="taxa-frequencia-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold">Taxa de frequência (TF)</h2>
+      <section id="taxa-frequencia-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card/40 px-4 py-3">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold tracking-tight text-text">Taxa de frequência</h2>
+            {tfFonteAtivos === 'alterdata' ? (
+              <p className="mt-1">
+                <span className="inline-flex items-center rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                  Ativos · Alterdata
+                </span>
+              </p>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {tfLoading ? (
+              <span className="text-[11px] text-muted tabular-nums" aria-live="polite">
+                Atualizando…
+              </span>
+            ) : null}
+            <label htmlFor="tf-ano" className="sr-only">
+              Ano da taxa de frequência
+            </label>
             <select
-              className="px-3 py-2 rounded bg-card border border-border text-sm min-w-[8rem]"
+              id="tf-ano"
+              className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium tabular-nums shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 min-w-[5.5rem]"
               value={tfAno}
               onChange={(e) => setTfAno(e.target.value)}
               disabled={tfLoading}
+              title={
+                tfAnosComDadosFiltrados.length > 0
+                  ? `Anos com registros na base: ${tfAnosComDadosFiltrados.join(', ')}`
+                  : undefined
+              }
             >
               {tfYearOptions.map((y) => (
                 <option key={y} value={String(y)}>
                   {y}
-                  {tfAnosComDadosFiltrados.includes(y) ? ' · dados' : ''}
                 </option>
               ))}
             </select>
           </div>
-          <p className="text-xs text-muted">
-            HHT = ativos × 150 por mês. Acidentes vêm da base. Ativos: preencha ou use Alterdata.
-            {tfLoading ? <span className="ml-2 text-text">Carregando…</span> : null}
-          </p>
-          {tfAnosComDadosFiltrados.length > 0 && (
-            <p className="text-[11px] text-muted">
-              Anos com dados na TF (a partir de {ANO_MIN_ACIDENTES}): {tfAnosComDadosFiltrados.join(', ')}.
-            </p>
-          )}
+        </div>
 
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="min-w-[56rem] w-full text-[11px]">
+        <div className="p-4">
+          <div className="overflow-x-auto rounded-lg border border-border bg-card/30 shadow-inner">
+            <table className="min-w-[56rem] w-full text-xs">
               <thead>
-                <tr className="border-b border-border bg-card/10">
-                  <th className="px-2 py-2 text-left text-muted font-medium w-36 sticky left-0 bg-card/10 z-[1]">Indicador</th>
+                <tr className="border-b border-border bg-card/80">
+                  <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted w-40 sticky left-0 z-[1] bg-card/95 backdrop-blur-sm">
+                    Indicador
+                  </th>
                   {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((nome) => (
-                    <th key={nome} className="px-1 py-2 text-center text-muted font-medium min-w-[3.25rem]">
+                    <th
+                      key={nome}
+                      className="px-1 py-2.5 text-center text-[11px] font-semibold text-muted min-w-[3.25rem]"
+                    >
                       {nome}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                <tr className="border-t border-border">
-                  <td className="px-2 py-1.5 text-muted sticky left-0 bg-panel z-[1]">
-                    Colab. ativos
-                    {tfFonteAtivos === 'alterdata' ? <span className="block text-[10px] text-emerald-600">Alterdata</span> : null}
-                  </td>
+              <tbody className="divide-y divide-border/60">
+                <tr className="bg-panel/50">
+                  <th
+                    scope="row"
+                    className="px-3 py-2 text-left font-medium text-text sticky left-0 z-[1] bg-panel/95 backdrop-blur-sm"
+                  >
+                    Colaboradores ativos
+                  </th>
                   {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((m) => {
                     const linha = tfMeses[m];
                     return (
-                      <td key={m} className="px-0.5 py-1">
+                      <td key={m} className="px-1 py-1.5">
                         <input
                           type="number"
                           min={0}
-                          className="w-full min-w-[2.75rem] px-1 py-1.5 rounded border border-border bg-card text-center tabular-nums text-xs"
+                          className="w-full min-w-[2.75rem] rounded-md border border-border/90 bg-card px-2 py-1.5 text-center text-xs tabular-nums shadow-sm outline-none transition-colors focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20"
                           placeholder="0"
+                          aria-label={`Colaboradores ativos — mês ${Number(m)}`}
                           value={linha?.ativos ?? ''}
                           onChange={(e) => {
                             const ativos = e.target.value;
@@ -1094,39 +846,59 @@ export default function AcidentesView() {
                     );
                   })}
                 </tr>
-                <tr className="border-t border-border">
-                  <td className="px-2 py-1.5 text-muted sticky left-0 bg-panel z-[1]">HHT</td>
+                <tr className="bg-panel/30">
+                  <th
+                    scope="row"
+                    className="px-3 py-2 text-left text-muted sticky left-0 z-[1] bg-panel/95 text-xs font-medium backdrop-blur-sm"
+                    title="Horas-homem trabalhadas no mês"
+                  >
+                    HHT
+                  </th>
                   {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((m) => {
                     const linha = tfMeses[m];
                     const horasNum = parseInt(linha?.horas ?? '', 10);
                     const horasStr = Number.isNaN(horasNum) ? '—' : horasNum.toLocaleString('pt-BR');
                     return (
-                      <td key={m} className="px-1 py-1.5 text-center tabular-nums text-text">
+                      <td key={m} className="px-1 py-2 text-center tabular-nums text-text">
                         {horasStr}
                       </td>
                     );
                   })}
                 </tr>
-                <tr className="border-t border-border">
-                  <td className="px-2 py-1.5 text-muted sticky left-0 bg-panel z-[1]">Nº acidentes</td>
+                <tr className="bg-panel/30">
+                  <th
+                    scope="row"
+                    className="px-3 py-2 text-left text-muted sticky left-0 z-[1] bg-panel/95 text-xs font-medium backdrop-blur-sm"
+                  >
+                    Acidentes
+                  </th>
                   {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((m) => {
                     const linha = tfMeses[m];
                     const acc = linha?.accidentes ?? '0';
                     const n = parseInt(acc, 10);
                     const accStr = Number.isNaN(n) ? '0' : n.toLocaleString('pt-BR');
                     return (
-                      <td key={m} className="px-1 py-1.5 text-center tabular-nums font-medium">
+                      <td key={m} className="px-1 py-2 text-center tabular-nums text-text">
                         {accStr}
                       </td>
                     );
                   })}
                 </tr>
-                <tr className="border-t border-border">
-                  <td className="px-2 py-1.5 text-muted sticky left-0 bg-panel z-[1]">TF</td>
+                <tr className="bg-emerald-500/[0.06] dark:bg-emerald-950/20">
+                  <th
+                    scope="row"
+                    className="px-3 py-2.5 text-left text-text sticky left-0 z-[1] bg-emerald-500/[0.08] text-xs font-semibold backdrop-blur-sm dark:bg-emerald-950/35"
+                    title="Taxa de frequência por milhão de horas-homem"
+                  >
+                    TF
+                  </th>
                   {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((m) => {
                     const linha = tfMeses[m];
                     return (
-                      <td key={m} className="px-1 py-1.5 text-center tabular-nums">
+                      <td
+                        key={m}
+                        className="px-1 py-2.5 text-center text-sm font-semibold tabular-nums text-text"
+                      >
                         {linha?.tf && linha.tf !== '--'
                           ? Number(linha.tf).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                           : '—'}
@@ -1138,12 +910,12 @@ export default function AcidentesView() {
             </table>
           </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border">
-              <p className="text-xs text-muted">Salve os ativos do ano para persistir e recalcular a TF.</p>
-              <button
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
+            <button
                 type="button"
                 disabled={tfSavingAtivos}
-                className="px-4 py-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                title="Grava colaboradores ativos do ano e atualiza a TF no sistema."
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-500 disabled:opacity-50"
                 onClick={async () => {
                   try {
                     setTfSavingAtivos(true);
@@ -1189,12 +961,11 @@ export default function AcidentesView() {
                   }
                 }}
               >
-                {tfSavingAtivos ? 'Salvando...' : 'Salvar ativos do ano'}
+                {tfSavingAtivos ? 'Salvando…' : 'Salvar colaboradores ativos'}
               </button>
-            </div>
-          </section>
-
-      </div>
+          </div>
+        </div>
+      </section>
 
       <section id="registros-acidentes" className="scroll-mt-4 rounded-xl border border-border bg-panel">
         <div className="p-4 border-b border-border">
@@ -1209,7 +980,6 @@ export default function AcidentesView() {
               <tr>
                 <th className="px-2 py-2 text-center w-8" aria-label="Expandir" />
                 <th className="px-3 py-2 text-left">Nome</th>
-                <th className="px-3 py-2 text-left">Empresa</th>
                 <th className="px-3 py-2 text-left">Unidade</th>
                 <th className="px-3 py-2 text-left">Tipo</th>
                 <th className="px-3 py-2 text-center">Afastamento</th>
@@ -1217,8 +987,6 @@ export default function AcidentesView() {
                 <th className="px-3 py-2 text-center">Hora</th>
                 <th className="px-3 py-2 text-center">Mês</th>
                 <th className="px-3 py-2 text-center">CAT</th>
-                <th className="px-3 py-2 text-center">RIAT</th>
-                <th className="px-3 py-2 text-center">SINAN</th>
                 <th className="px-3 py-2 text-center">Status</th>
                 <th className="px-3 py-2 text-center">Ações</th>
               </tr>
@@ -1226,14 +994,14 @@ export default function AcidentesView() {
             <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={14} className="px-3 py-8 text-center text-muted">
+                    <td colSpan={11} className="px-3 py-8 text-center text-muted">
                       Carregando…
                     </td>
                   </tr>
                 )}
                 {!loading && rows.length === 0 && (
                   <tr>
-                    <td colSpan={14} className="px-3 py-8 text-center">
+                    <td colSpan={11} className="px-3 py-8 text-center">
                       {listError ? (
                         <>
                           <p className="text-sm text-red-400">{listError}</p>
@@ -1273,7 +1041,6 @@ export default function AcidentesView() {
                             </button>
                           </td>
                           <td className="px-3 py-2">{row.nome}</td>
-                          <td className="px-3 py-2">{row.empresa}</td>
                           <td className="px-3 py-2 max-w-[14rem] truncate" title={row.unidadeHospitalar}>
                             {row.unidadeHospitalar}
                           </td>
@@ -1297,12 +1064,6 @@ export default function AcidentesView() {
                             {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][row.mes - 1]}
                           </td>
                           <td className="px-3 py-2 text-center font-mono text-[10px]">{row.numeroCAT || '-'}</td>
-                          <td className="px-3 py-2 text-center truncate max-w-[4rem]" title={row.riat || undefined}>
-                            {row.riat || '-'}
-                          </td>
-                          <td className="px-3 py-2 text-center truncate max-w-[4rem]" title={row.sinan || undefined}>
-                            {row.sinan || '-'}
-                          </td>
                           <td className="px-3 py-2 text-center">
                             <span
                               className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
@@ -1338,31 +1099,70 @@ export default function AcidentesView() {
                         </tr>
                         {isExpanded && (
                           <tr className="bg-card/5">
-                            <td colSpan={14} className="px-4 py-2 border-t border-border">
-                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
-                                <span>
-                                  <span className="font-medium text-text">Data/Hora: </span>
-                                  {formatDate(row.data)} {row.hora || ''}
-                                </span>
-                                <span>
-                                  <span className="font-medium text-text">Unidade: </span>
-                                  {row.unidadeHospitalar}
-                                </span>
-                                <span>
-                                  <span className="font-medium text-text">Regional: </span>
-                                  {row.regional || '—'}
-                                </span>
-                                <span>
-                                  <span className="font-medium text-text">Função: </span>
-                                  {row.funcaoTrabalhador || '—'}
-                                </span>
-                                <span>
-                                  <span className="font-medium text-text">CAT: </span>
-                                  {row.numeroCAT || '—'}
-                                </span>
-                                <span className="w-full text-[10px] italic sm:w-auto">
-                                  RIAT em Excel: use Investigar para modelo e link.
-                                </span>
+                            <td colSpan={11} className="px-4 py-3 border-t border-border">
+                              <div className="flex flex-col gap-2 text-[11px] text-muted">
+                                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                  <span>
+                                    <span className="font-medium text-text">Data/Hora: </span>
+                                    {formatDate(row.data)} {row.hora || ''}
+                                  </span>
+                                  <span>
+                                    <span className="font-medium text-text">Unidade: </span>
+                                    {row.unidadeHospitalar}
+                                  </span>
+                                  <span>
+                                    <span className="font-medium text-text">Regional: </span>
+                                    {row.regional || '—'}
+                                  </span>
+                                  <span>
+                                    <span className="font-medium text-text">Função: </span>
+                                    {row.funcaoTrabalhador || '—'}
+                                  </span>
+                                  <span>
+                                    <span className="font-medium text-text">CAT: </span>
+                                    {row.numeroCAT || '—'}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-border/60 pt-2">
+                                  {row.riatInvestigacao ? (
+                                    <span className="min-w-0 max-w-full">
+                                      <span className="font-medium text-text">RIAT: </span>
+                                      {row.riatInvestigacao.href ? (
+                                        <a
+                                          href={row.riatInvestigacao.href}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="break-all text-amber-700 underline decoration-amber-700/40 hover:decoration-amber-700 dark:text-amber-400"
+                                        >
+                                          {row.riatInvestigacao.label}
+                                        </a>
+                                      ) : (
+                                        <span className="text-text">{row.riatInvestigacao.label}</span>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] italic">RIAT: use «Investigar» para informar link ou nome do arquivo.</span>
+                                  )}
+                                  {row.sinanInvestigacao ? (
+                                    <span className="min-w-0 max-w-full">
+                                      <span className="font-medium text-text">SINAN: </span>
+                                      {row.sinanInvestigacao.href ? (
+                                        <a
+                                          href={row.sinanInvestigacao.href}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="break-all text-amber-700 underline decoration-amber-700/40 hover:decoration-amber-700 dark:text-amber-400"
+                                        >
+                                          {row.sinanInvestigacao.label}
+                                        </a>
+                                      ) : (
+                                        <span className="text-text">{row.sinanInvestigacao.label}</span>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] italic">SINAN: preencha na investigação quando houver documento.</span>
+                                  )}
+                                </div>
                               </div>
                             </td>
                           </tr>
