@@ -53,6 +53,29 @@ const coorte2026Sql = `(
   )
 )`;
 
+function lastDayOfMonthIso(year: number, month1to12: number): string {
+  const d = new Date(year, month1to12, 0);
+  const day = String(d.getDate()).padStart(2, '0');
+  const mm = String(month1to12).padStart(2, '0');
+  return `${year}-${mm}-${day}`;
+}
+
+/** Meta “fatia” por mês (total ÷ 12, resto nas primeiras colunas) — só para % mês vs entrega do mês. */
+function metaLinearMensal(totalMeta: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (totalMeta <= 0) {
+    for (let m = 1; m <= 12; m++) out[String(m).padStart(2, '0')] = 0;
+    return out;
+  }
+  const q = Math.floor(totalMeta / 12);
+  const r = totalMeta % 12;
+  for (let m = 1; m <= 12; m++) {
+    const key = String(m).padStart(2, '0');
+    out[key] = q + (m <= r ? 1 : 0);
+  }
+  return out;
+}
+
 export async function GET(req: NextRequest) {
   try {
     await prisma.$executeRawUnsafe(`
@@ -102,6 +125,8 @@ export async function GET(req: NextRequest) {
         metaMensal: z,
         real: z,
         realAcumulado: z,
+        percentAcumulado: z,
+        percentMensal: z,
         totalColaboradores: 0,
         totalMeta: 0,
         totalReal: 0,
@@ -174,35 +199,73 @@ export async function GET(req: NextRequest) {
       OR (os.responsavel IS NOT NULL AND length(trim(os.responsavel)) > 0)
     )`;
 
-    const totalRealQuery = `
-      SELECT COUNT(DISTINCT a.cpf)::int AS total
-      FROM stg_alterdata_v2 a
-      ${joinOs}
-      ${whereClause}
-      AND COALESCE(a.cpf, '') != ''
-      AND COALESCE(a.funcao, '') != ''
-      AND ${osContaComoLancadaSql}
-    `;
-    const totalRealResult: any[] = await prisma.$queryRawUnsafe(totalRealQuery);
-    const totalReal = parseInt(totalRealResult[0]?.total || '0', 10);
-
     const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+
+    /**
+     * Real acumulado até o fim de cada mês do exercício: quem já tinha OS “lançada”
+     * com data_entrega <= último dia do mês (qualquer ano) ou sem data (conta desde jan).
+     */
+    const cumulativas = await Promise.all(
+      meses.map((_, i) => {
+        const m = i + 1;
+        const lim = lastDayOfMonthIso(ANO_OS, m);
+        const q = `
+          SELECT COUNT(DISTINCT a.cpf)::int AS total
+          FROM stg_alterdata_v2 a
+          ${joinOs}
+          ${whereClause}
+          AND COALESCE(a.cpf, '') != ''
+          AND COALESCE(a.funcao, '') != ''
+          AND ${osContaComoLancadaSql}
+          AND (
+            os.data_entrega IS NULL
+            OR os.data_entrega::date <= '${lim}'::date
+          )
+        `;
+        return prisma.$queryRawUnsafe(q);
+      }),
+    );
+
     const realAcumulado: Record<string, number> = {};
-    const realMeses: Record<string, number> = {};
-    meses.forEach((m) => {
-      realAcumulado[m] = totalReal;
-      realMeses[m] = 0;
+    meses.forEach((mk, i) => {
+      const row = cumulativas[i]?.[0];
+      realAcumulado[mk] = Number(row?.total ?? 0);
     });
+
+    const realMeses: Record<string, number> = {};
+    let prev = 0;
+    meses.forEach((mk) => {
+      const cur = realAcumulado[mk] ?? 0;
+      realMeses[mk] = Math.max(0, cur - prev);
+      prev = cur;
+    });
+
+    const metaMensalLinear = metaLinearMensal(totalMeta);
+
+    const percentAcumulado: Record<string, number | null> = {};
+    const percentMensal: Record<string, number | null> = {};
+    meses.forEach((mk) => {
+      const metaM = metaAcumulada[mk];
+      const realA = realAcumulado[mk];
+      const realM = realMeses[mk];
+      const mm = metaMensalLinear[mk];
+      percentAcumulado[mk] = metaM > 0 ? Math.round((realA / metaM) * 10000) / 100 : null;
+      percentMensal[mk] = mm > 0 ? Math.round((realM / mm) * 10000) / 100 : null;
+    });
+
+    const totalReal = realAcumulado['12'] ?? 0;
 
     return NextResponse.json({
       ok: true,
       meta: metaAcumulada,
-      metaMensal: metaAcumulada,
+      metaMensal: metaMensalLinear,
       real: realMeses,
-      realAcumulado: realAcumulado,
+      realAcumulado,
+      percentAcumulado,
+      percentMensal,
       totalColaboradores: totalMeta,
-      totalMeta: totalMeta,
-      totalReal: totalReal,
+      totalMeta,
+      totalReal,
       ano: ANO_OS,
     });
   } catch (e: any) {

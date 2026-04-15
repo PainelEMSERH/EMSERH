@@ -52,11 +52,22 @@ type MetaRealData = {
   metaMensal?: Record<string, number>;
   real: Record<string, number>;
   realAcumulado: Record<string, number>;
+  percentAcumulado?: Record<string, number | null>;
+  percentMensal?: Record<string, number | null>;
   totalColaboradores: number;
   totalMeta: number;
   totalReal: number;
   ano: number;
 };
+
+function isFutureMonthCell(anoExercicio: number, month1to12: number): boolean {
+  const now = new Date();
+  const cy = now.getFullYear();
+  const cm = now.getMonth() + 1;
+  if (anoExercicio > cy) return true;
+  if (anoExercicio < cy) return false;
+  return month1to12 > cm;
+}
 
 const fetchJSON = async <T = any>(url: string, init?: RequestInit): Promise<T> => {
   const r = await fetch(url, { cache: 'no-store', ...init });
@@ -436,92 +447,127 @@ export default function OrdemServicoPage() {
         </nav>
       </div>
 
-      {/* Meta vs Real — primeiro, igual ao de Entregas */}
+      {/* Meta vs Real */}
       {metaReal && (() => {
         const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
         const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
+        const anoNum = Number(metaReal.ano || ANO_OS);
         const metaTotal = Number(metaReal.totalMeta || 0);
         const totalReal = Number(metaReal.totalReal || 0);
-        const metasIncrementais = meses.map((_, idx) => ((idx + 1) / 12) * 100);
-        const percentualRealAtual = metaTotal > 0 ? (totalReal / metaTotal) * 100 : 0;
 
         return (
           <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between mb-1">
               <div>
                 <h2 className="text-sm font-semibold">Meta vs Real - Ordem de Serviço</h2>
-                <p className="text-[10px] text-muted mt-0.5">Acompanhamento {ANO_OS} • real inclui assinaturas anteriores</p>
+                <p className="text-[11px] text-muted mt-1 max-w-2xl">
+                  Coorte {ANO_OS} (folha 01/01/{ANO_OS}). Cada coluna: <strong className="font-medium text-text">acumulado até o fim do mês</strong> — não
+                  é “total ÷ 12” na linha META (a divisão linear só serve ao % “no mês” no tooltip). % na célula = cobertura
+                  acumulada (real ÷ meta). Real inclui assinaturas anteriores. Meses futuros sem cor.
+                </p>
               </div>
-              <span className="rounded-lg border border-border bg-bg px-3 py-1.5 text-xs font-semibold tabular-nums">
+              <span className="rounded-lg border border-border bg-bg px-3 py-1.5 text-xs font-semibold tabular-nums shrink-0">
                 {ANO_OS}
               </span>
             </div>
 
             <div className="space-y-2">
-              {/* Linha META — fundo cinza como em Entregas */}
-              <div className="flex items-center gap-2">
-                <div className="w-20 font-bold text-sm text-text">META</div>
-                <div className="flex-1 grid grid-cols-12 gap-1">
-                  {metasIncrementais.map((metaPct, idx) => (
-                    <div
-                      key={meses[idx]}
-                      className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded"
-                    >
-                      {metaPct.toFixed(2)}%
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Linha REAL */}
-              <div className="flex items-center gap-2">
-                <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">
-                  REAL
-                </div>
-                <div className="flex-1 grid grid-cols-12 gap-1">
-                  {meses.map((mes, idx) => {
-                    const metaIncremental = metasIncrementais[idx];
-                    const estaAcima = percentualRealAtual >= metaIncremental;
+              <div className="flex items-stretch gap-2">
+                <div className="w-20 shrink-0 font-bold text-sm text-text pt-1">META</div>
+                <div className="flex-1 grid grid-cols-12 gap-1 min-w-0">
+                  {meses.map((mes) => {
+                    const v = Number(metaReal.meta?.[mes] ?? 0);
                     return (
                       <div
                         key={mes}
-                        className={`text-center text-xs font-bold py-1.5 rounded ${
-                          estaAcima ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
-                        }`}
-                        title={`${mesesNomes[idx]}: ${percentualRealAtual.toFixed(
-                          2,
-                        )}% (Meta: ${metaIncremental.toFixed(2)}%)`}
+                        className="text-center text-[10px] sm:text-xs font-medium text-text bg-muted/30 py-1.5 rounded px-0.5"
                       >
-                        {percentualRealAtual.toFixed(2)}%
+                        {v.toLocaleString('pt-BR')}
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Botões mensais — alinhados com as colunas, igual Entregas */}
+              <div className="flex items-stretch gap-2">
+                <div className="w-20 shrink-0 font-bold text-sm text-emerald-600 dark:text-emerald-400 pt-1">REAL</div>
+                <div className="flex-1 grid grid-cols-12 gap-1 min-w-0">
+                  {meses.map((mes, idx) => {
+                    const m = idx + 1;
+                    const future = isFutureMonthCell(anoNum, m);
+                    const realA = Number(metaReal.realAcumulado?.[mes] ?? 0);
+                    const metaM = Number(metaReal.meta?.[mes] ?? 0);
+                    const pctAc = metaReal.percentAcumulado?.[mes];
+                    const pctMes = metaReal.percentMensal?.[mes];
+                    const ok = !future && metaM > 0 && realA >= metaM;
+                    const neutro = !future && metaM === 0;
+                    const title = future
+                      ? `${mesesNomes[idx]}: mês ainda não encerrado`
+                      : `${mesesNomes[idx]}: acumulado ${realA.toLocaleString('pt-BR')} / meta ${metaM.toLocaleString('pt-BR')}${
+                          pctAc != null ? ` (${pctAc}% acum.)` : ''
+                        }${pctMes != null ? ` · ${pctMes}% no mês (vs meta÷12)` : ''}`;
+
+                    return (
+                      <div
+                        key={mes}
+                        title={title}
+                        className={`text-center text-[10px] sm:text-xs font-semibold py-1.5 rounded px-0.5 min-h-[2.75rem] flex flex-col items-center justify-center gap-0.5 ${
+                          future
+                            ? 'bg-muted/20 text-muted border border-border/50'
+                            : neutro
+                              ? 'bg-muted/40 text-text border border-border/60'
+                              : ok
+                                ? 'bg-emerald-500 text-white'
+                                : 'bg-red-500 text-white'
+                        }`}
+                      >
+                        {future ? (
+                          <span className="text-muted font-normal">—</span>
+                        ) : (
+                          <>
+                            <span>{realA.toLocaleString('pt-BR')}</span>
+                            {pctAc != null && metaM > 0 && (
+                              <span className="text-[9px] font-medium leading-tight opacity-95">{pctAc}% acum.</span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="flex items-center gap-2 pt-2 border-t border-border">
-                <div className="w-20" />
-                <div className="flex-1 grid grid-cols-12 gap-1">
-                  {meses.map((mes, idx) => (
+                <div className="w-20 shrink-0" />
+                <div className="flex-1 grid grid-cols-12 gap-1 min-w-0">
+                  {mesesNomes.map((nome) => (
                     <div
-                      key={mes}
-                      className="px-2 py-1.5 rounded-lg text-[10px] font-medium text-center text-muted bg-panel border border-border"
+                      key={nome}
+                      className="px-1 py-1.5 rounded-lg text-[10px] font-medium text-center text-muted bg-panel border border-border"
                     >
-                      {mesesNomes[idx]}
+                      {nome}
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-border text-[11px] text-muted">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-2 border-t border-border text-[11px] text-muted">
                 <div>
-                  Total: <span className="font-semibold text-text">{totalReal}</span> de{' '}
-                  <span className="font-semibold text-text">{metaTotal}</span> OS entregues
+                  Total: <span className="font-semibold text-text">{totalReal.toLocaleString('pt-BR')}</span> de{' '}
+                  <span className="font-semibold text-text">{metaTotal.toLocaleString('pt-BR')}</span> OS entregues
+                  {metaTotal > 0 ? (
+                    <>
+                      {' '}
+                      (
+                      <span className="font-semibold text-text">
+                        {((totalReal / metaTotal) * 100).toFixed(1).replace('.', ',')}%
+                      </span>{' '}
+                      do total na meta)
+                    </>
+                  ) : null}
                 </div>
-                <div>
-                  {metaReal.totalColaboradores} na meta (folha em 01/01/{ANO_OS}; sem abandono de emprego)
+                <div className="text-right">
+                  {metaTotal.toLocaleString('pt-BR')} na meta (folha em 01/01/{ANO_OS}; sem abandono de emprego na OS)
                 </div>
               </div>
             </div>
