@@ -468,12 +468,6 @@ export default function OrdemServicoPage() {
           const metaTotal = Number(metaReal.totalMeta || 0);
           const totalReal = Number(metaReal.totalReal || 0);
 
-          const fmtMetaCell = (n: number) =>
-            new Intl.NumberFormat('pt-BR', {
-              notation: 'compact',
-              compactDisplay: 'short',
-              maximumFractionDigits: 1,
-            }).format(n);
           const metaPctDoTotal = (metaAcum: number) =>
             metaTotal > 0
               ? Math.min(100, Math.round((metaAcum / metaTotal) * 10000) / 100)
@@ -497,8 +491,8 @@ export default function OrdemServicoPage() {
                 </span>
               </div>
               <p className="text-[10px] text-muted -mt-1">
-                Coorte {ANO_OS} · META = esperado acumulado no mês (coorte ÷ 12, resto nos primeiros meses) · REAL = % de
-                cobertura (OS / total coorte) · verde se OS acum. ≥ META do mês · EVOL. = ganho mensal de cobertura
+                Coorte {ANO_OS} · META e REAL = OS acumuladas (meta linear no ano) · EVOL. = ganho mensal da cobertura %
+                (OS / total coorte) · verde se REAL ≥ META do mês
               </p>
 
               <div className="space-y-2">
@@ -511,10 +505,10 @@ export default function OrdemServicoPage() {
                       return (
                         <div
                           key={mes}
-                          className="text-center text-[10px] font-medium tabular-nums text-text bg-muted/30 py-1.5 rounded leading-tight"
+                          className="text-center text-xs font-bold tabular-nums text-text bg-muted/30 py-1.5 rounded"
                           title={`${mesesNomes[idx]}: meta acumulada ${head.toLocaleString('pt-BR')} (${fmtPct(pctTotal)}% da coorte)`}
                         >
-                          {fmtMetaCell(head)}
+                          {head.toLocaleString('pt-BR')}
                         </div>
                       );
                     })}
@@ -544,14 +538,14 @@ export default function OrdemServicoPage() {
                       return (
                         <div
                           key={mes}
-                          className={`text-center text-xs font-bold py-1.5 rounded ${cor}`}
+                          className={`text-center text-xs font-bold tabular-nums py-1.5 rounded ${cor}`}
                           title={
                             future
                               ? `${mesesNomes[idx]}: mês futuro`
-                              : `${mesesNomes[idx]}: ${realQtd.toLocaleString('pt-BR')} OS acum. · meta esperada ${metaQtd.toLocaleString('pt-BR')} · ${fmtPct(realPct)}% cobertura`
+                              : `${mesesNomes[idx]}: ${realQtd.toLocaleString('pt-BR')} OS acum. · meta ${metaQtd.toLocaleString('pt-BR')} · cobertura ${fmtPct(realPct)}%`
                           }
                         >
-                          {future ? '—' : `${fmtPct(realPct)}%`}
+                          {future ? '—' : realQtd.toLocaleString('pt-BR')}
                         </div>
                       );
                     })}
@@ -559,7 +553,7 @@ export default function OrdemServicoPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <div className="w-20 font-bold text-xs text-blue-600 dark:text-blue-400">EVOL.</div>
+                  <div className="w-20 font-bold text-sm text-blue-600 dark:text-blue-400">EVOL.</div>
                   <div className="flex-1 grid grid-cols-12 gap-1">
                     {mesesKeys.map((mes, idx) => {
                       const m = idx + 1;
@@ -568,7 +562,7 @@ export default function OrdemServicoPage() {
                         return (
                           <div
                             key={mes}
-                            className="text-center text-[10px] font-medium py-1 rounded bg-muted/20 text-muted border border-border/40"
+                            className="text-center text-xs font-medium py-1.5 rounded bg-muted/20 text-muted border border-border/40"
                           >
                             —
                           </div>
@@ -587,7 +581,7 @@ export default function OrdemServicoPage() {
                             : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
 
                       return (
-                        <div key={mes} className={`text-center text-[10px] font-medium py-1 rounded ${cellClass}`}>
+                        <div key={mes} className={`text-center text-xs font-bold tabular-nums py-1.5 rounded ${cellClass}`}>
                           {sinal}
                           {fmtPct(evol)}%
                         </div>
