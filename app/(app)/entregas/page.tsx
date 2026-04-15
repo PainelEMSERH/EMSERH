@@ -39,6 +39,47 @@ const STATUS_LABELS: Record<StatusCode, string> = {
 
 const EXCLUDED_STATUS: StatusCode[] = ['DEMITIDO_2025_SEM_EPI', 'DEMITIDO_2026_SEM_EPI', 'EXCLUIDO_META'];
 
+const ANO_ENTREGAS_TRACKER = 2026;
+
+/** Mês ainda não iniciado no calendário (REAL e EVOL. só até o mês corrente). */
+function isFutureMonthCellEntregas(anoExercicio: number, month1to12: number): boolean {
+  const now = new Date();
+  const cy = now.getFullYear();
+  const cm = now.getMonth() + 1;
+  if (anoExercicio > cy) return true;
+  if (anoExercicio < cy) return false;
+  return month1to12 > cm;
+}
+
+function fmtPctEntregas(n: number): string {
+  return Number(n).toFixed(2);
+}
+
+/** Meta linear só em mai–dez (8 meses); jan–abr = 0. Índice 0 = jan … 11 = dez. */
+function epiMetaMonthlySlicesMayDec(totalMeta: number): number[] {
+  const slices = Array.from({ length: 12 }, () => 0);
+  if (totalMeta <= 0) return slices;
+  const n = 8;
+  const q = Math.floor(totalMeta / n);
+  const r = totalMeta % n;
+  for (let k = 1; k <= n; k++) {
+    const monthIdx = 3 + k;
+    slices[monthIdx] = q + (k <= r ? 1 : 0);
+  }
+  return slices;
+}
+
+function epiMetaAcumuladaMayDec(totalMeta: number): number[] {
+  const slices = epiMetaMonthlySlicesMayDec(totalMeta);
+  const acum: number[] = [];
+  let run = 0;
+  for (let i = 0; i < 12; i++) {
+    run += slices[i];
+    acum.push(run);
+  }
+  return acum;
+}
+
 function statusDotClass(code: StatusCode): string {
   switch (code) {
     case 'FERIAS':
@@ -1009,79 +1050,181 @@ export default function EntregasPage() {
             }
             
             // Mostra tracker sempre que tem metaData (mesmo se meta for 0)
-            // Se meta for 0, mostra 0% em todas as colunas
-        const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
-        const mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        const mesAtual = new Date().getMonth(); // 0-11
-        const mesAtualKey = String(mesAtual + 1).padStart(2, '0');
-        
-        // Calcula metas incrementais cumulativas com início em MAIO (Maio–Dezembro = 8 meses)
-        // Jan–Abr: 0%
-        // Mai: 12,5% ... Dez: 100%
-        const START_MONTH_INDEX = 4; // 0=Jan ... 4=Mai
-        const MONTHS_IN_WINDOW = 8;
-        const metasIncrementais = meses.map((_, idx) => {
-          if (idx < START_MONTH_INDEX) return 0;
-          const pos = idx - START_MONTH_INDEX + 1; // 1..8
-          return (pos / MONTHS_IN_WINDOW) * 100;
-        });
+            const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+            const mesesNomes = [
+              'Janeiro',
+              'Fevereiro',
+              'Março',
+              'Abril',
+              'Maio',
+              'Junho',
+              'Julho',
+              'Agosto',
+              'Setembro',
+              'Outubro',
+              'Novembro',
+              'Dezembro',
+            ];
+            const progressoMeses = metaData.progresso || {};
+            const metaTotal = metaData.meta || 0;
+            const anoNum = ANO_ENTREGAS_TRACKER;
 
-        // Progresso por mês (vindo da API: meses['01'], meses['02'], ...)
-        const progressoMeses = metaData.progresso || {};
-        const metaTotal = metaData.meta || 0;
+            /** Meta em itens: 0 jan–abr; mai–dez soma = metaTotal (linear em 8 meses). */
+            const metaAcumArr = epiMetaAcumuladaMayDec(metaTotal);
+            const entregueAcumArr = meses.map((_, idx) =>
+              meses
+                .slice(0, idx + 1)
+                .reduce((acc, m) => acc + (Number(progressoMeses[m]) || 0), 0),
+            );
+            const realPctAcum = meses.map((_, idx) =>
+              metaTotal > 0
+                ? Math.min(
+                    100,
+                    Math.round((entregueAcumArr[idx] / metaTotal) * 10000) / 100,
+                  )
+                : 0,
+            );
 
-        // REAL por mês: percentual cumulativo do ANO (entregue até aquele mês / meta anual)
-        // Assim o percentual não “diminui” ao longo do ano (não existe devolução no sistema).
-        const percentualRealPorMes = meses.map((mes, idx) => {
-          const entregueAteMes = meses
-            .slice(0, idx + 1)
-            .reduce((acc, m) => acc + (Number(progressoMeses[m]) || 0), 0);
-          if (metaTotal <= 0) return 0;
-          return Math.min(100, (entregueAteMes / metaTotal) * 100);
-        });
+            const progressoFiltrado = mesSelecionado
+              ? { [mesSelecionado]: metaData.progresso[mesSelecionado] || 0 }
+              : metaData.progresso;
 
-        // Filtra progresso por mês se selecionado (para os botões)
-        const progressoFiltrado = mesSelecionado
-          ? { [mesSelecionado]: metaData.progresso[mesSelecionado] || 0 }
-          : metaData.progresso;
+            const cy = new Date().getFullYear();
+            const cm = new Date().getMonth() + 1;
+            let entregueAteMesCorrente = 0;
+            if (anoNum === cy) {
+              meses.forEach((m, i) => {
+                if (i + 1 <= cm) entregueAteMesCorrente += Number(progressoMeses[m]) || 0;
+              });
+            } else if (anoNum < cy) {
+              entregueAteMesCorrente = meses.reduce((acc, m) => acc + (Number(progressoMeses[m]) || 0), 0);
+            }
 
-        return (
+            return (
           <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
-            {/* Linha META */}
-            <div className="flex items-center gap-2">
-              <div className="w-20 font-bold text-sm text-text">META</div>
-              <div className="flex-1 grid grid-cols-12 gap-1">
-                {meses.map((mes, idx) => (
-                  <div key={mes} className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded">
-                    {metasIncrementais[idx].toFixed(2)}%
-                  </div>
-                ))}
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-sm font-semibold">Meta vs Real - Entregas de EPI ({state.regional})</h2>
+              <span className="rounded-lg border border-border bg-bg px-3 py-1.5 text-xs font-semibold tabular-nums">
+                {ANO_ENTREGAS_TRACKER}
+              </span>
+            </div>
+            <p className="text-[10px] text-muted -mt-1">
+              META e REAL = itens acumulados no mês · meta linear mai–dez · REAL e EVOL. só aparecem até o mês
+              corrente; meses futuros em “—” até o mês começar · EVOL. = ganho mensal da cobertura % · verde se REAL ≥
+              META
+            </p>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-20 font-bold text-sm text-text">META</div>
+                <div className="flex-1 grid grid-cols-12 gap-1">
+                  {meses.map((mes, idx) => {
+                    const head = metaAcumArr[idx] ?? 0;
+                    const pctMeta =
+                      metaTotal > 0 ? Math.min(100, Math.round((head / metaTotal) * 10000) / 100) : 0;
+                    return (
+                      <div
+                        key={mes}
+                        className="text-center text-xs font-bold tabular-nums text-text bg-muted/30 py-1.5 rounded"
+                        title={`${mesesNomes[idx]}: meta acumulada ${head.toLocaleString('pt-BR')} itens (${fmtPctEntregas(pctMeta)}% da meta anual)`}
+                      >
+                        {head.toLocaleString('pt-BR')}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
+                <div className="flex-1 grid grid-cols-12 gap-1">
+                  {meses.map((mes, idx) => {
+                    const m = idx + 1;
+                    const future = isFutureMonthCellEntregas(anoNum, m);
+                    const metaQtd = metaAcumArr[idx] ?? 0;
+                    const realQtd = entregueAcumArr[idx] ?? 0;
+                    const realPct = realPctAcum[idx] ?? 0;
+                    const ambosZero = metaTotal < 1 && realQtd < 1;
+                    const atingiu =
+                      !future && metaTotal > 0 && (metaQtd <= 0 ? realQtd <= 0 : realQtd >= metaQtd);
+                    const folhaMetaZeroRealPos = !future && metaQtd <= 0 && realQtd > 0;
+                    const cor = future
+                      ? 'bg-muted/30 text-muted border border-border/50'
+                      : ambosZero
+                        ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                        : folhaMetaZeroRealPos || atingiu
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-red-500 text-white';
+
+                    return (
+                      <div
+                        key={mes}
+                        className={`text-center text-xs font-bold tabular-nums py-1.5 rounded ${cor}`}
+                        title={
+                          future
+                            ? `${mesesNomes[idx]}: mês ainda não iniciado`
+                            : `${mesesNomes[idx]}: ${realQtd.toLocaleString('pt-BR')} itens acum. · meta ${metaQtd.toLocaleString('pt-BR')} · cobertura ${fmtPctEntregas(realPct)}%`
+                        }
+                      >
+                        {future ? '—' : realQtd.toLocaleString('pt-BR')}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="w-20 font-bold text-sm text-blue-600 dark:text-blue-400">EVOL.</div>
+                <div className="flex-1 grid grid-cols-12 gap-1">
+                  {meses.map((mes, idx) => {
+                    const m = idx + 1;
+                    const future = isFutureMonthCellEntregas(anoNum, m);
+                    if (future) {
+                      return (
+                        <div
+                          key={mes}
+                          className="text-center text-xs font-medium py-1.5 rounded bg-muted/20 text-muted border border-border/40"
+                        >
+                          —
+                        </div>
+                      );
+                    }
+                    const cur = realPctAcum[idx] ?? 0;
+                    const prev = idx > 0 ? realPctAcum[idx - 1] ?? 0 : 0;
+                    const evol = cur - prev;
+                    const sinal = evol > 0 ? '+' : '';
+                    const cellClass =
+                      evol > 0
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                        : evol === 0
+                          ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                          : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
+
+                    return (
+                      <div
+                        key={mes}
+                        className={`text-center text-xs font-bold tabular-nums py-1.5 rounded ${cellClass}`}
+                      >
+                        {sinal}
+                        {fmtPctEntregas(evol)}%
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            {/* Linha REAL — um percentual por mês (cumulativo até aquele mês) */}
-            <div className="flex items-center gap-2">
-              <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
-              <div className="flex-1 grid grid-cols-12 gap-1">
-                {meses.map((mes, idx) => {
-                  const metaIncremental = metasIncrementais[idx];
-                  const percentualReal = percentualRealPorMes[idx];
-                  const estaAcima = percentualReal >= metaIncremental;
-
-                  return (
-                    <div
-                      key={mes}
-                      className={`text-center text-xs font-bold py-1.5 rounded ${
-                        estaAcima
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-red-500 text-white'
-                      }`}
-                      title={`${mesesNomes[idx]}: ${percentualReal.toFixed(2)}% (Meta: ${metaIncremental.toFixed(2)}%) · ${progressoMeses[mes] ?? 0} itens`}
-                    >
-                      {percentualReal.toFixed(2)}%
-                    </div>
-                  );
-                })}
+            <div className="flex items-center justify-between pt-2 border-t border-border text-[11px] text-muted">
+              <div>
+                Até o mês atual:{' '}
+                <span className="font-semibold text-text">{entregueAteMesCorrente.toLocaleString('pt-BR')}</span> de{' '}
+                <span className="font-semibold text-text">{metaTotal.toLocaleString('pt-BR')}</span> itens entregues
+              </div>
+              <div className="text-right">
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                  {fmtPctEntregas(metaTotal > 0 ? (entregueAteMesCorrente / metaTotal) * 100 : 0)}%
+                </span>{' '}
+                de cobertura
               </div>
             </div>
 
