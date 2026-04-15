@@ -1,283 +1,340 @@
 
 import { NextRequest } from 'next/server'
 import { obrigatoriosWhereSql } from '@/data/epiObrigatorio'
-import { canonUnidade, UNID_TO_REGIONAL } from '@/lib/unidReg'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type KPI = {
-  metaMensal: { valorMeta: number, realizado: number },
-  variacaoMensalPerc: number,
-  metaAnual: { valorMeta: number, realizado: number },
-  colaboradoresAtendidos: number,
-  itensEntregues: number,
-  pendenciasAbertas: number,
-  topItens: { itemId: string, nome: string, quantidade: number }[]
+  metaMensal: { valorMeta: number; realizado: number }
+  variacaoMensalPerc: number
+  metaAnual: { valorMeta: number; realizado: number }
+  colaboradoresAtendidos: number
+  itensEntregues: number
+  pendenciasAbertas: number
+  topItens: { itemId: string; nome: string; quantidade: number }[]
 }
 
-type Series = { labels: string[], entregas: number[], itens: number[] }
+type Series = { labels: string[]; entregas: number[]; itens: number[] }
 
 type Alertas = {
-  estoqueAbaixoMinimo: { unidade: string, item: string, quantidade: number, minimo: number }[],
+  estoqueAbaixoMinimo: { unidade: string; item: string; quantidade: number; minimo: number }[]
   pendenciasVencidas: number
 }
 
-function startOfMonth(y:number,m:number){ return new Date(Date.UTC(y, m-1, 1, 0,0,0)) }
-function endOfMonth(y:number,m:number){ return new Date(Date.UTC(y, m, 0, 23,59,59)) }
-function addMonths(d: Date, delta: number){ const n = new Date(d); n.setUTCMonth(n.getUTCMonth()+delta); return n }
-
-// Helper para criar filtro de regional usando stg_unid_reg
-async function buildRegionalFilter(prisma: any, regional: string | null): Promise<string> {
-  if (!regional || !regional.trim()) return ''
-  
-  try {
-    // Tenta buscar unidades da regional na tabela stg_unid_reg
-    const regEscaped = regional.trim().replace(/'/g, "''")
-    const rows: any[] = await prisma.$queryRawUnsafe(`
-      SELECT DISTINCT nmdepartamento AS unidade
-      FROM stg_unid_reg
-      WHERE UPPER(TRIM(regional_responsavel)) = UPPER(TRIM('${regEscaped}'))
-    `)
-    
-    if (rows && rows.length > 0) {
-      const unidades = rows.map((r: any) => {
-        const uni = String(r.unidade || '').trim()
-        return uni ? `'${uni.replace(/'/g, "''")}'` : null
-      }).filter(Boolean)
-      
-      if (unidades.length > 0) {
-        return `AND a.unidade IN (${unidades.join(',')})`
-      }
-    }
-    
-    // Fallback: usa mapeamento UNID_TO_REGIONAL
-    const regUpper = regional.trim().toUpperCase()
-    const unidadesFiltradas: string[] = []
-    
-    for (const [unidade, reg] of Object.entries(UNID_TO_REGIONAL)) {
-      if (reg === regUpper) {
-        unidadesFiltradas.push(`'${unidade.replace(/'/g, "''")}'`)
-      }
-    }
-    
-    if (unidadesFiltradas.length > 0) {
-      return `AND a.unidade IN (${unidadesFiltradas.join(',')})`
-    }
-  } catch {}
-  
-  return ''
+function startOfMonth(y: number, m: number) {
+  return new Date(Date.UTC(y, m - 1, 1, 0, 0, 0))
+}
+function endOfMonth(y: number, m: number) {
+  return new Date(Date.UTC(y, m, 0, 23, 59, 59))
+}
+function addMonths(d: Date, delta: number) {
+  const n = new Date(d)
+  n.setUTCMonth(n.getUTCMonth() + delta)
+  return n
 }
 
-export async function GET(req: NextRequest){
+/** CPF normalizado 11 dígitos no SQL (PostgreSQL). */
+function sqlNormCpf(alias: string) {
+  return `LPAD(RIGHT(REGEXP_REPLACE(REPLACE(COALESCE(${alias}.cpf::text, ''), ' ', ''), '[^0-9]', '', 'g'), 11), 11, '0')`
+}
+
+/** Filtro regional em stg_alterdata_v2 (mesma ideia de entregas/meta). */
+async function buildRegionalFilterV2(prisma: any, regional: string | null): Promise<string> {
+  const r = (regional || '').trim()
+  if (!r) return ''
+
+  try {
+    const hasUnidReg: any[] = await prisma.$queryRawUnsafe(`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind IN ('r','v','m') AND n.nspname = 'public' AND c.relname = 'stg_unid_reg'
+      ) AS exists
+    `)
+    if (!hasUnidReg?.[0]?.exists) return ''
+
+    const esc = r.replace(/'/g, "''")
+    return `AND (
+      UPPER(TRIM(COALESCE((
+        SELECT ur.regional_responsavel FROM stg_unid_reg ur
+        WHERE UPPER(TRIM(ur.nmdepartamento)) = UPPER(TRIM(COALESCE(a.unidade_hospitalar, '')))
+        LIMIT 1
+      ), ''))) = UPPER(TRIM('${esc}'))
+      OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) IN (
+        SELECT UPPER(TRIM(nmdepartamento)) FROM stg_unid_reg
+        WHERE UPPER(TRIM(regional_responsavel)) = UPPER(TRIM('${esc}'))
+      )
+    )`
+  } catch {
+    return ''
+  }
+}
+
+const ATIVO_DEMISSAO = `(a.demissao IS NULL OR TRIM(COALESCE(a.demissao::text, '')) = '')`
+
+const EXCL_META = `NOT EXISTS (
+  SELECT 1 FROM colaborador_situacao_meta s
+  WHERE ${sqlNormCpf('s')} = ${sqlNormCpf('a')}
+    AND s.situacao IN ('DEMITIDO_2026_SEM_EPI', 'DEMITIDO_2025_SEM_EPI', 'EXCLUIDO_META')
+)`
+
+export async function GET(req: NextRequest) {
   const { prisma } = await import('@/lib/db')
   const { searchParams } = new URL(req.url)
   const regional = searchParams.get('regional') || ''
 
   const now = new Date()
   const ano = now.getUTCFullYear()
-  const mes = now.getUTCMonth()+1
+  const mes = now.getUTCMonth() + 1
   const ini = startOfMonth(ano, mes)
   const fim = endOfMonth(ano, mes)
-  const iniDate = ini.toISOString().substring(0,10)
-  const fimDate = fim.toISOString().substring(0,10)
+  const iniDate = ini.toISOString().substring(0, 10)
+  const fimDate = fim.toISOString().substring(0, 10)
+  const anoIniDate = `${ano}-01-01`
 
-  let kpis: KPI = {
+  const kpis: KPI = {
     metaMensal: { valorMeta: 0, realizado: 0 },
     variacaoMensalPerc: 0,
     metaAnual: { valorMeta: 0, realizado: 0 },
     colaboradoresAtendidos: 0,
     itensEntregues: 0,
     pendenciasAbertas: 0,
-    topItens: []
+    topItens: [],
   }
 
   let series: Series = { labels: [], entregas: [], itens: [] }
-  let alertas: Alertas = { estoqueAbaixoMinimo: [], pendenciasVencidas: 0 }
+  const alertas: Alertas = { estoqueAbaixoMinimo: [], pendenciasVencidas: 0 }
 
-  // Helper para filtro de regional
-  const regionalFilter = await buildRegionalFilter(prisma, regional)
-  
-  // 1) colaboradores elegíveis no mês (stg_alterdata)
-  try{
-    const rows:any[] = await prisma.$queryRawUnsafe(`
-      SELECT COUNT(*)::int AS c
-      FROM stg_alterdata a
-      WHERE a.admissao <= '${fimDate}'::date
-        AND (a.demissao IS NULL OR a.demissao >= '${iniDate}'::date)
-        ${regionalFilter}
+  const regionalSql = await buildRegionalFilterV2(prisma, regional)
+  const ncpf = sqlNormCpf('a')
+
+  let exclSituacaoSql = ''
+  try {
+    const chk: any[] = await prisma.$queryRawUnsafe(`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'colaborador_situacao_meta'
+      ) AS e
+    `)
+    if (chk?.[0]?.e) exclSituacaoSql = `AND ${EXCL_META}`
+  } catch {}
+
+  // 1) Colaboradores ativos (v2)
+  try {
+    const rows: any[] = await prisma.$queryRawUnsafe(`
+      SELECT COUNT(DISTINCT ${ncpf})::int AS c
+      FROM stg_alterdata_v2 a
+      WHERE ${ATIVO_DEMISSAO}
+        AND COALESCE(a.cpf, '') != ''
+        AND COALESCE(a.funcao, '') != ''
+        ${exclSituacaoSql}
+        ${regionalSql}
     `)
     kpis.colaboradoresAtendidos = Number(rows?.[0]?.c || 0)
-  }catch{}
+  } catch {}
 
-  // 2) itens planejados do mês - SOMENTE EPIs obrigatórios (stg_alterdata x stg_epi_map)
-  try{
+  // 2) Itens planejados (obrigatórios) — coorte atual v2 × stg_epi_map
+  let planejadosCohorte = 0
+  try {
     const elig = `
       WITH elig AS (
-        SELECT UPPER(REGEXP_REPLACE(a.funcao,'[^A-Z0-9]+','','g')) AS func_key
-        FROM stg_alterdata a
-        WHERE a.admissao <= '${fimDate}'::date
-          AND (a.demissao IS NULL OR a.demissao >= '${iniDate}'::date)
-          ${regionalFilter}
+        SELECT DISTINCT UPPER(REGEXP_REPLACE(a.funcao, '[^A-Z0-9]+', '', 'g')) AS func_key
+        FROM stg_alterdata_v2 a
+        WHERE ${ATIVO_DEMISSAO}
+          AND COALESCE(a.cpf, '') != ''
+          AND COALESCE(a.funcao, '') != ''
+          ${exclSituacaoSql}
+          ${regionalSql}
       )
-    `;
-    const obrigPlan = obrigatoriosWhereSql('m.epi_item');
-
-    const r:any[] = await prisma.$queryRawUnsafe(`${elig}
-      SELECT COALESCE(SUM(m.quantidade),0)::int AS q
+    `
+    const obrigPlan = obrigatoriosWhereSql('m.epi_item')
+    const r: any[] = await prisma.$queryRawUnsafe(`${elig}
+      SELECT COALESCE(SUM(m.quantidade), 0)::int AS q
       FROM elig e
       JOIN stg_epi_map m
-        ON UPPER(REGEXP_REPLACE(m.alterdata_funcao,'[^A-Z0-9]+','','g')) = e.func_key
-       WHERE ${obrigPlan}
-    `);
-    const planejadosMes = Number(r?.[0]?.q || 0);
-    kpis.metaMensal.valorMeta = planejadosMes;
-    kpis.metaAnual.valorMeta = planejadosMes * 12;
+        ON UPPER(REGEXP_REPLACE(m.alterdata_funcao, '[^A-Z0-9]+', '', 'g')) = e.func_key
+      WHERE ${obrigPlan}
+    `)
+    planejadosCohorte = Number(r?.[0]?.q || 0)
+    // Meta anual = demanda da coorte (não ×12). Meta mensal = fatia linear.
+    kpis.metaAnual.valorMeta = planejadosCohorte
+    kpis.metaMensal.valorMeta =
+      planejadosCohorte > 0 ? Math.max(1, Math.ceil(planejadosCohorte / 12)) : 0
+  } catch {}
 
-    const top:any[] = await prisma.$queryRawUnsafe(`${elig}
-      SELECT m.epi_item AS nome, SUM(m.quantidade)::int AS quantidade
-      FROM elig e
-      JOIN stg_epi_map m
-        ON UPPER(REGEXP_REPLACE(m.alterdata_funcao,'[^A-Z0-9]+','','g')) = e.func_key
-       WHERE ${obrigPlan}
-      GROUP BY m.epi_item
-      ORDER BY quantidade DESC
-      LIMIT 5
-    `);
-    kpis.topItens = (top||[]).map((x:any,i:number)=>({
-      itemId: String(i+1),
-      nome: String(x.nome),
-      quantidade: Number(x.quantidade || 0)
-    }));
-  }catch{}
+  // 3) Realizado no mês e no ano (YTD) — só CPFs da coorte e itens obrigatórios
+  try {
+    const obrig = obrigatoriosWhereSql('b.item')
+    const eligSql = `
+      (SELECT DISTINCT ${sqlNormCpf('a')} AS ncpf
+       FROM stg_alterdata_v2 a
+       WHERE ${ATIVO_DEMISSAO}
+         AND COALESCE(a.cpf, '') != ''
+         AND COALESCE(a.funcao, '') != ''
+         ${exclSituacaoSql}
+         ${regionalSql}) elig
+    `
 
-  // 3) realizado no mês - SOMENTE EPIs obrigatórios, usando epi_entregas
-  try{
-    const obrig = obrigatoriosWhereSql('b.item');
-    const rows:any[] = await prisma.$queryRawUnsafe(`
+    const qMes: any[] = await prisma.$queryRawUnsafe(`
       WITH base AS (
         SELECT
-          e.item,
+          e.cpf AS cpf,
           (elem->>'date')::date AS data,
-          (elem->>'qty')::int  AS quantidade
+          (elem->>'qty')::int AS quantidade
         FROM epi_entregas e
-        CROSS JOIN LATERAL jsonb_array_elements(e.deliveries) elem
+        CROSS JOIN LATERAL jsonb_array_elements(COALESCE(e.deliveries, '[]'::jsonb)) elem
       )
-      SELECT COALESCE(SUM(b.quantidade),0)::int AS q
+      SELECT COALESCE(SUM(b.quantidade), 0)::int AS q
       FROM base b
+      INNER JOIN ${eligSql} ON elig.ncpf = LPAD(RIGHT(REGEXP_REPLACE(REPLACE(COALESCE(b.cpf::text, ''), ' ', ''), '[^0-9]', '', 'g'), 11), 11, '0')
       WHERE b.data >= '${iniDate}'::date
         AND b.data <= '${fimDate}'::date
         AND ${obrig}
-    `);
-    const q = Number(rows?.[0]?.q || 0);
-    kpis.itensEntregues = q;
-    kpis.metaMensal.realizado = q;
-    kpis.metaAnual.realizado = q; // simplificado
-  }catch{}
+    `)
+    const qM = Number(qMes?.[0]?.q || 0)
+    kpis.itensEntregues = qM
+    kpis.metaMensal.realizado = qM
 
-  // 4) pendências e estoque (se existirem)
-  try{
-    const p:any[] = await prisma.$queryRawUnsafe(`
-      SELECT 
+    const qYtd: any[] = await prisma.$queryRawUnsafe(`
+      WITH base AS (
+        SELECT
+          e.cpf AS cpf,
+          (elem->>'date')::date AS data,
+          (elem->>'qty')::int AS quantidade
+        FROM epi_entregas e
+        CROSS JOIN LATERAL jsonb_array_elements(COALESCE(e.deliveries, '[]'::jsonb)) elem
+      )
+      SELECT COALESCE(SUM(b.quantidade), 0)::int AS q
+      FROM base b
+      INNER JOIN ${eligSql} ON elig.ncpf = LPAD(RIGHT(REGEXP_REPLACE(REPLACE(COALESCE(b.cpf::text, ''), ' ', ''), '[^0-9]', '', 'g'), 11), 11, '0')
+      WHERE b.data >= '${anoIniDate}'::date
+        AND b.data <= '${fimDate}'::date
+        AND ${obrig}
+    `)
+    kpis.metaAnual.realizado = Number(qYtd?.[0]?.q || 0)
+  } catch {}
+
+  // 4) pendências e estoque
+  try {
+    const p: any[] = await prisma.$queryRawUnsafe(`
+      SELECT
         SUM(CASE WHEN status = 'aberta' THEN 1 ELSE 0 END)::int AS abertas,
         SUM(CASE WHEN status = 'aberta' AND prazo < NOW() THEN 1 ELSE 0 END)::int AS vencidas
       FROM pendencia
     `)
     kpis.pendenciasAbertas = Number(p?.[0]?.abertas || 0)
     alertas.pendenciasVencidas = Number(p?.[0]?.vencidas || 0)
-  }catch{}
+  } catch {}
 
-  try{
-    const eRows:any[] = await prisma.$queryRawUnsafe(`
+  try {
+    const eRows: any[] = await prisma.$queryRawUnsafe(`
       SELECT u.nome AS unidade, i.nome AS item, e.quantidade::int AS quantidade, e.minimo::int AS minimo
-        FROM estoque e
-        JOIN item i ON i.id = e."itemId"
-        JOIN unidade u ON u.id = e."unidadeId"
-       WHERE (e.quantidade < e.minimo)
-       ORDER BY e.quantidade ASC
-       LIMIT 6
+      FROM estoque e
+      JOIN item i ON i.id = e."itemId"
+      JOIN unidade u ON u.id = e."unidadeId"
+      WHERE (e.quantidade < e.minimo)
+      ORDER BY e.quantidade ASC
+      LIMIT 6
     `)
-    alertas.estoqueAbaixoMinimo = (eRows||[]).map((x:any)=>({
+    alertas.estoqueAbaixoMinimo = (eRows || []).map((x: any) => ({
       unidade: String(x.unidade),
       item: String(x.item),
       quantidade: Number(x.quantidade || 0),
-      minimo: Number(x.minimo || 0)
+      minimo: Number(x.minimo || 0),
     }))
-  }catch{}
+  } catch {}
 
-  // 5) séries dos últimos 6 meses (planejado x entregue) - apenas itens obrigatórios
-  try{
+  // 5) séries 6 meses
+  try {
     const labels: string[] = []
     const its: number[] = []
     const entr: number[] = []
-
     const baseRef = new Date(ini)
 
-    for(let delta=-5; delta<=0; delta++){
+    const obrigPlan = obrigatoriosWhereSql('m.epi_item')
+    const obrigEnt = obrigatoriosWhereSql('b.item')
+
+    for (let delta = -5; delta <= 0; delta++) {
       const d = addMonths(baseRef, delta)
       const y = d.getUTCFullYear()
-      const m = d.getUTCMonth()+1
-      const sDate = startOfMonth(y,m).toISOString().substring(0,10)
-      const eDate = endOfMonth(y,m).toISOString().substring(0,10)
-      labels.push(String(m).padStart(2,'0') + '/' + y)
+      const m = d.getUTCMonth() + 1
+      const sDate = startOfMonth(y, m).toISOString().substring(0, 10)
+      const eDate = endOfMonth(y, m).toISOString().substring(0, 10)
+      labels.push(String(m).padStart(2, '0') + '/' + y)
 
-      // planejado (stg_alterdata x stg_epi_map)
-      try{
-        // Recalcula filtro de regional para cada mês (pode variar se unidades mudaram)
-        const monthRegionalFilter = await buildRegionalFilter(prisma, regional)
+      try {
         const elig = `
           WITH elig AS (
-            SELECT UPPER(REGEXP_REPLACE(a.funcao,'[^A-Z0-9]+','','g')) AS func_key
-            FROM stg_alterdata a
-            WHERE a.admissao <= '${eDate}'::date
-              AND (a.demissao IS NULL OR a.demissao >= '${sDate}'::date)
-              ${monthRegionalFilter}
+            SELECT DISTINCT UPPER(REGEXP_REPLACE(a.funcao, '[^A-Z0-9]+', '', 'g')) AS func_key
+            FROM stg_alterdata_v2 a
+            WHERE ${ATIVO_DEMISSAO}
+              AND COALESCE(a.cpf, '') != ''
+              AND COALESCE(a.funcao, '') != ''
+              ${exclSituacaoSql}
+              ${regionalSql}
           )
-        `;
-        const obrigPlan = obrigatoriosWhereSql('m.epi_item');
-        const r:any[] = await prisma.$queryRawUnsafe(`${elig}
-          SELECT COALESCE(SUM(m.quantidade),0)::int AS q
+        `
+        const r: any[] = await prisma.$queryRawUnsafe(`${elig}
+          SELECT COALESCE(SUM(m.quantidade), 0)::int AS q
           FROM elig e
           JOIN stg_epi_map m
-            ON UPPER(REGEXP_REPLACE(m.alterdata_funcao,'[^A-Z0-9]+','','g')) = e.func_key
-           WHERE ${obrigPlan}
+            ON UPPER(REGEXP_REPLACE(m.alterdata_funcao, '[^A-Z0-9]+', '', 'g')) = e.func_key
+          WHERE ${obrigPlan}
         `)
         its.push(Number(r?.[0]?.q || 0))
-      }catch{ its.push(0) }
+      } catch {
+        its.push(0)
+      }
 
-      // entregue (epi_entregas)
-      try{
-        const obrigEnt = obrigatoriosWhereSql('b.item');
-        const r:any[] = await prisma.$queryRawUnsafe(`
+      try {
+        const eligSql = `
+          (SELECT DISTINCT ${sqlNormCpf('a')} AS ncpf
+           FROM stg_alterdata_v2 a
+           WHERE ${ATIVO_DEMISSAO}
+             AND COALESCE(a.cpf, '') != ''
+             AND COALESCE(a.funcao, '') != ''
+             ${exclSituacaoSql}
+             ${regionalSql}) elig
+        `
+        const r: any[] = await prisma.$queryRawUnsafe(`
           WITH base AS (
             SELECT
-              e.item,
+              e.cpf AS cpf,
               (elem->>'date')::date AS data,
-              (elem->>'qty')::int  AS quantidade
+              (elem->>'qty')::int AS quantidade
             FROM epi_entregas e
-            CROSS JOIN LATERAL jsonb_array_elements(e.deliveries) elem
+            CROSS JOIN LATERAL jsonb_array_elements(COALESCE(e.deliveries, '[]'::jsonb)) elem
           )
-          SELECT COALESCE(SUM(b.quantidade),0)::int AS q
+          SELECT COALESCE(SUM(b.quantidade), 0)::int AS q
           FROM base b
+          INNER JOIN ${eligSql} ON elig.ncpf = LPAD(RIGHT(REGEXP_REPLACE(REPLACE(COALESCE(b.cpf::text, ''), ' ', ''), '[^0-9]', '', 'g'), 11), 11, '0')
           WHERE b.data >= '${sDate}'::date
             AND b.data <= '${eDate}'::date
             AND ${obrigEnt}
         `)
         entr.push(Number(r?.[0]?.q || 0))
-      }catch{ entr.push(0) }
+      } catch {
+        entr.push(0)
+      }
     }
 
     series = { labels, entregas: entr, itens: its }
-  }catch{}
+  } catch {}
 
-  // 6) variação mensal (%)
-  if (kpis.metaMensal.valorMeta > 0){
+  // variação mensal
+  if (kpis.metaMensal.valorMeta > 0) {
     kpis.variacaoMensalPerc = Number(
-      (((kpis.metaMensal.realizado - kpis.metaMensal.valorMeta) / kpis.metaMensal.valorMeta) * 100).toFixed(1)
+      (
+        ((kpis.metaMensal.realizado - kpis.metaMensal.valorMeta) / kpis.metaMensal.valorMeta) *
+        100
+      ).toFixed(1),
     )
-  }else{
+  } else {
     kpis.variacaoMensalPerc = 0
   }
 
-  return new Response(JSON.stringify({ kpis, series, alertas }), { headers: { 'content-type': 'application/json' } })
+  return new Response(JSON.stringify({ kpis, series, alertas }), {
+    headers: { 'content-type': 'application/json' },
+  })
 }

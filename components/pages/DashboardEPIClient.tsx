@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Shield,
   Sparkles,
+  Target,
   Users,
 } from 'lucide-react'
 import { formatThousands as _formatThousands } from '@/components/utils/Utils'
@@ -78,6 +79,14 @@ type SpciStats = {
     totalSemContrato: number
     porRegional: Record<string, number>
   }
+}
+
+type CipaResumo = {
+  ok?: boolean
+  totalMeta: number
+  totalReal: number
+  percentTotal?: number
+  ano?: number
 }
 
 type OsMetaReal = {
@@ -187,6 +196,7 @@ export default function DashboardEPI() {
   const [acidentes, setAcidentes] = useState<AcidentesStats | null>(null)
   const [osMeta, setOsMeta] = useState<OsMetaReal | null>(null)
   const [spci, setSpci] = useState<SpciStats | null>(null)
+  const [cipa, setCipa] = useState<CipaResumo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [regionais, setRegionais] = useState<string[]>([])
@@ -222,12 +232,16 @@ export default function DashboardEPI() {
           '/api/ordem-servico/meta-real' +
           (regionalSelecionada ? `?regional=${encodeURIComponent(regionalSelecionada)}` : '')
         const spciUrl = '/api/spci/stats' + (regionalSelecionada ? `?regional=${encodeURIComponent(regionalSelecionada)}` : '')
+        const cipaUrl =
+          `/api/cipa/meta-real?ano=${ano}` +
+          (regionalSelecionada ? `&regional=${encodeURIComponent(regionalSelecionada)}` : '')
 
-        const [epiRes, acRes, osRes, spciRes] = await Promise.all([
+        const [epiRes, acRes, osRes, spciRes, cipaRes] = await Promise.all([
           fetch(epiUrl, { cache: 'no-store' }),
           fetch(acidentesUrl, { cache: 'no-store' }),
           fetch(osUrl, { cache: 'no-store' }),
           fetch(spciUrl, { cache: 'no-store' }),
+          fetch(cipaUrl, { cache: 'no-store' }),
         ])
 
         if (!epiRes.ok) throw new Error('Falha ao buscar métricas de EPI')
@@ -235,12 +249,14 @@ export default function DashboardEPI() {
         const acJson = acRes.ok ? await acRes.json() : null
         const osJson = osRes.ok ? await osRes.json() : null
         const spciJson = spciRes.ok ? await spciRes.json() : null
+        const cipaJson = cipaRes.ok ? await cipaRes.json() : null
 
         if (!mounted) return
         setEpi(epiJson)
         setAcidentes(acJson && acJson.ok ? acJson : null)
         setOsMeta(osJson && osJson.ok !== false ? osJson : null)
         setSpci(spciJson && spciJson.ok ? spciJson : null)
+        setCipa(cipaRes.ok && cipaJson ? cipaJson : null)
       } catch (e: any) {
         if (mounted) setError(e.message || 'Erro inesperado')
       } finally {
@@ -343,6 +359,53 @@ export default function DashboardEPI() {
     [gridMuted, tickColor],
   )
 
+  const acidentesLineOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top' as const,
+          labels: {
+            usePointStyle: true,
+            padding: 16,
+            font: { size: 12 },
+            color: tickColor,
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label(ctx: any) {
+              const y = Number(ctx.parsed?.y ?? 0)
+              return `${ctx.dataset.label}: ${Math.round(y)}`
+            },
+          },
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1,
+            callback: (raw: string | number) => {
+              const n = typeof raw === 'number' ? raw : Number(raw)
+              return Number.isFinite(n) && Number.isInteger(n) ? String(n) : ''
+            },
+            font: { size: 11 },
+            color: tickColor,
+          },
+          grid: { color: gridMuted },
+        },
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 11 }, color: tickColor },
+        },
+      },
+    }),
+    [gridMuted, tickColor],
+  )
+
   const acidentesLineData = useMemo(() => {
     if (!acidentes) return { labels: [], datasets: [] }
     const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
@@ -383,14 +446,18 @@ export default function DashboardEPI() {
       : 'text-red-600 dark:text-red-400'
   const variacaoIcon = epi && epi.kpis.variacaoMensalPerc >= 0 ? '↑' : '↓'
 
-  const topRegionaisAcidentes = useMemo(() => {
-    const list = acidentes?.porRegional || []
-    return [...list].sort((a, b) => b.quantidade - a.quantidade).slice(0, 6)
-  }, [acidentes])
+  const epiYtdPct = useMemo(() => {
+    if (!epi) return 0
+    const m = epi.kpis.metaAnual.valorMeta
+    if (!m) return 0
+    return Math.max(0, Math.min(100, (epi.kpis.metaAnual.realizado / m) * 100))
+  }, [epi])
 
-  const maxRegional = useMemo(() => {
-    return Math.max(1, ...topRegionaisAcidentes.map((r) => r.quantidade))
-  }, [topRegionaisAcidentes])
+  const cipaPct = useMemo(() => {
+    if (!cipa || !cipa.totalMeta) return 0
+    if (typeof cipa.percentTotal === 'number') return Math.min(100, Math.max(0, cipa.percentTotal))
+    return Math.max(0, Math.min(100, (cipa.totalReal / cipa.totalMeta) * 100))
+  }, [cipa])
 
   if (loading) {
     return (
@@ -519,7 +586,7 @@ export default function DashboardEPI() {
             icon={<Users />}
             label="Colaboradores (base do mês)"
             value={formatThousands(epi.kpis.colaboradoresAtendidos)}
-            hint="Elegíveis para EPI obrigatório no período"
+            hint="Ativos na base (v2), com filtro regional quando aplicável"
           />
           <MiniStat
             icon={<Package />}
@@ -550,12 +617,12 @@ export default function DashboardEPI() {
           Quatro pilares do SST
         </h2>
         <p className="mb-4 text-xs text-muted">
-          Percentuais facilitam comparação; use as ligações para abrir o módulo detalhado.
+          EPI, OS, acidentes e extintores na mesma visão — use os atalhos para agir no detalhe.
         </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <KpiCard
             title="EPI obrigatório"
-            subtitle="Meta mensal atual"
+            subtitle="Itens obrigatórios — mês corrente"
             href="/entregas"
             hrefLabel="Abrir entregas de EPI"
             pct={mensPct}
@@ -583,8 +650,8 @@ export default function DashboardEPI() {
                   {variacaoIcon} {Math.abs(epi.kpis.variacaoMensalPerc).toFixed(1)}% vs meta
                 </span>
                 <span className="block text-[11px] text-muted">
-                  {formatThousands(epi.kpis.metaMensal.realizado)} / {formatThousands(epi.kpis.metaMensal.valorMeta)}{' '}
-                  unidades planejadas
+                  {formatThousands(epi.kpis.metaMensal.realizado)} / {formatThousands(epi.kpis.metaMensal.valorMeta)} itens
+                  previstos no mês (média linear da coorte)
                 </span>
               </>
             }
@@ -719,7 +786,9 @@ export default function DashboardEPI() {
             <h2 id="dash-annual-heading" className="text-sm font-semibold text-text">
               Meta anual de EPI (obrigatórios)
             </h2>
-            <p className="mt-1 text-xs text-muted">Progresso acumulado no ano corrente</p>
+            <p className="mt-1 text-xs text-muted">
+              Itens obrigatórios entregues no ano (até hoje) × meta da coorte (stg_alterdata v2)
+            </p>
           </div>
           <p className="text-2xl font-bold tabular-nums text-text">{anualPct.toFixed(1)}%</p>
         </div>
@@ -734,8 +803,8 @@ export default function DashboardEPI() {
           />
         </div>
         <p className="mt-2 text-xs text-muted">
-          {formatThousands(epi.kpis.metaAnual.realizado)} realizados de{' '}
-          {formatThousands(epi.kpis.metaAnual.valorMeta)} planejados no ano
+          {formatThousands(epi.kpis.metaAnual.realizado)} itens entregues no ano (só CPFs da coorte e EPIs obrigatórios)
+          de {formatThousands(epi.kpis.metaAnual.valorMeta)} previstos para a coorte filtrada
         </p>
       </section>
 
@@ -758,97 +827,137 @@ export default function DashboardEPI() {
           </div>
           <p className="text-xs text-muted">Distribuição no ano {new Date().getFullYear()}</p>
           <div className="mt-4 h-72">
-            <Line data={acidentesLineData} options={lineChartOptions as any} />
+            <Line data={acidentesLineData} options={acidentesLineOptions as any} />
           </div>
         </div>
       </section>
 
-      {/* Complementares */}
-      <section className="grid grid-cols-1 gap-6 lg:grid-cols-3" aria-label="Detalhes e alertas">
-        <div className="rounded-2xl border border-border bg-panel p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-text">Itens mais entregues</h3>
-          <p className="mt-1 text-xs text-muted">Top 5 no consolidado atual</p>
-          <ul className="mt-4 space-y-3">
-            {(epi.kpis.topItens || []).slice(0, 5).map((t, i) => {
-              const max = Math.max(1, ...(epi.kpis.topItens || []).map((x) => x.quantidade))
-              const w = (t.quantidade / max) * 100
-              return (
-                <li key={t.itemId || i}>
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate font-medium text-text">{t.nome || t.itemId}</span>
-                    <span className="shrink-0 tabular-nums text-muted">{formatThousands(t.quantidade)}</span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted/70">
-                    <div className="h-full rounded-full bg-emerald-500/80" style={{ width: `${w}%` }} />
-                  </div>
-                </li>
-              )
-            })}
-            {(!epi.kpis.topItens || epi.kpis.topItens.length === 0) && (
-              <li className="text-xs text-muted">Nenhum item em destaque para o filtro.</li>
-            )}
-          </ul>
+      {/* Painel executivo — números que respondem “onde estamos?” */}
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2" aria-labelledby="dash-mgmt-heading">
+        <div className="rounded-2xl border border-border bg-panel p-5 shadow-sm md:p-6">
+          <div className="flex items-center gap-2">
+            <Target className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <h2 id="dash-mgmt-heading" className="text-sm font-semibold text-text">
+              Indicadores para gestão
+            </h2>
+          </div>
+          <p className="mt-1 text-xs text-muted">
+            Consolidado do filtro atual · EPI alinhado à coorte v2 e entregas registradas
+          </p>
+          <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">EPI no ano</dt>
+              <dd className="mt-1 text-xl font-bold tabular-nums text-text">{epiYtdPct.toFixed(1)}%</dd>
+              <dd className="mt-1 text-xs text-muted">
+                {formatThousands(epi.kpis.metaAnual.realizado)} de {formatThousands(epi.kpis.metaAnual.valorMeta)} itens
+                obrigatórios (YTD)
+              </dd>
+              <dd className="mt-2">
+                <Link
+                  href="/entregas"
+                  className="text-xs font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400"
+                >
+                  Abrir entregas
+                  <ChevronRight className="inline h-3 w-3" />
+                </Link>
+              </dd>
+            </div>
+            <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">CIPA (cronograma)</dt>
+              <dd className="mt-1 text-xl font-bold tabular-nums text-text">
+                {cipa && cipa.totalMeta > 0 ? `${cipaPct.toFixed(1)}%` : '—'}
+              </dd>
+              <dd className="mt-1 text-xs text-muted">
+                {cipa && cipa.totalMeta > 0 ? (
+                  <>
+                    {formatThousands(cipa.totalReal)} de {formatThousands(cipa.totalMeta)} atividades no ano{' '}
+                    {cipa.ano ?? new Date().getFullYear()}
+                  </>
+                ) : (
+                  'Sem cronograma carregado ou meta zerada para o filtro'
+                )}
+              </dd>
+              <dd className="mt-2">
+                <Link href="/cipa" className="text-xs font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400">
+                  Abrir CIPA
+                  <ChevronRight className="inline h-3 w-3" />
+                </Link>
+              </dd>
+            </div>
+            <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">Ordem de serviço</dt>
+              <dd className="mt-1 text-xl font-bold tabular-nums text-text">{osPct.toFixed(1)}%</dd>
+              <dd className="mt-1 text-xs text-muted">
+                {osMeta
+                  ? `${formatThousands(osMeta.totalReal)} de ${formatThousands(osMeta.totalMeta)} colaboradores`
+                  : 'Sem dados de OS'}
+              </dd>
+              <dd className="mt-2">
+                <Link
+                  href="/ordens-de-servico"
+                  className="text-xs font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400"
+                >
+                  Abrir ordens de serviço
+                  <ChevronRight className="inline h-3 w-3" />
+                </Link>
+              </dd>
+            </div>
+            <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">Extintores em risco</dt>
+              <dd className="mt-1 text-xl font-bold tabular-nums text-text">
+                {spci ? formatThousands((spci.stats.totalVencidos || 0) + (spci.stats.totalAVencer || 0)) : '—'}
+              </dd>
+              <dd className="mt-1 text-xs text-muted">
+                {spci
+                  ? `Vencidos ${formatThousands(spci.stats.totalVencidos)} · A vencer ${formatThousands(spci.stats.totalAVencer)}`
+                  : 'Sem dados SPCI'}
+              </dd>
+              <dd className="mt-2">
+                <Link
+                  href="/spci-extintores"
+                  className="text-xs font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400"
+                >
+                  Abrir SPCI
+                  <ChevronRight className="inline h-3 w-3" />
+                </Link>
+              </dd>
+            </div>
+          </dl>
         </div>
 
-        <div className="rounded-2xl border border-border bg-panel p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-text">Acidentes por regional</h3>
-          <p className="mt-1 text-xs text-muted">Até 6 regionais com mais registros</p>
-          <ul className="mt-4 space-y-3">
-            {topRegionaisAcidentes.map((r) => {
-              const w = (r.quantidade / maxRegional) * 100
-              return (
-                <li key={r.regional}>
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate font-medium text-text">{r.regional}</span>
-                    <span className="shrink-0 tabular-nums text-muted">{formatThousands(r.quantidade)}</span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted/70">
-                    <div className="h-full rounded-full bg-red-400/80" style={{ width: `${w}%` }} />
-                  </div>
-                </li>
-              )
-            })}
-            {topRegionaisAcidentes.length === 0 && (
-              <li className="text-xs text-muted">Sem registros ou filtro muito restrito.</li>
-            )}
+        <div className="rounded-2xl border border-border bg-panel p-5 shadow-sm md:p-6">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden />
+            <h3 className="text-sm font-semibold text-text">Prioridades operacionais</h3>
+          </div>
+          <p className="mt-1 text-xs text-muted">O que costuma exigir decisão nesta semana</p>
+          <ul className="mt-4 space-y-3 text-sm text-text">
+            <li className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card/50 px-3 py-2.5">
+              <span className="text-muted">Pendências vencidas (cadastro)</span>
+              <span className="shrink-0 font-bold tabular-nums text-red-600 dark:text-red-400">
+                {formatThousands(epi.alertas.pendenciasVencidas || 0)}
+              </span>
+            </li>
+            <li className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card/50 px-3 py-2.5">
+              <span className="text-muted">Pendências abertas</span>
+              <span className="shrink-0 font-bold tabular-nums">{formatThousands(epi.kpis.pendenciasAbertas)}</span>
+            </li>
+            <li className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card/50 px-3 py-2.5">
+              <span className="text-muted">Acidentes registrados no ano</span>
+              <span className="shrink-0 font-bold tabular-nums">{formatThousands(acidentes?.totalAno ?? 0)}</span>
+            </li>
+            <li className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card/50 px-3 py-2.5">
+              <span className="text-muted">Alertas de estoque abaixo do mínimo</span>
+              <span className="shrink-0 font-bold tabular-nums">
+                {formatThousands(epi.alertas.estoqueAbaixoMinimo?.length || 0)}
+              </span>
+            </li>
           </ul>
-        </div>
-
-        <div className="rounded-2xl border border-border bg-panel p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-text">Como ler este painel</h3>
-          <ul className="mt-4 space-y-3 text-xs leading-relaxed text-muted">
-            <li className="flex gap-2">
-              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-              <span>
-                <strong className="text-text">EPI:</strong> metas consideram apenas obrigatórios; variação mensal compara
-                realizado com o planejado.
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-              <span>
-                <strong className="text-text">OS:</strong> objetivo é cobrir colaboradores ativos; recusa com termo conta
-                como concluído no módulo de OS.
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
-              <span>
-                <strong className="text-text">Acidentes:</strong> totais e curva mensal usam o mesmo ano civil do filtro.
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" />
-              <span>
-                <strong className="text-text">SPCI:</strong> percentual “em dia” exclui vencidos e próximos do vencimento.
-              </span>
-            </li>
-            {regionalSelecionada ? (
-              <li className="rounded-lg bg-bg/80 px-3 py-2 text-[11px] text-text">
-                Filtro ativo: <span className="font-semibold">{regionalSelecionada}</span>
-              </li>
-            ) : null}
-          </ul>
+          {regionalSelecionada ? (
+            <p className="mt-4 rounded-lg bg-bg/80 px-3 py-2 text-[11px] text-muted">
+              Filtro ativo: <span className="font-semibold text-text">{regionalSelecionada}</span>
+            </p>
+          ) : null}
         </div>
       </section>
 
