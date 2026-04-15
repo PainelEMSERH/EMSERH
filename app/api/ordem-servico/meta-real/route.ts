@@ -14,6 +14,9 @@ import { sqlNotInMetaPorAbandono, sqlOrdemServicoJoinOn } from '@/lib/ordem-serv
  * REAL: colaboradores da coorte (já sem abandono na meta) que têm linha em ordem_servico (painel/import).
  * Qualquer data de assinatura (2024, 2025, 2026) vale para o exercício atual — não filtra por ano.
  * CPF: normalização com zero à esquerda e últimos 11 dígitos (igual à list).
+ *
+ * META acumulada por mês: total da coorte distribuído linearmente em 12 meses (soma das fatias = total),
+ * para acompanhar regionais mês a mês. meta[m] = meta esperada até o fim do mês m.
  */
 
 const ANO_OS = 2026;
@@ -60,7 +63,7 @@ function lastDayOfMonthIso(year: number, month1to12: number): string {
   return `${year}-${mm}-${day}`;
 }
 
-/** Meta “fatia” por mês (total ÷ 12, resto nas primeiras colunas) — só para % mês vs entrega do mês. */
+/** Fatia mensal da meta (total ÷ 12, resto +1 nos primeiros meses). Acumulado = soma jan…m. */
 function metaLinearMensal(totalMeta: number): Record<string, number> {
   const out: Record<string, number> = {};
   if (totalMeta <= 0) {
@@ -171,21 +174,6 @@ export async function GET(req: NextRequest) {
     const totalMetaResult: any[] = await prisma.$queryRawUnsafe(totalMetaQuery);
     const totalMeta = parseInt(totalMetaResult[0]?.total || '0', 10);
 
-    const metaAcumulada: Record<string, number> = {
-      '01': totalMeta,
-      '02': totalMeta,
-      '03': totalMeta,
-      '04': totalMeta,
-      '05': totalMeta,
-      '06': totalMeta,
-      '07': totalMeta,
-      '08': totalMeta,
-      '09': totalMeta,
-      '10': totalMeta,
-      '11': totalMeta,
-      '12': totalMeta,
-    };
-
     const joinOs = `INNER JOIN ordem_servico os ON ${sqlOrdemServicoJoinOn('a.cpf', 'os.colaborador_cpf')}`;
 
     /**
@@ -200,6 +188,14 @@ export async function GET(req: NextRequest) {
     )`;
 
     const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+
+    const metaMensalSlices = metaLinearMensal(totalMeta);
+    const metaAcumulada: Record<string, number> = {};
+    let metaRun = 0;
+    meses.forEach((mk) => {
+      metaRun += metaMensalSlices[mk] ?? 0;
+      metaAcumulada[mk] = metaRun;
+    });
 
     /**
      * Real acumulado até o fim de cada mês do exercício: quem já tinha OS “lançada”
@@ -240,15 +236,13 @@ export async function GET(req: NextRequest) {
       prev = cur;
     });
 
-    const metaMensalLinear = metaLinearMensal(totalMeta);
-
     const percentAcumulado: Record<string, number | null> = {};
     const percentMensal: Record<string, number | null> = {};
     meses.forEach((mk) => {
       const metaM = metaAcumulada[mk];
       const realA = realAcumulado[mk];
       const realM = realMeses[mk];
-      const mm = metaMensalLinear[mk];
+      const mm = metaMensalSlices[mk];
       percentAcumulado[mk] = metaM > 0 ? Math.round((realA / metaM) * 10000) / 100 : null;
       percentMensal[mk] = mm > 0 ? Math.round((realM / mm) * 10000) / 100 : null;
     });
@@ -258,7 +252,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       meta: metaAcumulada,
-      metaMensal: metaMensalLinear,
+      metaMensal: metaMensalSlices,
       real: realMeses,
       realAcumulado,
       percentAcumulado,
