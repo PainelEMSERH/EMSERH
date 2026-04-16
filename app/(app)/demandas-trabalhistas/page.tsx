@@ -462,7 +462,7 @@ export default function DemandasTrabalhistasPage() {
 
         </div>
 
-        {(regional || unidade || tipoDemanda || status || statusFinal || responsavel || search) && (
+        {(regional || unidade || status || statusFinal || search || ano !== '2026') && (
           <div className="flex justify-end">
             <button
               onClick={limparFiltros}
