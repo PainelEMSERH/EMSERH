@@ -13,6 +13,7 @@ export async function GET() {
       regionais,
       unidades,
       unidadesDetalhadas,
+      anosChegada,
       tipos,
       responsaveis,
       status,
@@ -35,6 +36,12 @@ export async function GET() {
         FROM demandas_trabalhistas
         WHERE unidade IS NOT NULL AND TRIM(unidade) <> ''
         ORDER BY regional, unidade
+      `),
+      prisma.$queryRawUnsafe<any[]>(`
+        SELECT DISTINCT ano_chegada
+        FROM demandas_trabalhistas
+        WHERE ano_chegada IS NOT NULL
+        ORDER BY ano_chegada DESC
       `),
       prisma.$queryRawUnsafe<any[]>(`
         SELECT DISTINCT tipo_demanda
@@ -70,6 +77,7 @@ export async function GET() {
         regional: u.regional || '',
         unidade: u.unidade,
       })),
+      anosChegada: anosChegada.map((a) => a.ano_chegada),
       tipos: tipos.map((t) => t.tipo_demanda),
       responsaveis: responsaveis.map((r) => r.responsavel),
       status: status.map((s) => s.status),

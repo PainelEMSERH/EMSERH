@@ -89,6 +89,46 @@ export function toNullableInt(value: any): number | null {
   return Number.isFinite(n) ? Math.round(n) : null;
 }
 
+function diffDaysISO(fromIso: string | null, toIso: string | null): number | null {
+  if (!fromIso || !toIso) return null;
+  const from = new Date(`${fromIso}T00:00:00`);
+  const to = new Date(`${toIso}T00:00:00`);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return null;
+  const ms = to.getTime() - from.getTime();
+  const days = Math.round(ms / 86400000);
+  return days;
+}
+function monthShortPtFromISO(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  const raw = new Intl.DateTimeFormat('pt-BR', { month: 'short' }).format(d);
+  // e.g. "jan." -> "JAN"
+  return raw.replace('.', '').toUpperCase();
+}
+
+export function addBusinessDaysISO(baseIso: string | null, days: number | null): string | null {
+  if (!baseIso || days === null || !Number.isFinite(days)) return null;
+  const dayCount = Math.trunc(days);
+  if (dayCount <= 0) return baseIso;
+  const [y, m, d] = baseIso.slice(0, 10).split('-').map((v) => Number(v));
+  const date = new Date(Date.UTC(y, m - 1, d));
+  if (Number.isNaN(date.getTime())) return null;
+
+  let remaining = dayCount;
+  while (remaining > 0) {
+    date.setUTCDate(date.getUTCDate() + 1);
+    const dow = date.getUTCDay(); // 0 = domingo, 6 = sábado
+    if (dow === 0 || dow === 6) continue;
+    remaining -= 1;
+  }
+
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function parseCSV(text: string): { headers: string[]; rows: Record<string, string>[] } {
   const lines = text.split(/\r?\n/).filter((line) => line.length > 0);
   if (lines.length === 0) return { headers: [], rows: [] };
@@ -160,11 +200,25 @@ export function normalizeDemandaRow(row: Record<string, any>): DemandaTrabalhist
   const dataChegada = toDateISO(
     pickHeader(row, ['datachegada', 'chegada', 'datadechegada']) ?? row['Data chegada']
   );
-  const dataLimite = toDateISO(
+  const prazoDias = toNullableInt(
+    pickHeader(row, ['prazodias', 'prazoemdias', 'prazo']) ?? row['Prazo (dias)']
+  );
+  const dataLimiteImport = toDateISO(
     pickHeader(row, ['datalimite', 'limite', 'dataprazo']) ?? row['Data limite']
   );
+  const dataLimite =
+    dataLimiteImport || addBusinessDaysISO(dataChegada, prazoDias);
   const dataConclusao = toDateISO(
     pickHeader(row, ['datadeconclusao', 'dataconclusao', 'conclusao']) ?? row['Data de conclusão']
+  );
+  const mesConclusaoAuto = monthShortPtFromISO(dataConclusao);
+  const mesConclusaoImport = normText(
+    pickHeader(row, ['mesconclusao', 'mesdeconclusao']) ?? row['Mês Conclusão']
+  );
+  const tempoRespostaAuto = diffDaysISO(dataChegada, dataConclusao);
+  const tempoRespostaImport = toNullableInt(
+    pickHeader(row, ['tempoderespostadias', 'temporespostadias', 'tempoderesposta']) ??
+      row['Tempo de Resposta (dias)']
   );
 
   return {
@@ -193,22 +247,19 @@ export function normalizeDemandaRow(row: Record<string, any>): DemandaTrabalhist
       pickHeader(row, ['responsavel', 'responsável']) ?? row['Responsável']
     ),
     Status: normText(pickHeader(row, ['status']) ?? row['Status']),
-    'Prazo (dias)': toNullableInt(
-      pickHeader(row, ['prazodias', 'prazoemdias', 'prazo']) ?? row['Prazo (dias)']
-    ),
+    'Prazo (dias)': prazoDias,
     'Data limite': dataLimite,
     'Data de conclusão': dataConclusao,
-    'Mês Conclusão': normText(
-      pickHeader(row, ['mesconclusao', 'mesdeconclusao']) ?? row['Mês Conclusão']
-    ),
+    // Sempre que houver data de conclusão, usamos o mês calculado automaticamente.
+    // Só caímos no valor da planilha se não houver como calcular.
+    'Mês Conclusão': mesConclusaoAuto || mesConclusaoImport,
     Destino: normText(pickHeader(row, ['destino']) ?? row['Destino']),
     'Status Final': normText(
       pickHeader(row, ['statusfinal']) ?? row['Status Final']
     ),
-    'Tempo de Resposta (dias)': toNullableInt(
-      pickHeader(row, ['tempoderespostadias', 'temporespostadias', 'tempoderesposta']) ??
-        row['Tempo de Resposta (dias)']
-    ),
+    // Tempo de resposta em dias corridos entre chegada e conclusão;
+    // se não der pra calcular, usa o valor vindo da planilha.
+    'Tempo de Resposta (dias)': tempoRespostaAuto ?? tempoRespostaImport,
     Observações: normText(
       pickHeader(row, ['observacoes', 'observação', 'observacao']) ?? row['Observações']
     ),

@@ -5,6 +5,17 @@ import { ensureDemandasTrabalhistasTables } from '@/lib/demandas-trabalhistas';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function monthShortPtFromISO(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const s = String(iso).trim();
+  if (!s) return null;
+  const base = /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;
+  const d = new Date(`${base}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  const raw = new Intl.DateTimeFormat('pt-BR', { month: 'short' }).format(d);
+  return raw.replace('.', '').toUpperCase();
+}
+
 function convertBigIntToNumber(obj: any): any {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === 'bigint') return Number(obj);
@@ -51,6 +62,7 @@ export async function GET(req: NextRequest) {
     const statusFinal = (url.searchParams.get('statusFinal') || '').trim();
     const responsavel = (url.searchParams.get('responsavel') || '').trim();
     const search = (url.searchParams.get('search') || '').trim();
+    const ano = (url.searchParams.get('ano') || '').trim();
     const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
     const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
     const sortBy = url.searchParams.get('sortBy') || 'dataChegada';
@@ -64,6 +76,7 @@ export async function GET(req: NextRequest) {
     if (status) wh.push(`status = '${status.replace(/'/g, "''")}'`);
     if (statusFinal) wh.push(`status_final = '${statusFinal.replace(/'/g, "''")}'`);
     if (responsavel) wh.push(`responsavel = '${responsavel.replace(/'/g, "''")}'`);
+    if (ano && /^\d{4}$/.test(ano)) wh.push(`ano_chegada = ${Number(ano)}`);
     if (search) {
       const term = search.replace(/'/g, "''");
       wh.push(`(
@@ -120,10 +133,16 @@ export async function GET(req: NextRequest) {
 
     const safeRows = convertBigIntToNumber(Array.isArray(rows) ? rows : []);
     const safeTotal = convertBigIntToNumber(totalRes);
+    const patchedRows = (Array.isArray(safeRows) ? safeRows : []).map((r: any) => {
+      const mes = String(r?.mesConclusao ?? '').trim();
+      if (mes) return r;
+      const auto = monthShortPtFromISO(r?.dataConclusao ?? null);
+      return auto ? { ...r, mesConclusao: auto } : r;
+    });
 
     return NextResponse.json({
       ok: true,
-      rows: safeRows,
+      rows: patchedRows,
       totalCount: Number(safeTotal?.[0]?.total ?? 0),
     });
   } catch (e: any) {
