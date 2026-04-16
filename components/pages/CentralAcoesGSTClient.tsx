@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ClipboardList,
@@ -264,6 +264,85 @@ function fmtPct(n: number) {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/**
+ * Barra horizontal no topo sincronizada com a de baixo — evita rolar a página inteira
+ * só para alcançar o scroll da tabela.
+ */
+function TableHorizontalScroll({
+  children,
+  depsKey,
+}: {
+  children: React.ReactNode;
+  depsKey: string;
+}) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const topRef = useRef<HTMLDivElement>(null);
+  const [innerW, setInnerW] = useState(0);
+  const [showTopBar, setShowTopBar] = useState(false);
+
+  const measure = useCallback(() => {
+    const el = bottomRef.current;
+    if (!el) return;
+    const w = el.scrollWidth;
+    setInnerW(w);
+    setShowTopBar(w > el.clientWidth + 2);
+  }, []);
+
+  useEffect(() => {
+    measure();
+    const el = bottomRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [measure, depsKey]);
+
+  const onBottomScroll = () => {
+    const b = bottomRef.current;
+    const t = topRef.current;
+    if (!b || !t || t.scrollLeft === b.scrollLeft) return;
+    t.scrollLeft = b.scrollLeft;
+  };
+
+  const onTopScroll = () => {
+    const b = bottomRef.current;
+    const t = topRef.current;
+    if (!b || !t || b.scrollLeft === t.scrollLeft) return;
+    b.scrollLeft = t.scrollLeft;
+  };
+
+  return (
+    <div className="relative">
+      {showTopBar ? (
+        <div
+          className="mb-0 overflow-x-auto overflow-y-hidden rounded-t-none border-b border-border/70 bg-muted/20 [scrollbar-color:rgba(0,0,0,0.35)_transparent] dark:[scrollbar-color:rgba(255,255,255,0.35)_transparent]"
+          onScroll={onTopScroll}
+          ref={topRef}
+          role="presentation"
+          aria-hidden
+        >
+          <div style={{ width: innerW, height: 1 }} />
+        </div>
+      ) : null}
+      <p className="sr-only" id="gst-table-hscroll-hint">
+        A tabela é larga: use a barra de rolagem logo acima ou abaixo dela para ver todas as colunas.
+      </p>
+      <div
+        ref={bottomRef}
+        className="overflow-x-auto"
+        onScroll={onBottomScroll}
+        aria-describedby={showTopBar ? 'gst-table-hscroll-hint' : undefined}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 const CARD_STYLES: Record<keyof StatsCards, { bg: string; text: string; ring: string }> = {
   total: {
     bg: 'bg-sky-100 dark:bg-sky-950/50',
@@ -483,6 +562,11 @@ export default function CentralAcoesGSTClient() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  const tableScrollDeps = useMemo(
+    () => `${loading}-${rows.length}-${JSON.stringify(colVis)}`,
+    [loading, rows.length, colVis],
+  );
+
   return (
     <div className="space-y-6 pb-10">
       <ToastContainer toasts={toasts} removeToast={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
@@ -663,7 +747,7 @@ export default function CentralAcoesGSTClient() {
             ) : null}
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <TableHorizontalScroll depsKey={tableScrollDeps}>
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted">
               <RefreshCw className="h-5 w-5 animate-spin" />
@@ -718,7 +802,7 @@ export default function CentralAcoesGSTClient() {
               </tbody>
             </table>
           )}
-        </div>
+        </TableHorizontalScroll>
         {total > pageSize && (
           <div className="flex items-center justify-between border-t border-border px-4 py-3 text-xs text-muted">
             <span>
