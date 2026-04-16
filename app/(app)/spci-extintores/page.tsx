@@ -68,6 +68,13 @@ type MetaRealData = {
   ano: number;
 };
 
+type UnidadeRegularizadaRow = {
+  unidade: string;
+  regional: string;
+  total: number;
+  ok: number;
+};
+
 const fetchJSON = async <T = any>(url: string, init?: RequestInit): Promise<T> => {
   try {
     const r = await fetch(url, { cache: 'no-store', ...init });
@@ -234,6 +241,11 @@ export default function SPCIExtintoresPage() {
   }>>({});
   const [saving, setSaving] = useState(false);
   const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
+  const [modalUnidadesReg, setModalUnidadesReg] = useState<{
+    open: boolean;
+    loading: boolean;
+    rows: UnidadeRegularizadaRow[];
+  }>({ open: false, loading: false, rows: [] });
 
   // Carrega opções únicas
   useEffect(() => {
@@ -481,6 +493,22 @@ export default function SPCIExtintoresPage() {
     }
   };
 
+  const abrirModalUnidadesRegularizadas = async () => {
+    setModalUnidadesReg({ open: true, loading: true, rows: [] });
+    try {
+      const params = new URLSearchParams();
+      if (regional) params.set('regional', regional);
+      if (unidade) params.set('unidade', unidade);
+
+      const data = await fetchJSON<{ rows: UnidadeRegularizadaRow[] }>(
+        `/api/spci/unidades-regularizadas?${params.toString()}`
+      );
+      setModalUnidadesReg({ open: true, loading: false, rows: data.rows || [] });
+    } catch {
+      setModalUnidadesReg({ open: true, loading: false, rows: [] });
+    }
+  };
+
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
   return (
@@ -540,7 +568,12 @@ export default function SPCIExtintoresPage() {
               </div>
 
               <div className="lg:col-span-5">
-                <div className="h-full min-h-[208px] rounded-2xl border border-border bg-panel p-5 shadow-sm">
+                <button
+                  type="button"
+                  onClick={abrirModalUnidadesRegularizadas}
+                  className="h-full min-h-[208px] w-full rounded-2xl border border-border bg-panel p-5 text-left shadow-sm transition-colors hover:bg-bg/50"
+                  title="Ver unidades 100% regularizadas"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-2">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-bg/70 text-emerald-600 dark:text-emerald-400">
@@ -584,7 +617,7 @@ export default function SPCIExtintoresPage() {
                       </p>
                     </div>
                   </div>
-                </div>
+                </button>
               </div>
             </div>
           </div>
@@ -1318,6 +1351,66 @@ export default function SPCIExtintoresPage() {
               >
                 Fechar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalUnidadesReg.open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setModalUnidadesReg((prev) => ({ ...prev, open: false }))}
+        >
+          <div
+            className="w-full max-w-3xl rounded-2xl border border-border bg-panel shadow-2xl max-h-[85vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border bg-card px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold">Unidades 100% regularizadas</h2>
+                <p className="text-xs text-muted mt-1">
+                  Lista das unidades com todos os extintores em status OK no filtro atual.
+                </p>
+              </div>
+              <button
+                onClick={() => setModalUnidadesReg((prev) => ({ ...prev, open: false }))}
+                className="p-2 rounded-lg hover:bg-bg transition-colors"
+                title="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {modalUnidadesReg.loading ? (
+                <div className="text-sm text-muted">Carregando unidades...</div>
+              ) : modalUnidadesReg.rows.length === 0 ? (
+                <div className="text-sm text-muted">Nenhuma unidade 100% regularizada neste filtro.</div>
+              ) : (
+                <div className="space-y-2">
+                  {modalUnidadesReg.rows.map((item) => (
+                    <div
+                      key={`${item.regional}-${item.unidade}`}
+                      className="rounded-xl border border-border bg-card px-4 py-3 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-text truncate">{formatarNomeUnidade(item.unidade)}</p>
+                        <p className="text-xs text-muted truncate">{item.unidade}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-medium text-muted">{item.regional}</p>
+                        <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                          {item.ok}/{item.total} OK
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-border bg-card px-6 py-3 text-xs text-muted">
+              Total de unidades: <span className="font-semibold text-text">{modalUnidadesReg.rows.length}</span>
             </div>
           </div>
         </div>
