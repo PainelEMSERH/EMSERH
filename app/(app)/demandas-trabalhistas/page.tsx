@@ -42,6 +42,26 @@ type OptionsData = {
 };
 
 const MONTH_LABELS = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+
+/** Tipos oficiais exibidos no painel (comparação ignora maiúsculas/acentos). */
+const TIPOS_DEMANDA_ORDEM = [
+  'Fiscalização',
+  'Ouvidoria',
+  'Parecer Insalubridade',
+  'Parecer Periculosidade',
+  'Pericia Trabalhista',
+  'PPP',
+  'Processo Trabalhista',
+] as const;
+
+function normTipoDemandaKey(s: string) {
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/\s+/g, ' ');
+}
 type ColId =
   | 'numeroSei'
   | 'demandante'
@@ -63,6 +83,29 @@ type ColId =
   | 'tempoRespostaDias';
 
 const COLS_LS = 'emserh-demandas-cols-v1';
+const MATRIX_MONTH_LS = 'emserh-demandas-matrix-months-v1';
+
+function defaultMatrixMonthVis(): Record<number, boolean> {
+  const v: Record<number, boolean> = {};
+  for (let i = 1; i <= 12; i += 1) v[i] = true;
+  return v;
+}
+
+function loadMatrixMonthVis(): Record<number, boolean> {
+  const base = defaultMatrixMonthVis();
+  if (typeof window === 'undefined') return base;
+  try {
+    const raw = localStorage.getItem(MATRIX_MONTH_LS);
+    if (!raw) return base;
+    const parsed = JSON.parse(raw) as Record<string, boolean>;
+    for (let i = 1; i <= 12; i += 1) {
+      if (parsed[String(i)] !== undefined) base[i] = Boolean(parsed[String(i)]);
+    }
+    return base;
+  } catch {
+    return base;
+  }
+}
 const COL_DEFS: { id: ColId; label: string }[] = [
   { id: 'numeroSei', label: 'Nº SEI' },
   { id: 'demandante', label: 'Demandante' },
@@ -222,6 +265,8 @@ export default function DemandasTrabalhistasPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [colVis, setColVis] = useState<Record<ColId, boolean>>(() => defaultColVisibility());
   const [colPickerOpen, setColPickerOpen] = useState(false);
+  const [matrixMonthVis, setMatrixMonthVis] = useState<Record<number, boolean>>(() => defaultMatrixMonthVis());
+  const [matrixMonthPickerOpen, setMatrixMonthPickerOpen] = useState(false);
 
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
@@ -230,6 +275,8 @@ export default function DemandasTrabalhistasPage() {
   const [summary, setSummary] = useState<{
     perRegional: { regional: string; total: number; avgTempoResposta: number | null }[];
     perMonth: { mesNumero: number; mes: string; total: number }[];
+    perRegionalMonth: { regional: string; mesNumero: number; total: number; avgTempoResposta: number | null }[];
+    perTipoDemanda: { tipoDemanda: string; total: number }[];
   } | null>(null);
   const [options, setOptions] = useState<OptionsData>({
     regionais: [],
@@ -254,6 +301,7 @@ export default function DemandasTrabalhistasPage() {
 
   useEffect(() => {
     setColVis(loadColVisibility());
+    setMatrixMonthVis(loadMatrixMonthVis());
   }, []);
 
   useEffect(() => {
@@ -263,6 +311,14 @@ export default function DemandasTrabalhistasPage() {
       // ignore
     }
   }, [colVis]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MATRIX_MONTH_LS, JSON.stringify(matrixMonthVis));
+    } catch {
+      // ignore
+    }
+  }, [matrixMonthVis]);
 
   useEffect(() => {
     fetchJSON<OptionsData & { ok: boolean }>('/api/demandas-trabalhistas/options')
@@ -335,6 +391,8 @@ export default function DemandasTrabalhistasPage() {
       const data = await fetchJSON<{
         perRegional: { regional: string; total: number; avgTempoResposta: number | null }[];
         perMonth: { mesNumero: number; mesLabel?: string; total: number }[];
+        perRegionalMonth: { regional: string; mesNumero: number; total: number; avgTempoResposta: number | null }[];
+        perTipoDemanda: { tipoDemanda: string; total: number }[];
       }>(`/api/demandas-trabalhistas/summary?${params.toString()}`);
 
       setSummary({
@@ -346,12 +404,16 @@ export default function DemandasTrabalhistasPage() {
               total: Number(item.total || 0),
             }))
           : [],
+        perRegionalMonth: Array.isArray(data.perRegionalMonth) ? data.perRegionalMonth : [],
+        perTipoDemanda: Array.isArray(data.perTipoDemanda) ? data.perTipoDemanda : [],
       });
     } catch (error) {
       console.error('Erro ao carregar resumo das demandas trabalhistas:', error);
       setSummary({
         perRegional: [],
         perMonth: [],
+        perRegionalMonth: [],
+        perTipoDemanda: [],
       });
     } finally {
       setSummaryLoading(false);
@@ -367,17 +429,57 @@ export default function DemandasTrabalhistasPage() {
   }, [regional, unidade, status, statusFinal, search, ano]);
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const monthlySummary = useMemo(
-    () =>
-      MONTH_LABELS.map((label, index) => {
-        const found = summary?.perMonth.find((item) => item.mesNumero === index + 1);
-        return {
-          mes: label,
-          total: found?.total ?? 0,
-        };
+  const matrixRows = useMemo(() => {
+    const cellMap = new Map<string, Map<number, { total: number; avgTempoResposta: number | null }>>();
+    for (const item of summary?.perRegionalMonth || []) {
+      const r = (item.regional || '').trim() || 'SEM REGIONAL';
+      if (!cellMap.has(r)) cellMap.set(r, new Map());
+      cellMap.get(r)!.set(Number(item.mesNumero), {
+        total: Number(item.total || 0),
+        avgTempoResposta:
+          item.avgTempoResposta === null || item.avgTempoResposta === undefined
+            ? null
+            : Number(item.avgTempoResposta),
+      });
+    }
+    const fromAgg = (summary?.perRegional || []).map((x) => (x.regional || '').trim() || 'SEM REGIONAL');
+    const fromCells = Array.from(cellMap.keys());
+    const regionals = Array.from(new Set([...fromAgg, ...fromCells])).sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
+    );
+    return regionals.map((regional) => ({
+      regional,
+      months: MONTH_LABELS.map((_, i) => {
+        const m = i + 1;
+        const cell = cellMap.get(regional)?.get(m);
+        return cell ?? { total: 0, avgTempoResposta: null };
       }),
-    [summary]
-  );
+    }));
+  }, [summary]);
+
+  const demandasPorTipoPainel = useMemo(() => {
+    const porRotulo = new Map<string, number>();
+    for (const t of TIPOS_DEMANDA_ORDEM) porRotulo.set(t, 0);
+    const normParaRotulo = new Map<string, (typeof TIPOS_DEMANDA_ORDEM)[number]>();
+    for (const t of TIPOS_DEMANDA_ORDEM) normParaRotulo.set(normTipoDemandaKey(t), t);
+
+    let outros = 0;
+    for (const row of summary?.perTipoDemanda || []) {
+      const total = Number(row.total || 0);
+      const n = normTipoDemandaKey(String(row.tipoDemanda ?? ''));
+      if (!n) {
+        outros += total;
+        continue;
+      }
+      const rotulo = normParaRotulo.get(n);
+      if (rotulo) porRotulo.set(rotulo, (porRotulo.get(rotulo) || 0) + total);
+      else outros += total;
+    }
+
+    const lista = TIPOS_DEMANDA_ORDEM.map((label) => ({ label, total: porRotulo.get(label) ?? 0 }));
+    return { lista, outros };
+  }, [summary]);
+
   const totalDemandasAno = useMemo(
     () => (summary?.perRegional || []).reduce((acc, item) => acc + Number(item.total || 0), 0),
     [summary]
@@ -393,9 +495,13 @@ export default function DemandasTrabalhistasPage() {
     if (!list.length) return null;
     return [...list].sort((a, b) => Number(b.total || 0) - Number(a.total || 0))[0];
   }, [summary]);
-  const maxMonthlyTotal = useMemo(
-    () => Math.max(1, ...monthlySummary.map((item) => Number(item.total || 0))),
-    [monthlySummary]
+  const summaryMatrixScrollDeps = useMemo(
+    () =>
+      JSON.stringify({
+        matrixRows: matrixRows.length,
+        months: matrixMonthVis,
+      }),
+    [matrixRows.length, matrixMonthVis]
   );
   const tableScrollDeps = useMemo(
     () =>
@@ -605,107 +711,167 @@ export default function DemandasTrabalhistasPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-900">Processos por mes</h3>
-                    <p className="text-xs text-slate-500">Leitura mensal de janeiro a dezembro.</p>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-slate-900">Demandas por tipo</h3>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Quantidade no ano {ano}, conforme o campo <span className="font-medium">Tipo de demanda</span> na
+                    base (mesmos filtros do painel).
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+                  {demandasPorTipoPainel.lista.map((item) => (
+                    <div
+                      key={item.label}
+                      className="flex flex-col rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white px-3 py-3 text-center shadow-sm"
+                    >
+                      <span className="text-[10px] font-semibold uppercase leading-tight text-slate-600 [word-break:break-word]">
+                        {item.label}
+                      </span>
+                      <span className="mt-2 text-2xl font-bold tabular-nums text-emerald-700">{item.total}</span>
+                      <span className="text-[9px] font-medium normal-case text-slate-500">demandas</span>
+                    </div>
+                  ))}
+                </div>
+                {demandasPorTipoPainel.outros > 0 ? (
+                  <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
+                    <span className="font-semibold">Outros tipos ou sem tipo: </span>
+                    <span className="tabular-nums font-bold">{demandasPorTipoPainel.outros}</span>
+                    <span className="text-amber-900/90"> demandas</span>
+                    <span className="mt-1 block text-xs font-normal text-amber-900/80">
+                      Valores que não batem exatamente com os tipos listados acima (inclui variações de texto ou campo
+                      vazio).
+                    </span>
                   </div>
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Base {ano}</div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-12">
-                  {monthlySummary.map((item) => {
-                    const height = `${Math.max(14, Math.round((item.total / maxMonthlyTotal) * 100))}%`;
-                    return (
-                      <div key={item.mes} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                        <div className="flex h-24 items-end justify-center">
-                          <div className="flex w-10 items-end justify-center rounded-t-xl bg-gradient-to-t from-emerald-600 to-cyan-500" style={{ height }} />
-                        </div>
-                        <div className="mt-3 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                          {item.mes}
-                        </div>
-                        <div className="mt-1 text-center text-xl font-bold text-slate-900">{item.total}</div>
-                      </div>
-                    );
-                  })}
-                </div>
+                ) : null}
               </div>
 
-              <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="mb-4 flex items-center justify-between gap-2">
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-900">Demandas por regional</h3>
-                      <p className="text-xs text-slate-500">Ranking de volume no ano selecionado.</p>
-                    </div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                      {summary?.perRegional.length || 0} regionais
-                    </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Regional × mês (Jan a Dez)</h3>
+                    <p className="mt-1 max-w-2xl text-xs text-slate-600">
+                      Em cada célula: quantidade de processos (data de chegada no mês) e tempo médio de resposta em dias
+                      (campo salvo ou diferença entre data de chegada e data de conclusão).
+                    </p>
                   </div>
-                  <div className="space-y-3">
-                    {(summary?.perRegional || [])
-                      .slice()
-                      .sort((a, b) => Number(b.total || 0) - Number(a.total || 0))
-                      .map((item) => {
-                        const width = `${Math.max(8, Math.round((Number(item.total || 0) / Math.max(1, totalDemandasAno)) * 100))}%`;
-                        return (
-                          <div key={item.regional || 'SEM-REGIONAL'} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                            <div className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase">
-                              <span className="font-semibold text-slate-700">{item.regional || 'Sem regional'}</span>
-                              <span className="font-bold text-emerald-700">{item.total}</span>
-                            </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                              <div className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-cyan-500" style={{ width }} />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Base {ano}</span>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setMatrixMonthPickerOpen((o) => !o)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50"
+                      >
+                        <Columns2 className="h-4 w-4" aria-hidden />
+                        Meses visíveis
+                      </button>
+                      {matrixMonthPickerOpen ? (
+                        <>
+                          <button
+                            type="button"
+                            className="fixed inset-0 z-30 cursor-default bg-transparent"
+                            aria-label="Fechar menu de meses"
+                            onClick={() => setMatrixMonthPickerOpen(false)}
+                          />
+                          <div className="absolute right-0 z-40 mt-1 max-h-72 w-52 overflow-y-auto rounded-xl border border-slate-200 bg-white py-2 shadow-lg">
+                            <p className="border-b border-slate-200 px-3 pb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                              Marque o mês
+                            </p>
+                            {MONTH_LABELS.map((label, i) => {
+                              const m = i + 1;
+                              return (
+                                <label
+                                  key={m}
+                                  className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-xs hover:bg-slate-50"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={matrixMonthVis[m] !== false}
+                                    onChange={() =>
+                                      setMatrixMonthVis((prev) => ({
+                                        ...prev,
+                                        [m]: !(prev[m] !== false),
+                                      }))
+                                    }
+                                  />
+                                  {label}
+                                </label>
+                              );
+                            })}
+                            <div className="flex flex-col gap-1 border-t border-slate-200 px-3 pt-2">
+                              <button
+                                type="button"
+                                className="text-left text-xs font-medium text-emerald-700 hover:underline"
+                                onClick={() => setMatrixMonthVis(defaultMatrixMonthVis())}
+                              >
+                                Mostrar todos os meses
+                              </button>
                             </div>
                           </div>
-                        );
-                      })}
-                    {!(summary?.perRegional || []).length && (
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                        Nenhum indicador encontrado para {ano}.
-                      </div>
-                    )}
+                        </>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="mb-4 flex items-center justify-between gap-2">
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-900">Tempo medio de resposta por regional</h3>
-                      <p className="text-xs text-slate-500">Media em dias, calculada pelo campo salvo ou pela diferenca entre chegada e conclusao.</p>
-                    </div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Em dias</div>
+                {matrixRows.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-500">
+                    Nenhum dado para montar a matriz no ano {ano}.
                   </div>
-                  <div className="space-y-3">
-                    {(summary?.perRegional || [])
-                      .slice()
-                      .sort((a, b) => Number(b.avgTempoResposta ?? -1) - Number(a.avgTempoResposta ?? -1))
-                      .map((item) => {
-                        const value = Number(item.avgTempoResposta ?? 0);
-                        const max = Math.max(
-                          1,
-                          ...(summary?.perRegional || []).map((entry) => Number(entry.avgTempoResposta ?? 0))
-                        );
-                        const width = item.avgTempoResposta === null ? '0%' : `${Math.max(8, Math.round((value / max) * 100))}%`;
-                        return (
-                          <div key={`${item.regional || 'SEM-REGIONAL'}-tempo`} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                            <div className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase">
-                              <span className="font-semibold text-slate-700">{item.regional || 'Sem regional'}</span>
-                              <span className="font-bold text-cyan-700">{formatAvgDays(item.avgTempoResposta)}</span>
-                            </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                              <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-sky-600" style={{ width }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    {!(summary?.perRegional || []).length && (
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                        Nenhum indicador encontrado para {ano}.
-                      </div>
-                    )}
-                  </div>
-                </div>
+                ) : (
+                  <TableHorizontalScroll depsKey={summaryMatrixScrollDeps}>
+                    <table className="w-full min-w-[1100px] border-collapse text-[11px] uppercase">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-white">
+                          <th className="sticky left-0 z-20 min-w-[160px] max-w-[220px] border-r border-slate-200 bg-slate-50 px-3 py-3 text-left text-[10px] font-semibold tracking-wide text-slate-600 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.12)]">
+                            Regional
+                          </th>
+                          {MONTH_LABELS.map((label, i) => {
+                            const m = i + 1;
+                            if (matrixMonthVis[m] === false) return null;
+                            return (
+                              <th
+                                key={m}
+                                className="min-w-[118px] border-l border-slate-100 px-2 py-3 text-center text-[10px] font-semibold tracking-wide text-slate-600"
+                              >
+                                {label}
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 bg-white">
+                        {matrixRows.map((row) => (
+                          <tr key={row.regional} className="hover:bg-slate-50/90">
+                            <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-3 align-top text-left text-[11px] font-semibold leading-snug text-slate-800 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.08)] [word-break:break-word] whitespace-normal">
+                              {row.regional}
+                            </td>
+                            {row.months.map((cell, i) => {
+                              const m = i + 1;
+                              if (matrixMonthVis[m] === false) return null;
+                              return (
+                                <td
+                                  key={m}
+                                  className="border-l border-slate-100 px-2 py-3 align-top text-center text-[11px]"
+                                >
+                                  <div className="flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5">
+                                    <span className="text-lg font-bold tabular-nums text-emerald-700">{cell.total}</span>
+                                    <span className="text-[9px] font-medium normal-case text-slate-500">processos</span>
+                                    <span className="mt-1 text-sm font-semibold tabular-nums text-cyan-800">
+                                      {formatAvgDays(cell.avgTempoResposta)}
+                                    </span>
+                                    <span className="text-[9px] font-medium normal-case text-slate-500">dias méd.</span>
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </TableHorizontalScroll>
+                )}
               </div>
             </div>
           )}
@@ -944,25 +1110,53 @@ export default function DemandasTrabalhistasPage() {
               <tbody className="divide-y divide-border">
                 {rows.map((row) => (
                   <tr key={row.id} className="hover:bg-bg/30 text-[11px] uppercase">
-                    {colVis.numeroSei !== false && <td className="px-4 py-3 text-center whitespace-nowrap min-w-[170px]">{row.numeroSei || '-'}</td>}
-                    {colVis.demandante !== false && <td className="px-4 py-3 text-center min-w-[320px] whitespace-nowrap">{row.demandante || '-'}</td>}
-                    {colVis.tipoDemanda !== false && <td className="px-4 py-3 text-center min-w-[260px] whitespace-nowrap">{row.tipoDemanda || '-'}</td>}
-                    {colVis.origem !== false && <td className="px-4 py-3 text-center min-w-[200px] whitespace-nowrap">{row.origem || '-'}</td>}
+                    {colVis.numeroSei !== false && (
+                      <td className="px-4 py-3 align-top text-center whitespace-nowrap min-w-[170px]">{row.numeroSei || '-'}</td>
+                    )}
+                    {colVis.demandante !== false && (
+                      <td className="px-4 py-3 align-top text-center min-w-[220px] max-w-[22rem] whitespace-normal break-words leading-snug [word-break:break-word]">
+                        {row.demandante || '-'}
+                      </td>
+                    )}
+                    {colVis.tipoDemanda !== false && (
+                      <td className="px-4 py-3 align-top text-center min-w-[200px] max-w-[20rem] whitespace-normal break-words leading-snug [word-break:break-word]">
+                        {row.tipoDemanda || '-'}
+                      </td>
+                    )}
+                    {colVis.origem !== false && (
+                      <td className="px-4 py-3 align-top text-center min-w-[180px] max-w-[20rem] whitespace-normal break-words leading-snug [word-break:break-word]">
+                        {row.origem || '-'}
+                      </td>
+                    )}
                     {colVis.unidade !== false && (
-                      <td className="px-4 py-3 text-center min-w-[360px] whitespace-nowrap">{row.unidade || '-'}</td>
+                      <td className="px-4 py-3 align-top text-center min-w-[240px] max-w-[24rem] whitespace-normal break-words leading-snug [word-break:break-word]">
+                        {row.unidade || '-'}
+                      </td>
                     )}
-                    {colVis.regional !== false && <td className="px-4 py-3 text-center min-w-[170px] whitespace-nowrap">{row.regional || '-'}</td>}
+                    {colVis.regional !== false && (
+                      <td className="px-4 py-3 align-top text-center min-w-[170px] max-w-[16rem] whitespace-normal break-words leading-snug [word-break:break-word]">
+                        {row.regional || '-'}
+                      </td>
+                    )}
                     {colVis.dataChegada !== false && (
-                      <td className="px-4 py-3 text-center whitespace-nowrap min-w-[140px]">{formatDate(row.dataChegada)}</td>
+                      <td className="px-4 py-3 align-top text-center whitespace-nowrap min-w-[140px]">{formatDate(row.dataChegada)}</td>
                     )}
-                    {colVis.mesChegada !== false && <td className="px-4 py-3 text-center min-w-[150px] whitespace-nowrap">{row.mesChegada || '-'}</td>}
-                    {colVis.anoChegada !== false && <td className="px-4 py-3 text-center min-w-[140px] whitespace-nowrap">{row.anoChegada ?? '-'}</td>}
-                    {colVis.responsavel !== false && <td className="px-4 py-3 text-center min-w-[240px] whitespace-nowrap">{row.responsavel || '-'}</td>}
+                    {colVis.mesChegada !== false && (
+                      <td className="px-4 py-3 align-top text-center min-w-[150px] whitespace-nowrap">{row.mesChegada || '-'}</td>
+                    )}
+                    {colVis.anoChegada !== false && (
+                      <td className="px-4 py-3 align-top text-center min-w-[140px] whitespace-nowrap">{row.anoChegada ?? '-'}</td>
+                    )}
+                    {colVis.responsavel !== false && (
+                      <td className="px-4 py-3 align-top text-center min-w-[200px] max-w-[20rem] whitespace-normal break-words leading-snug [word-break:break-word]">
+                        {row.responsavel || '-'}
+                      </td>
+                    )}
                     {colVis.status !== false && (
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-4 py-3 align-top text-center min-w-[140px] max-w-[16rem]">
                         {row.status ? (
                           <span
-                            className={`inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${getStatusClasses(
+                            className={`inline-flex max-w-full flex-wrap items-center justify-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold tracking-wide [word-break:break-word] ${getStatusClasses(
                               row.status
                             )}`}
                           >
@@ -973,20 +1167,28 @@ export default function DemandasTrabalhistasPage() {
                         )}
                       </td>
                     )}
-                    {colVis.prazoDias !== false && <td className="px-4 py-3 text-center min-w-[140px] whitespace-nowrap">{row.prazoDias ?? '-'}</td>}
+                    {colVis.prazoDias !== false && (
+                      <td className="px-4 py-3 align-top text-center min-w-[140px] whitespace-nowrap">{row.prazoDias ?? '-'}</td>
+                    )}
                     {colVis.dataLimite !== false && (
-                      <td className="px-4 py-3 text-center whitespace-nowrap min-w-[140px]">{formatDate(row.dataLimite)}</td>
+                      <td className="px-4 py-3 align-top text-center whitespace-nowrap min-w-[140px]">{formatDate(row.dataLimite)}</td>
                     )}
                     {colVis.dataConclusao !== false && (
-                      <td className="px-4 py-3 text-center whitespace-nowrap min-w-[160px]">{formatDate(row.dataConclusao)}</td>
+                      <td className="px-4 py-3 align-top text-center whitespace-nowrap min-w-[160px]">{formatDate(row.dataConclusao)}</td>
                     )}
-                    {colVis.mesConclusao !== false && <td className="px-4 py-3 text-center min-w-[160px] whitespace-nowrap">{row.mesConclusao || '-'}</td>}
-                    {colVis.destino !== false && <td className="px-4 py-3 text-center min-w-[230px] whitespace-nowrap">{row.destino || '-'}</td>}
+                    {colVis.mesConclusao !== false && (
+                      <td className="px-4 py-3 align-top text-center min-w-[160px] whitespace-nowrap">{row.mesConclusao || '-'}</td>
+                    )}
+                    {colVis.destino !== false && (
+                      <td className="px-4 py-3 align-top text-center min-w-[200px] max-w-[22rem] whitespace-normal break-words leading-snug [word-break:break-word]">
+                        {row.destino || '-'}
+                      </td>
+                    )}
                     {colVis.statusFinal !== false && (
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-4 py-3 align-top text-center min-w-[140px] max-w-[16rem]">
                         {row.statusFinal ? (
                           <span
-                            className={`inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${getStatusClasses(
+                            className={`inline-flex max-w-full flex-wrap items-center justify-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold tracking-wide [word-break:break-word] ${getStatusClasses(
                               row.statusFinal
                             )}`}
                           >
@@ -997,8 +1199,10 @@ export default function DemandasTrabalhistasPage() {
                         )}
                       </td>
                     )}
-                    {colVis.tempoRespostaDias !== false && <td className="px-4 py-3 text-center min-w-[180px] whitespace-nowrap">{row.tempoRespostaDias ?? '-'}</td>}
-                    <td className="px-4 py-3 text-center">
+                    {colVis.tempoRespostaDias !== false && (
+                      <td className="px-4 py-3 align-top text-center min-w-[180px] whitespace-nowrap">{row.tempoRespostaDias ?? '-'}</td>
+                    )}
+                    <td className="px-4 py-3 align-middle text-center whitespace-nowrap">
                       <button
                         type="button"
                         onClick={() =>

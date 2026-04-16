@@ -82,18 +82,59 @@ export async function GET(req: NextRequest) {
       ORDER BY "mesNumero";
     `;
 
-    const [perRegionalRaw, perMonthRaw] = await Promise.all([
+    const perRegionalMonthSql = `
+      SELECT
+        COALESCE(regional, '') AS regional,
+        EXTRACT(MONTH FROM data_chegada)::int AS "mesNumero",
+        COUNT(*)::int AS total,
+        ROUND(
+          AVG(
+            COALESCE(
+              tempo_resposta_dias,
+              CASE
+                WHEN data_chegada IS NOT NULL AND data_conclusao IS NOT NULL
+                THEN (data_conclusao - data_chegada)
+                ELSE NULL
+              END
+            )
+          )::numeric,
+          1
+        ) AS "avgTempoResposta"
+      FROM demandas_trabalhistas
+      ${whereSql}
+      AND data_chegada IS NOT NULL
+      GROUP BY regional, (EXTRACT(MONTH FROM data_chegada)::int)
+      ORDER BY regional, (EXTRACT(MONTH FROM data_chegada)::int);
+    `;
+
+    const perTipoDemandaSql = `
+      SELECT
+        COALESCE(tipo_demanda, '') AS "tipoDemanda",
+        COUNT(*)::int AS total
+      FROM demandas_trabalhistas
+      ${whereSql}
+      GROUP BY tipo_demanda
+      ORDER BY tipo_demanda;
+    `;
+
+    const [perRegionalRaw, perMonthRaw, perRegionalMonthRaw, perTipoDemandaRaw] = await Promise.all([
       prisma.$queryRawUnsafe<any[]>(perRegionalSql),
       prisma.$queryRawUnsafe<any[]>(perMonthSql),
+      prisma.$queryRawUnsafe<any[]>(perRegionalMonthSql),
+      prisma.$queryRawUnsafe<any[]>(perTipoDemandaSql),
     ]);
 
     const perRegional = convertBigIntToNumber(perRegionalRaw || []);
     const perMonth = convertBigIntToNumber(perMonthRaw || []);
+    const perRegionalMonth = convertBigIntToNumber(perRegionalMonthRaw || []);
+    const perTipoDemanda = convertBigIntToNumber(perTipoDemandaRaw || []);
 
     return NextResponse.json({
       ok: true,
       perRegional,
       perMonth,
+      perRegionalMonth,
+      perTipoDemanda,
       ano: ano || '2026',
     });
   } catch (e: any) {
