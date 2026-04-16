@@ -184,7 +184,7 @@ function TableHorizontalScroll({ children, depsKey }: { children: React.ReactNod
     <div className="relative">
       {showTopBar ? (
         <div
-          className="overflow-x-auto overflow-y-hidden border-b border-border/70 bg-bg/40"
+          className="mb-0 overflow-x-auto overflow-y-hidden rounded-t-none border-b border-border/70 bg-muted/20 [scrollbar-color:rgba(0,0,0,0.35)_transparent] dark:[scrollbar-color:rgba(255,255,255,0.35)_transparent]"
           onScroll={onTopScroll}
           ref={topRef}
           role="presentation"
@@ -193,7 +193,15 @@ function TableHorizontalScroll({ children, depsKey }: { children: React.ReactNod
           <div style={{ width: innerW, height: 1 }} />
         </div>
       ) : null}
-      <div ref={bottomRef} className="overflow-x-auto" onScroll={onBottomScroll}>
+      <p className="sr-only" id="demandas-table-hscroll-hint">
+        A tabela é larga: use a barra de rolagem logo acima ou abaixo dela para ver todas as colunas.
+      </p>
+      <div
+        ref={bottomRef}
+        className="overflow-x-auto"
+        onScroll={onBottomScroll}
+        aria-describedby={showTopBar ? 'demandas-table-hscroll-hint' : undefined}
+      >
         {children}
       </div>
     </div>
@@ -862,7 +870,7 @@ export default function DemandasTrabalhistasPage() {
               className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-text hover:bg-bg"
             >
               <Columns2 className="h-4 w-4" />
-              Ocultar colunas
+              Colunas visíveis
             </button>
             {colPickerOpen ? (
               <>
@@ -920,7 +928,7 @@ export default function DemandasTrabalhistasPage() {
           ) : rows.length === 0 ? (
             <div className="text-center py-8 text-muted">Nenhum registro encontrado</div>
           ) : (
-            <table className="w-full min-w-[1750px] text-[11px]">
+            <table className="w-full min-w-[2350px] text-[11px]">
               <thead className="bg-bg/50 border-b border-border">
                 <tr>
                   {COL_DEFS.filter((c) => colVis[c.id] !== false).map((col) => (
@@ -938,20 +946,20 @@ export default function DemandasTrabalhistasPage() {
               <tbody className="divide-y divide-border">
                 {rows.map((row) => (
                   <tr key={row.id} className="hover:bg-bg/30 text-[11px] uppercase">
-                    {colVis.numeroSei !== false && <td className="px-4 py-3 text-center whitespace-nowrap">{row.numeroSei || '-'}</td>}
-                    {colVis.demandante !== false && <td className="px-4 py-3 text-center min-w-[220px]">{row.demandante || '-'}</td>}
-                    {colVis.tipoDemanda !== false && <td className="px-4 py-3 text-center min-w-[180px]">{row.tipoDemanda || '-'}</td>}
-                    {colVis.origem !== false && <td className="px-4 py-3 text-center">{row.origem || '-'}</td>}
+                    {colVis.numeroSei !== false && <td className="px-4 py-3 text-center whitespace-nowrap min-w-[170px]">{row.numeroSei || '-'}</td>}
+                    {colVis.demandante !== false && <td className="px-4 py-3 text-center min-w-[320px] whitespace-nowrap">{row.demandante || '-'}</td>}
+                    {colVis.tipoDemanda !== false && <td className="px-4 py-3 text-center min-w-[260px] whitespace-nowrap">{row.tipoDemanda || '-'}</td>}
+                    {colVis.origem !== false && <td className="px-4 py-3 text-center min-w-[200px] whitespace-nowrap">{row.origem || '-'}</td>}
                     {colVis.unidade !== false && (
-                      <td className="px-4 py-3 text-center min-w-[300px] whitespace-nowrap">{row.unidade || '-'}</td>
+                      <td className="px-4 py-3 text-center min-w-[360px] whitespace-nowrap">{row.unidade || '-'}</td>
                     )}
-                    {colVis.regional !== false && <td className="px-4 py-3 text-center">{row.regional || '-'}</td>}
+                    {colVis.regional !== false && <td className="px-4 py-3 text-center min-w-[170px] whitespace-nowrap">{row.regional || '-'}</td>}
                     {colVis.dataChegada !== false && (
-                      <td className="px-4 py-3 text-center whitespace-nowrap">{formatDate(row.dataChegada)}</td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap min-w-[140px]">{formatDate(row.dataChegada)}</td>
                     )}
-                    {colVis.mesChegada !== false && <td className="px-4 py-3 text-center">{row.mesChegada || '-'}</td>}
-                    {colVis.anoChegada !== false && <td className="px-4 py-3 text-center">{row.anoChegada ?? '-'}</td>}
-                    {colVis.responsavel !== false && <td className="px-4 py-3 text-center">{row.responsavel || '-'}</td>}
+                    {colVis.mesChegada !== false && <td className="px-4 py-3 text-center min-w-[150px] whitespace-nowrap">{row.mesChegada || '-'}</td>}
+                    {colVis.anoChegada !== false && <td className="px-4 py-3 text-center min-w-[140px] whitespace-nowrap">{row.anoChegada ?? '-'}</td>}
+                    {colVis.responsavel !== false && <td className="px-4 py-3 text-center min-w-[240px] whitespace-nowrap">{row.responsavel || '-'}</td>}
                     {colVis.status !== false && (
                       <td className="px-4 py-3 text-center">
                         {row.status ? (
@@ -967,15 +975,15 @@ export default function DemandasTrabalhistasPage() {
                         )}
                       </td>
                     )}
-                    {colVis.prazoDias !== false && <td className="px-4 py-3 text-center">{row.prazoDias ?? '-'}</td>}
+                    {colVis.prazoDias !== false && <td className="px-4 py-3 text-center min-w-[140px] whitespace-nowrap">{row.prazoDias ?? '-'}</td>}
                     {colVis.dataLimite !== false && (
-                      <td className="px-4 py-3 text-center whitespace-nowrap">{formatDate(row.dataLimite)}</td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap min-w-[140px]">{formatDate(row.dataLimite)}</td>
                     )}
                     {colVis.dataConclusao !== false && (
-                      <td className="px-4 py-3 text-center whitespace-nowrap">{formatDate(row.dataConclusao)}</td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap min-w-[160px]">{formatDate(row.dataConclusao)}</td>
                     )}
-                    {colVis.mesConclusao !== false && <td className="px-4 py-3 text-center">{row.mesConclusao || '-'}</td>}
-                    {colVis.destino !== false && <td className="px-4 py-3 text-center">{row.destino || '-'}</td>}
+                    {colVis.mesConclusao !== false && <td className="px-4 py-3 text-center min-w-[160px] whitespace-nowrap">{row.mesConclusao || '-'}</td>}
+                    {colVis.destino !== false && <td className="px-4 py-3 text-center min-w-[230px] whitespace-nowrap">{row.destino || '-'}</td>}
                     {colVis.statusFinal !== false && (
                       <td className="px-4 py-3 text-center">
                         {row.statusFinal ? (
@@ -991,7 +999,7 @@ export default function DemandasTrabalhistasPage() {
                         )}
                       </td>
                     )}
-                    {colVis.tempoRespostaDias !== false && <td className="px-4 py-3 text-center">{row.tempoRespostaDias ?? '-'}</td>}
+                    {colVis.tempoRespostaDias !== false && <td className="px-4 py-3 text-center min-w-[180px] whitespace-nowrap">{row.tempoRespostaDias ?? '-'}</td>}
                     <td className="px-4 py-3 text-center">
                       <button
                         type="button"
