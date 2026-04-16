@@ -756,44 +756,6 @@ export default function DemandasTrabalhistasPage() {
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h3 className="mb-3 text-sm font-semibold text-slate-900">Por regional</h3>
-                {(summary?.perRegional || []).length === 0 ? (
-                  <p className="text-sm text-slate-500">Nenhum registro para montar o resumo por regional.</p>
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-slate-200">
-                    <table className="w-full min-w-[420px] border-collapse text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-200 bg-slate-50 text-left">
-                          <th className="px-3 py-2 font-semibold text-slate-700">Regional</th>
-                          <th className="px-3 py-2 font-semibold text-slate-700">Quantidade de processos</th>
-                          <th className="px-3 py-2 font-semibold text-slate-700">Tempo medio de resposta (dias)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {[...(summary?.perRegional || [])]
-                          .sort((a, b) =>
-                            String(a.regional || '').localeCompare(String(b.regional || ''), 'pt-BR', {
-                              sensitivity: 'base',
-                            })
-                          )
-                          .map((row) => (
-                            <tr key={String(row.regional)} className="hover:bg-slate-50/80">
-                              <td className="px-3 py-2 font-medium text-slate-900">
-                                {(row.regional || '').trim() || 'SEM REGIONAL'}
-                              </td>
-                              <td className="px-3 py-2 tabular-nums text-slate-800">{Number(row.total || 0)}</td>
-                              <td className="px-3 py-2 tabular-nums text-slate-800">
-                                {formatAvgDays(row.avgTempoResposta)}
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="mb-4">
                   <h3 className="text-sm font-semibold text-slate-900">Demandas por tipo</h3>
                   <p className="mt-1 text-xs text-slate-600">
