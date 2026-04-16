@@ -495,10 +495,6 @@ export default function OrdemServicoPage() {
                   {ANO_OS}
                 </span>
               </div>
-              <p className="text-[10px] text-muted -mt-1">
-                Coorte {ANO_OS} · META e REAL = OS acumuladas (meta linear no ano) · EVOL. = ganho mensal da cobertura %
-                · verde se REAL ≥ META do mês
-              </p>
 
               <div className="space-y-2">
                 <div className="flex items-center gap-2">

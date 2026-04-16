@@ -499,15 +499,12 @@ export default function SPCIExtintoresPage() {
             <h2 className="text-sm font-semibold">
               Meta vs Real {regional ? `- ${regional}` : '(Consolidado)'}
             </h2>
-              <p className="text-[11px] text-muted">
-                Meta: quantidade de extintores planejados para recarga | Real: quantidade de extintores realmente recarregados
-              </p>
             </div>
             <div className="flex items-center gap-2">
               <select
                 value={anoMetaReal}
                 onChange={(e) => setAnoMetaReal(e.target.value)}
-                className="px-2 py-1 rounded border border-border bg-bg text-text text-xs"
+                className="px-3 py-1.5 rounded-lg border border-border bg-bg text-xs"
               >
                 {anos.map((a) => (
                   <option key={a} value={a}>
@@ -655,9 +652,12 @@ export default function SPCIExtintoresPage() {
                         : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
 
                   return (
-                    <div key={mes} className={`text-center text-xs font-bold tabular-nums py-1.5 rounded ${cellClass}`}>
-                      {sinal}
-                      {fmtPct(evol)}%
+                    <div
+                      key={mes}
+                      className={`text-center text-[10px] font-medium py-1 rounded ${cellClass}`}
+                      title={`${['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][idx]}: ${sinal}${fmtPct(evol)}% do real no mês`}
+                    >
+                      {sinal}{fmtPct(evol)}%
                     </div>
                   );
                 })}
@@ -672,13 +672,26 @@ export default function SPCIExtintoresPage() {
                   return (
                     <div
                       key={mes}
-                      className="px-2 py-1.5 rounded-lg text-[10px] font-medium text-center bg-panel border border-border text-text"
+                      className="px-2 py-1.5 rounded-lg text-[10px] font-medium text-center text-muted bg-panel border border-border"
                       title={mesesNomes[idx]}
                     >
                       {mesesNomes[idx]}
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-border text-[11px] text-muted">
+              <div>
+                Total: <span className="font-semibold text-text">{Number(metaReal.totalReal ?? 0).toLocaleString('pt-BR')}</span> de{' '}
+                <span className="font-semibold text-text">{Number(metaReal.totalMeta ?? 0).toLocaleString('pt-BR')}</span> recargas executadas
+              </div>
+              <div className="text-right">
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                  {fmtPct(metaReal.totalMeta > 0 ? (Number(metaReal.totalReal ?? 0) / Number(metaReal.totalMeta)) * 100 : 0)}%
+                </span>
+                {' '}de conclusão
               </div>
             </div>
 

@@ -1095,11 +1095,6 @@ export default function EntregasPage() {
                 {ANO_ENTREGAS_TRACKER}
               </span>
             </div>
-            <p className="text-[10px] text-muted -mt-1">
-              META e REAL = itens acumulados no mês · meta linear mai–dez · REAL e EVOL. só aparecem até o mês
-              corrente; meses futuros em “—” até o mês começar · EVOL. = ganho mensal da cobertura % · verde se REAL ≥
-              META
-            </p>
 
             <div className="space-y-2">
               <div className="flex items-center gap-2">
@@ -1112,7 +1107,7 @@ export default function EntregasPage() {
                     return (
                       <div
                         key={mes}
-                        className="text-center text-xs font-bold tabular-nums text-text bg-muted/30 py-1.5 rounded"
+                        className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded"
                         title={`${mesesNomes[idx]}: meta acumulada ${head.toLocaleString('pt-BR')} itens (${fmtPctEntregas(pctMeta)}% da meta anual)`}
                       >
                         {fmtPctEntregas(pctMeta)}%
@@ -1190,7 +1185,8 @@ export default function EntregasPage() {
                     return (
                       <div
                         key={mes}
-                        className={`text-center text-xs font-bold tabular-nums py-1.5 rounded ${cellClass}`}
+                        className={`text-center text-[10px] font-medium py-1 rounded ${cellClass}`}
+                        title={`${mesesNomes[idx]}: ${sinal}${fmtPctEntregas(evol)}% do real no mês`}
                       >
                         {sinal}
                         {fmtPctEntregas(evol)}%
@@ -1203,8 +1199,7 @@ export default function EntregasPage() {
 
             <div className="flex items-center justify-between pt-2 border-t border-border text-[11px] text-muted">
               <div>
-                Até o mês atual:{' '}
-                <span className="font-semibold text-text">{entregueAteMesCorrente.toLocaleString('pt-BR')}</span> de{' '}
+                Total: <span className="font-semibold text-text">{entregueAteMesCorrente.toLocaleString('pt-BR')}</span> de{' '}
                 <span className="font-semibold text-text">{metaTotal.toLocaleString('pt-BR')}</span> itens entregues
               </div>
               <div className="text-right">
@@ -1215,23 +1210,13 @@ export default function EntregasPage() {
               </div>
             </div>
 
-            {/* Botões mensais - alinhados com as colunas acima */}
             <div className="flex items-center gap-2 pt-2 border-t border-border">
               <div className="w-20"></div>
               <div className="flex-1 grid grid-cols-12 gap-1">
-                {meses.map((mes, idx) => (
-                  <button
-                    key={mes}
-                    onClick={() => setMesSelecionado(mesSelecionado === mes ? null : mes)}
-                    className={`px-2 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
-                      mesSelecionado === mes
-                        ? 'bg-emerald-600 text-white dark:bg-emerald-500'
-                        : 'bg-panel border border-border text-text hover:bg-muted'
-                    }`}
-                    title={`${mesesNomes[idx]}: ${(progressoFiltrado[mes] || 0).toLocaleString('pt-BR')} itens entregues`}
-                  >
-                    {mesesNomes[idx].substring(0, 3)}
-                  </button>
+                {mesesNomes.map((nome) => (
+                  <div key={nome} className="px-2 py-1.5 rounded-lg text-[10px] font-medium text-center text-muted bg-panel border border-border">
+                    {nome.substring(0, 3)}
+                  </div>
                 ))}
               </div>
             </div>
