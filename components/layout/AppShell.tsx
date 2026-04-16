@@ -51,6 +51,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Extintores", href: "/spci-extintores", icon: Flame },
       { label: "Entregas", href: "/entregas", icon: PackageCheck },
       { label: "Ordens de Serviço", href: "/ordens-de-servico", icon: FileText },
+      { label: "Demandas Trabalhistas", href: "/demandas-trabalhistas", icon: ClipboardList },
       { label: "CIPA", href: "/cipa", icon: Users },
       { label: "Central de Ações GST", href: "/central-acoes-gst", icon: ClipboardList },
     ],

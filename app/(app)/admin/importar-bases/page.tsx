@@ -47,6 +47,13 @@ const IMPORT_MODULES: ImportModule[] = [
     endpoint: '/api/import/ordens-servico',
   },
   {
+    id: 'demandas_trabalhistas',
+    name: 'Demandas Trabalhistas',
+    description: 'Importar base de demandas trabalhistas para a nova página jurídica/administrativa',
+    icon: '⚖️',
+    endpoint: '/api/import/demandas-trabalhistas',
+  },
+  {
     id: 'epi_map',
     name: 'EPI Map (stg_epi_map)',
     description: 'Substitui o mapeamento de EPIs (Função x Setor x PCG x Kit).',
@@ -232,6 +239,20 @@ export default function ImportarBasesPage() {
                     {selectedModule === 'ordens_servico' && (
                       <>
                         <p>Colunas esperadas: Número OS, Data Abertura, Data Fechamento, Unidade, Regional, Tipo de Serviço, Descrição, Solicitante, Status, Prioridade</p>
+                      </>
+                    )}
+                    {selectedModule === 'demandas_trabalhistas' && (
+                      <>
+                        <p>
+                          Colunas esperadas: Nº SEI, Demandante, Tipo de demanda, Origem, Unidade, Setor, Função,
+                          INSAL. IADVH, INSAL. EMSERH, Regional, Data chegada, Mês Chegada, Ano Chegada,
+                          Responsável, Status, Prazo (dias), Data limite, Data de conclusão, Mês Conclusão,
+                          Destino, Status Final, Tempo de Resposta (dias), Observações
+                        </p>
+                        <p className="mt-1">
+                          Datas aceitas: <strong>DD/MM/YYYY</strong>, <strong>YYYY-MM-DD</strong> ou serial Excel.
+                          Campos numéricos como prazo e tempo de resposta são normalizados automaticamente.
+                        </p>
                       </>
                     )}
                     {selectedModule === 'epi_map' && (
