@@ -3,6 +3,47 @@
  * Suporta: várias grafias, linha de título antes do cabeçalho real, inferência por palavra-chave.
  */
 
+type XlsxReadWorkbook = { SheetNames: string[]; Sheets: Record<string, unknown> }
+
+/** Escolhe a aba com os dados (ex.: "SQL"); evita importar "Capa" ou a primeira aba vazia por engano. */
+export function pickBestWorksheetForPlanoAcao(xlsx: {
+  utils: { sheet_to_json: (sheet: unknown, opts: { header: 1; defval: string }) => unknown[][] }
+}, wb: XlsxReadWorkbook): string {
+  const names = wb.SheetNames || []
+  if (names.length <= 1) return names[0] || ''
+
+  let bestName = names[0]
+  let bestScore = -1
+
+  for (const name of names) {
+    const sh = wb.Sheets[name]
+    if (!sh) continue
+    const matrix = xlsx.utils.sheet_to_json(sh, { header: 1, defval: '' }) as unknown[][]
+    let cells = 0
+    const scanRows = Math.min(matrix.length, 400)
+    for (let i = 0; i < scanRows; i++) {
+      const row = matrix[i] || []
+      for (const c of row) {
+        if (String(c ?? '').trim()) cells++
+      }
+    }
+
+    const nlow = name.trim().toLowerCase()
+    let bonus = 0
+    if (nlow === 'sql') bonus = 500_000
+    else if (nlow.includes('sql')) bonus = 200_000
+    else if (/(^dados$|^base$|^planilha$|plano|indicador|gst|acao|acoes)/i.test(nlow)) bonus = 50_000
+
+    const score = bonus + cells
+    if (score > bestScore) {
+      bestScore = score
+      bestName = name
+    }
+  }
+
+  return bestName
+}
+
 export function normHeader(s: unknown): string {
   return String(s ?? '')
     .replace(/\u00A0/g, ' ')
@@ -20,9 +61,22 @@ export const HEADER_TO_COL: { col: string; headerNorms: string[] }[] = [
   { col: 'empresa', headerNorms: ['EMPRESA', 'ORGAO', 'ORGAOEMPREGADOR'] },
   { col: 'unidade', headerNorms: ['UNIDADE', 'UNIDADEFUNCIONAL', 'NOMEDAUNIDADE', 'ESTABELECIMENTO', 'HOSPITAL', 'UPA', 'UNIDADESAUDE'] },
   { col: 'diretoria', headerNorms: ['DIRETORIA', 'DIR', 'SUPERINTENDENCIA'] },
-  { col: 'gerencia', headerNorms: ['GERENCIA', 'GERÊNCIA', 'COORDENACAO', 'COORDENAÇÃO', 'SETOR'] },
-  { col: 'cod_origem', headerNorms: ['CODORIGEM', 'CODIGOORIGEM', 'CODORIGEMITEM', 'CODORIG', 'CODIGO'] },
-  { col: 'data_origem', headerNorms: ['DATADEORIGEM', 'DATAORIGEM', 'DATA DE ORIGEM', 'DTORIGEM'] },
+  {
+    col: 'gerencia',
+    headerNorms: ['GERENCIA', 'GERÊNCIA', 'GERENCIAS', 'COORDENACAO', 'COORDENAÇÃO', 'SETOR', 'GERSEGURANCA', 'GERSEGURANCADOTRABALHO'],
+  },
+  {
+    col: 'cod_origem',
+    headerNorms: [
+      'CODORIGEM',
+      'CODIGOORIGEM',
+      'CODORIGEMITEM',
+      'CODORIG',
+      'CODIGO',
+      'CODORIGEMDESCRICAO',
+    ],
+  },
+  { col: 'data_origem', headerNorms: ['DATADEORIGEM', 'DATAORIGEM', 'DATA DE ORIGEM', 'DTORIGEM', 'DATAORIG'] },
   { col: 'origem', headerNorms: ['ORIGEM', 'FONTE', 'TIPOORIGEM'] },
   { col: 'indicador', headerNorms: ['INDICADOR', 'INDICADORES', 'NOMEINDICADOR'] },
   { col: 'auxiliar', headerNorms: ['AUXILIAR', 'INDICADORAUXILIAR', 'META'] },
@@ -43,7 +97,10 @@ export const HEADER_TO_COL: { col: string; headerNorms: string[] }[] = [
   },
   { col: 'responsavel', headerNorms: ['RESPONSAVEL', 'RESPONSÁVEL', 'RESPONSAVEIS', 'EXECUTOR', 'FUINCIONARIORSPONSAVEL', 'FUNCIONARIORSPONSAVEL'] },
   { col: 'prazo', headerNorms: ['PRAZO', 'DATAPR', 'DATA PRAZO', 'VENCIMENTO', 'DT PRAZO', 'PRAZOENTREGA'] },
-  { col: 'conclusao', headerNorms: ['CONCLUSAO', 'CONCLUSÃO', 'DATA CONCLUSAO', 'DTCONCLUSAO', 'DATA DE CONCLUSAO'] },
+  {
+    col: 'conclusao',
+    headerNorms: ['CONCLUSAO', 'CONCLUSÃO', 'DATA CONCLUSAO', 'DTCONCLUSAO', 'DATA DE CONCLUSAO', 'DATACONCLUSAO'],
+  },
   { col: 'novo_prazo', headerNorms: ['NOVOPRAZO', 'NOVO PRAZO', 'PRAZOREAGENDADO', 'DATANOVA', 'REAGENDAMENTO'] },
   { col: 'status', headerNorms: ['STATUS', 'SITUACAO', 'SITUAÇÃO', 'ANDAMENTO', 'FASE'] },
   { col: 'evidencia', headerNorms: ['EVIDENCIA', 'EVIDÊNCIA', 'COMPROVANTE', 'ANEXO', 'LINK'] },

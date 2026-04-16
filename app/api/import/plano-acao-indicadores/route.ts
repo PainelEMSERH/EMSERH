@@ -8,6 +8,7 @@ import {
   mappingSummary,
   resolveFileHeaderToCol,
   applyFuzzyColumnMappings,
+  pickBestWorksheetForPlanoAcao,
 } from '@/lib/plano-acao-import-map'
 
 const ROOT_ADMIN_EMAIL = 'jonathan.alves@emserh.ma.gov.br'
@@ -169,10 +170,13 @@ export async function POST(req: Request) {
     let headerRowIndex = 0
     let colToFile = new Map<string, string>()
 
+    let sheetUsed = ''
+
     if (isXlsx) {
       const xlsx = await import('xlsx')
       const wb = xlsx.read(buf, { type: 'buffer' })
-      const sheet = wb.Sheets[wb.SheetNames[0]]
+      sheetUsed = pickBestWorksheetForPlanoAcao(xlsx, wb as { SheetNames: string[]; Sheets: Record<string, unknown> })
+      const sheet = wb.Sheets[sheetUsed] || wb.Sheets[wb.SheetNames[0]]
       const matrix = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][]
       const parsed = matrixToDataRows(matrix)
       rawRows = parsed.rawRows
@@ -305,6 +309,7 @@ export async function POST(req: Request) {
       imported: valuesSql.length,
       import_batch_id: batchId,
       replace: replaceAll,
+      sheet_used: sheetUsed || undefined,
       header_row_1based: isXlsx ? headerRowIndex + 1 : 1,
       column_mapping: mappingSummary(colToFile),
       message: replaceAll

@@ -100,7 +100,8 @@ export default function ImportarBasesPage() {
         let successMsg =
           j.message || `✅ Importação concluída! ${count} registro(s) importado(s). A base anterior foi apagada.`;
         if (selectedModule === 'plano_acao_indicadores' && j.header_row_1based != null) {
-          successMsg += ` Cabeçalho detectado na linha ${j.header_row_1based} (${j.column_mapping?.length ?? 0} colunas mapeadas).`;
+          const sh = j.sheet_used ? `Aba "${j.sheet_used}". ` : '';
+          successMsg += ` ${sh}Cabeçalho na linha ${j.header_row_1based} (${j.column_mapping?.length ?? 0} colunas mapeadas).`;
         }
         setStatus({
           type: 'success',
