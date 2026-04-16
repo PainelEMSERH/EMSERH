@@ -79,17 +79,17 @@ const COL_DEFS: { id: ColId; label: string; className?: string }[] = [
   { id: 'gerencia', label: 'Gerência', className: 'max-w-[120px]' },
   { id: 'cod_origem', label: 'Cod. origem', className: 'max-w-[90px]' },
   { id: 'data_origem', label: 'Data origem', className: 'whitespace-nowrap' },
-  { id: 'origem', label: 'Origem', className: 'max-w-[100px]' },
+  { id: 'origem', label: 'Origem', className: 'min-w-[150px] max-w-[240px]' },
   { id: 'indicador', label: 'Indicador', className: 'min-w-[160px] max-w-[280px]' },
   { id: 'auxiliar', label: 'Auxiliar', className: 'max-w-[120px]' },
-  { id: 'acao', label: 'Ação', className: 'min-w-[260px] max-w-[420px]' },
+  { id: 'acao', label: 'Ação', className: 'min-w-[320px] max-w-[520px]' },
   { id: 'regional', label: 'Regional', className: 'max-w-[140px]' },
   { id: 'responsavel', label: 'Responsável', className: 'max-w-[140px]' },
   { id: 'prazo', label: 'Prazo', className: 'whitespace-nowrap' },
   { id: 'conclusao', label: 'Conclusão', className: 'whitespace-nowrap' },
   { id: 'novo_prazo', label: 'Novo prazo', className: 'whitespace-nowrap' },
   { id: 'status', label: 'Status', className: 'min-w-[200px] max-w-[280px]' },
-  { id: 'evidencia', label: 'Evidência', className: 'max-w-[160px]' },
+  { id: 'evidencia', label: 'Evidência', className: 'min-w-[190px] max-w-[260px]' },
   { id: 'comentarios', label: 'Comentários', className: 'min-w-[180px] max-w-[280px]' },
 ];
 
@@ -242,17 +242,17 @@ function renderCell(r: Row, col: ColId): React.ReactNode {
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex max-w-full items-center gap-1 text-[10px] font-medium text-emerald-600 hover:text-emerald-700 hover:underline dark:text-emerald-400 dark:hover:text-emerald-300"
+          className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/45 dark:text-emerald-100 dark:hover:bg-emerald-900/40"
           title={label || href}
         >
-          {isPdf ? <FileText className="h-3 w-3 shrink-0 opacity-80" aria-hidden /> : <Link2 className="h-3 w-3 shrink-0 opacity-80" aria-hidden />}
-          <span className="truncate">{label || 'Abrir'}</span>
-          <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-60" aria-hidden />
+          {isPdf ? <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden /> : <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+          <span className="truncate">{label || 'Evidência'}</span>
+          <ExternalLink className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
         </a>
       );
     }
     if (t && !/^https?:\/\//i.test(t) && t.length > 0) {
-      return <span className="line-clamp-2 text-center text-[10px]">{t}</span>;
+      return <span className="line-clamp-2 text-center text-[11px]">{t}</span>;
     }
     return '—';
   }
@@ -263,7 +263,7 @@ function renderCell(r: Row, col: ColId): React.ReactNode {
   if (col === 'status') {
     return (
       <span
-        className={`inline-flex max-w-full whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${statusBadgeClass(t)}`}
+        className={`inline-flex max-w-full whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${statusBadgeClass(t)}`}
       >
         {t}
       </span>
@@ -446,9 +446,13 @@ export default function CentralAcoesGSTClient() {
         qs.set('sortBy', sortBy);
         qs.set('sortDir', sortDir);
       }
+      const statsQs = new URLSearchParams();
+      if (regional) statsQs.set('regional', regional);
+      if (statusFiltro) statsQs.set('status', statusFiltro);
+      if (q.trim()) statsQs.set('q', q.trim());
 
       const [sRes, lRes] = await Promise.all([
-        fetch('/api/plano-acao-indicadores/stats', { cache: 'no-store' }),
+        fetch(`/api/plano-acao-indicadores/stats?${statsQs}`, { cache: 'no-store' }),
         fetch(`/api/plano-acao-indicadores/list?${qs}`, { cache: 'no-store' }),
       ]);
       const sJson = await sRes.json();
@@ -608,19 +612,8 @@ export default function CentralAcoesGSTClient() {
             <ClipboardList className="h-7 w-7 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
             Central de Ações GST
           </h1>
-          <p className="mt-2 max-w-3xl text-sm text-muted">
-            Ações da tabela <code className="rounded bg-muted px-1 text-xs">plano_acao_indicadores</code> (importação em Admin →
-            Importar bases). Indicadores por status, filtros, edição, baixa e anexo de evidência.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/admin/importar-bases"
-            className="inline-flex items-center gap-1 rounded-xl border border-border bg-panel px-3 py-2 text-xs font-medium text-text hover:bg-bg"
-          >
-            Importar planilha
-            <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-          </Link>
           <button
             type="button"
             onClick={() => load()}
@@ -793,8 +786,8 @@ export default function CentralAcoesGSTClient() {
               Nenhum registro. Importe a planilha em Admin → Importar bases → Plano de ação / Indicadores.
             </div>
           ) : (
-            <table className="w-full min-w-[720px] text-center text-[10px]">
-              <thead className="border-b border-border bg-muted/30 text-[10px] font-semibold uppercase tracking-wide text-muted">
+            <table className="w-full min-w-[720px] text-center text-[11px]">
+              <thead className="border-b border-border bg-muted/30 text-[11px] font-semibold uppercase tracking-wide text-muted">
                 <tr>
                   {COL_DEFS.filter((c) => colVis[c.id] !== false).map((c) => {
                     const active = sortBy === c.id;
@@ -803,7 +796,7 @@ export default function CentralAcoesGSTClient() {
                         <button
                           type="button"
                           onClick={() => toggleSort(c.id)}
-                          className="inline-flex max-w-full items-center justify-center gap-0.5 rounded-md px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted hover:bg-muted/40 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+                          className="inline-flex max-w-full items-center justify-center gap-0.5 rounded-md px-1 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted hover:bg-muted/40 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
                           aria-label={`Ordenar por ${c.label}`}
                           aria-sort={
                             active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
@@ -837,7 +830,7 @@ export default function CentralAcoesGSTClient() {
                           className={`px-3 text-center align-middle ${
                             singleLine
                               ? 'truncate py-3'
-                              : 'py-3.5 whitespace-normal break-words leading-relaxed [word-break:break-word]'
+                              : 'py-3 whitespace-normal break-words leading-relaxed [word-break:break-word]'
                           } ${
                             c.id === 'item'
                               ? 'font-medium text-text'
@@ -850,16 +843,16 @@ export default function CentralAcoesGSTClient() {
                           {singleLine ? (
                             <div className="flex w-full justify-center">{renderCell(r, c.id)}</div>
                           ) : (
-                            <div className="mx-auto block w-full text-center">{renderCell(r, c.id)}</div>
+                            <div className="mx-auto block min-h-[18px] w-full text-center">{renderCell(r, c.id)}</div>
                           )}
                         </td>
                       );
                     })}
-                    <td className="px-3 py-3.5 text-center align-middle">
+                    <td className="px-3 py-3 text-center align-middle">
                       <button
                         type="button"
                         onClick={() => openModal(r)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[10px] font-medium hover:bg-bg"
+                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-medium hover:bg-bg"
                       >
                         <Pencil className="h-3 w-3" />
                         Editar

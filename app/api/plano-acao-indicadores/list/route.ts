@@ -58,6 +58,12 @@ function buildOrderClause(sortBy: string, sortDir: 'ASC' | 'DESC'): string {
   if (!col) {
     return 'ORDER BY prazo NULLS LAST, updated_at DESC NULLS LAST';
   }
+  if (col === 'item') {
+    return `ORDER BY
+      CASE WHEN TRIM(COALESCE(item, '')) ~ '^[0-9]+$' THEN TRIM(item)::bigint END ${sortDir} NULLS LAST,
+      item ${sortDir} NULLS LAST,
+      updated_at DESC NULLS LAST`;
+  }
   return `ORDER BY ${col} ${sortDir} NULLS LAST, updated_at DESC NULLS LAST`;
 }
 
