@@ -43,6 +43,9 @@ type OptionsData = {
 
 const MONTH_LABELS = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
 
+/** Ano de chegada padrão: só muda se o usuário selecionar outro ano no filtro. */
+const ANO_CHEGADA_PADRAO = '2026';
+
 /** Tipos oficiais exibidos no painel (comparação ignora maiúsculas/acentos). */
 const TIPOS_DEMANDA_ORDEM = [
   'Fiscalização',
@@ -271,7 +274,7 @@ export default function DemandasTrabalhistasPage() {
   const [status, setStatus] = useState('');
   const [statusFinal, setStatusFinal] = useState('');
   // filtros simplificados (sem tipoDemanda e responsável)
-  const [ano, setAno] = useState<string>('2026');
+  const [ano, setAno] = useState<string>(ANO_CHEGADA_PADRAO);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -291,6 +294,7 @@ export default function DemandasTrabalhistasPage() {
     perMonth: { mesNumero: number; mes: string; total: number }[];
     perRegionalMonth: { regional: string; mesNumero: number; total: number; avgTempoResposta: number | null }[];
     perTipoDemanda: { tipoDemanda: string; total: number }[];
+    avgTempoRespostaGeral: number | null;
   } | null>(null);
   const [options, setOptions] = useState<OptionsData>({
     regionais: [],
@@ -371,7 +375,7 @@ export default function DemandasTrabalhistasPage() {
       if (status) params.set('status', status);
       if (statusFinal) params.set('statusFinal', statusFinal);
       if (search) params.set('search', search);
-      if (ano) params.set('ano', ano);
+      params.set('ano', ano || ANO_CHEGADA_PADRAO);
       params.set('page', String(page));
       params.set('pageSize', String(pageSize));
       params.set('sortBy', sortBy);
@@ -400,13 +404,14 @@ export default function DemandasTrabalhistasPage() {
       if (status) params.set('status', status);
       if (statusFinal) params.set('statusFinal', statusFinal);
       if (search) params.set('search', search);
-      if (ano) params.set('ano', ano);
+      params.set('ano', ano || ANO_CHEGADA_PADRAO);
 
       const data = await fetchJSON<{
         perRegional: { regional: string; total: number; avgTempoResposta: number | null }[];
         perMonth: { mesNumero: number; mesLabel?: string; total: number }[];
         perRegionalMonth: { regional: string; mesNumero: number; total: number; avgTempoResposta: number | null }[];
         perTipoDemanda: { tipoDemanda: string; total: number }[];
+        avgTempoRespostaGeral?: number | null;
       }>(`/api/demandas-trabalhistas/summary?${params.toString()}`);
 
       setSummary({
@@ -432,6 +437,7 @@ export default function DemandasTrabalhistasPage() {
             }))
           : [],
         perTipoDemanda: Array.isArray(data.perTipoDemanda) ? data.perTipoDemanda : [],
+        avgTempoRespostaGeral: parseAvgFromApi(data.avgTempoRespostaGeral),
       });
     } catch (error) {
       console.error('Erro ao carregar resumo das demandas trabalhistas:', error);
@@ -440,6 +446,7 @@ export default function DemandasTrabalhistasPage() {
         perMonth: [],
         perRegionalMonth: [],
         perTipoDemanda: [],
+        avgTempoRespostaGeral: null,
       });
     } finally {
       setSummaryLoading(false);
@@ -510,12 +517,14 @@ export default function DemandasTrabalhistasPage() {
     () => (summary?.perRegional || []).reduce((acc, item) => acc + Number(item.total || 0), 0),
     [summary]
   );
-  const tempoMedioGeral = useMemo(() => {
-    const valid = (summary?.perRegional || []).filter((item) => item.avgTempoResposta !== null);
-    if (!valid.length) return null;
-    const total = valid.reduce((acc, item) => acc + Number(item.avgTempoResposta || 0), 0);
-    return total / valid.length;
-  }, [summary]);
+  const tempoMedioGeral = summary?.avgTempoRespostaGeral ?? null;
+
+  const anosChegadaSelect = useMemo(() => {
+    const set = new Set<number>([Number(ANO_CHEGADA_PADRAO), ...(options.anosChegada || [])]);
+    return Array.from(set)
+      .filter((n) => Number.isFinite(n))
+      .sort((a, b) => b - a);
+  }, [options.anosChegada]);
   const regionalLider = useMemo(() => {
     const list = summary?.perRegional || [];
     if (!list.length) return null;
@@ -564,7 +573,7 @@ export default function DemandasTrabalhistasPage() {
     setStatus('');
     setStatusFinal('');
     setSearch('');
-    setAno('2026');
+    setAno(ANO_CHEGADA_PADRAO);
     setPage(1);
     setSortBy('dataChegada');
     setSortDir('desc');
@@ -719,22 +728,76 @@ export default function DemandasTrabalhistasPage() {
             <div className="space-y-5">
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-emerald-50 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total de demandas</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Quantidade de processos (total)
+                  </div>
                   <div className="mt-2 text-4xl font-bold text-slate-900">{totalDemandasAno}</div>
-                  <div className="mt-2 text-xs text-slate-600">Total consolidado para o ano selecionado.</div>
+                  <div className="mt-2 text-xs text-slate-600">
+                    Soma das demandas no ano {ano} (mesmos filtros da lista), todas as regionais.
+                  </div>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-cyan-50 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Tempo medio geral</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Tempo medio de resposta geral
+                  </div>
                   <div className="mt-2 text-4xl font-bold text-slate-900">{formatAvgDays(tempoMedioGeral)}</div>
-                  <div className="mt-2 text-xs text-slate-600">Dias medios de resposta considerando as regionais com conclusao.</div>
+                  <div className="mt-2 text-xs text-slate-600">
+                    Media dos dias de todos os processos do recorte (coluna Tempo de Resposta ou chegada a conclusao).
+                    Registros sem dias calculaveis nao entram na media.
+                  </div>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-amber-50 p-4">
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Regional com maior volume</div>
                   <div className="mt-2 text-2xl font-bold text-slate-900">{regionalLider?.regional || 'SEM DADOS'}</div>
                   <div className="mt-2 text-sm font-semibold text-amber-700">
-                    {regionalLider ? `${regionalLider.total} demandas` : 'Sem registros no ano'}
+                    {regionalLider ? `${regionalLider.total} processos` : 'Sem registros no ano'}
                   </div>
                 </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="mb-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Por regional</h3>
+                  <p className="mt-1 text-xs text-slate-600">
+                    <span className="font-medium">Quantidade de processos por regional</span> e{' '}
+                    <span className="font-medium">tempo medio de resposta dos processos por regional</span> (media dentro
+                    de cada regional). Ano {ano}, mesmos filtros do painel.
+                  </p>
+                </div>
+                {(summary?.perRegional || []).length === 0 ? (
+                  <p className="text-sm text-slate-500">Nenhum registro para montar o resumo por regional.</p>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="w-full min-w-[420px] border-collapse text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                          <th className="px-3 py-2 font-semibold text-slate-700">Regional</th>
+                          <th className="px-3 py-2 font-semibold text-slate-700">Quantidade de processos</th>
+                          <th className="px-3 py-2 font-semibold text-slate-700">Tempo medio de resposta (dias)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {[...(summary?.perRegional || [])]
+                          .sort((a, b) =>
+                            String(a.regional || '').localeCompare(String(b.regional || ''), 'pt-BR', {
+                              sensitivity: 'base',
+                            })
+                          )
+                          .map((row) => (
+                            <tr key={String(row.regional)} className="hover:bg-slate-50/80">
+                              <td className="px-3 py-2 font-medium text-slate-900">
+                                {(row.regional || '').trim() || 'SEM REGIONAL'}
+                              </td>
+                              <td className="px-3 py-2 tabular-nums text-slate-800">{Number(row.total || 0)}</td>
+                              <td className="px-3 py-2 tabular-nums text-slate-800">
+                                {formatAvgDays(row.avgTempoResposta)}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -777,8 +840,13 @@ export default function DemandasTrabalhistasPage() {
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900">Regional × mês (Jan a Dez)</h3>
                     <p className="mt-1 max-w-2xl text-xs text-slate-600">
-                      Em cada célula: quantidade (chegada no mês) e média em dias (campo &quot;Tempo de resposta&quot; ou
-                      diferença entre chegada e conclusão). Onde não houver como calcular, aparece &quot;—&quot; nos dias.
+                      O <span className="font-medium">mês</span> da coluna é o mês da{' '}
+                      <span className="font-medium">data de chegada</span> (no ano filtrado). Para cada processo, o tempo
+                      em dias usa primeiro a coluna <span className="font-medium">Tempo de Resposta (dias)</span>; se
+                      estiver vazio, calcula pelos dias entre <span className="font-medium">chegada</span> e{' '}
+                      <span className="font-medium">conclusão</span>. A{' '}
+                      <span className="font-medium">média do mês</span> é a média aritmética desses dias entre os
+                      processos da célula (só entram na média os que têm dias calculáveis). Sem média: &quot;—&quot;.
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
@@ -921,7 +989,7 @@ export default function DemandasTrabalhistasPage() {
         <div className="flex items-center gap-2 mb-2">
           <div className="h-px flex-1 bg-border" />
           <span className="text-xs font-semibold text-muted uppercase tracking-wide px-2">
-            Filtros (padrão ano 2026)
+            Filtros (padrao ano {ANO_CHEGADA_PADRAO})
           </span>
           <div className="h-px flex-1 bg-border" />
         </div>
@@ -967,15 +1035,14 @@ export default function DemandasTrabalhistasPage() {
           <div>
             <label className="block text-xs text-muted mb-1">Ano Chegada</label>
             <select
-              value={ano}
+              value={ano || ANO_CHEGADA_PADRAO}
               onChange={(e) => {
                 setAno(e.target.value);
                 setPage(1);
               }}
               className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
-              <option value="">Todos</option>
-              {options.anosChegada.map((item) => (
+              {anosChegadaSelect.map((item) => (
                 <option key={item} value={String(item)}>
                   {item}
                 </option>
@@ -1041,7 +1108,7 @@ export default function DemandasTrabalhistasPage() {
           </div>
         </div>
 
-        {(regional || unidade || status || statusFinal || search || ano !== '2026') && (
+        {(regional || unidade || status || statusFinal || search || ano !== ANO_CHEGADA_PADRAO) && (
           <div className="flex justify-end">
             <button
               onClick={limparFiltros}

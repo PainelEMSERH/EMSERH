@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
     const statusFinal = (url.searchParams.get('statusFinal') || '').trim();
     const responsavel = (url.searchParams.get('responsavel') || '').trim();
     const search = (url.searchParams.get('search') || '').trim();
-    const ano = (url.searchParams.get('ano') || '').trim();
+    const ano = (url.searchParams.get('ano') || '2026').trim();
     const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
     const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
     const sortBy = url.searchParams.get('sortBy') || 'dataChegada';

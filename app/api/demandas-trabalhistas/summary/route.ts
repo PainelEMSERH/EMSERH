@@ -49,6 +49,19 @@ function mapAvgOnRows(rows: any[], key = 'avgTempoResposta') {
   }));
 }
 
+/**
+ * Por linha: 1) usa a coluna "Tempo de Resposta (dias)" quando existir;
+ * 2) senão, dias corridos entre data de chegada e data de conclusão.
+ * A média (AVG) considera só linhas em que esse valor não é NULL.
+ */
+const SQL_DIAS_RESPOSTA = `
+  CASE
+    WHEN tempo_resposta_dias IS NOT NULL THEN tempo_resposta_dias::numeric
+    WHEN data_chegada IS NOT NULL AND data_conclusao IS NOT NULL THEN (data_conclusao - data_chegada)::numeric
+    ELSE NULL
+  END
+`;
+
 export async function GET(req: NextRequest) {
   try {
     await ensureDemandasTrabalhistasTables();
@@ -84,14 +97,7 @@ export async function GET(req: NextRequest) {
         (
           ROUND(
             AVG(
-              COALESCE(
-                tempo_resposta_dias::numeric,
-                CASE
-                  WHEN data_chegada IS NOT NULL AND data_conclusao IS NOT NULL
-                  THEN (data_conclusao - data_chegada)::numeric
-                  ELSE NULL
-                END
-              )
+              ${SQL_DIAS_RESPOSTA}
             ),
             1
           )
@@ -114,6 +120,7 @@ export async function GET(req: NextRequest) {
       ORDER BY "mesNumero";
     `;
 
+    // Mês = EXTRACT(MONTH FROM data_chegada): quantidade e AVG de tempo são do mesmo conjunto (chegada naquele mês/regional).
     const perRegionalMonthSql = `
       SELECT
         COALESCE(regional, '') AS regional,
@@ -122,14 +129,7 @@ export async function GET(req: NextRequest) {
         (
           ROUND(
             AVG(
-              COALESCE(
-                tempo_resposta_dias::numeric,
-                CASE
-                  WHEN data_chegada IS NOT NULL AND data_conclusao IS NOT NULL
-                  THEN (data_conclusao - data_chegada)::numeric
-                  ELSE NULL
-                END
-              )
+              ${SQL_DIAS_RESPOSTA}
             ),
             1
           )
@@ -151,17 +151,35 @@ export async function GET(req: NextRequest) {
       ORDER BY tipo_demanda;
     `;
 
-    const [perRegionalRaw, perMonthRaw, perRegionalMonthRaw, perTipoDemandaRaw] = await Promise.all([
+    /** Uma única média sobre todos os processos do recorte (não é média das médias por regional). */
+    const globalAvgSql = `
+      SELECT
+        (
+          ROUND(
+            AVG(
+              ${SQL_DIAS_RESPOSTA}
+            ),
+            1
+          )
+        )::float8 AS "avgTempoRespostaGeral"
+      FROM demandas_trabalhistas
+      ${whereSql}
+    `;
+
+    const [perRegionalRaw, perMonthRaw, perRegionalMonthRaw, perTipoDemandaRaw, globalAvgRows] = await Promise.all([
       prisma.$queryRawUnsafe<any[]>(perRegionalSql),
       prisma.$queryRawUnsafe<any[]>(perMonthSql),
       prisma.$queryRawUnsafe<any[]>(perRegionalMonthSql),
       prisma.$queryRawUnsafe<any[]>(perTipoDemandaSql),
+      prisma.$queryRawUnsafe<any[]>(globalAvgSql),
     ]);
 
     const perRegional = mapAvgOnRows(convertBigIntToNumber(perRegionalRaw || []));
     const perMonth = convertBigIntToNumber(perMonthRaw || []);
     const perRegionalMonth = mapAvgOnRows(convertBigIntToNumber(perRegionalMonthRaw || []));
     const perTipoDemanda = convertBigIntToNumber(perTipoDemandaRaw || []);
+    const globalRow = convertBigIntToNumber((globalAvgRows || [])[0] || {});
+    const avgTempoRespostaGeral = normalizeAvgTempoResposta(globalRow?.avgTempoRespostaGeral);
 
     return NextResponse.json({
       ok: true,
@@ -169,6 +187,7 @@ export async function GET(req: NextRequest) {
       perMonth,
       perRegionalMonth,
       perTipoDemanda,
+      avgTempoRespostaGeral,
       ano: ano || '2026',
     });
   } catch (e: any) {
