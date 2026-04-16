@@ -72,12 +72,17 @@ export async function GET(req: NextRequest) {
       LIMIT ${pageSize} OFFSET ${offset}
     `);
 
-    const regRows: any[] = await prisma.$queryRawUnsafe(`
+    let regRows: any[] = [];
+    try {
+      regRows = (await prisma.$queryRawUnsafe(`
       SELECT DISTINCT TRIM(regional) AS regional
       FROM plano_acao_indicadores
       WHERE COALESCE(TRIM(regional), '') != ''
       ORDER BY 1
-    `).catch(() => []);
+    `)) as any[];
+    } catch {
+      regRows = [];
+    }
 
     const regionais = (regRows || [])
       .map((r) => String(r?.regional || '').trim())
