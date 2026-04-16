@@ -68,11 +68,11 @@ async function ensureSPCITables() {
         numero_serie, fabricante, observacoes, last_batch_id, updated_at
       )
       SELECT
-        NULLIF(TRIM(data->>'Unidade' || data->>'unidade' || data->>'UNIDADE'), '')::text,
-        NULLIF(TRIM(data->>'Regional' || data->>'regional' || data->>'REGIONAL'), '')::text,
-        NULLIF(TRIM(data->>'Tipo de Extintor' || data->>'Tipo Extintor' || data->>'tipo_extintor'), '')::text,
-        NULLIF(TRIM(data->>'Capacidade' || data->>'capacidade'), '')::text,
-        NULLIF(TRIM(data->>'Localização' || data->>'Localizacao' || data->>'localizacao'), '')::text,
+        NULLIF(TRIM(COALESCE(data->>'Unidade', data->>'unidade', data->>'UNIDADE', '')), '')::text,
+        NULLIF(TRIM(COALESCE(data->>'Regional', data->>'regional', data->>'REGIONAL', '')), '')::text,
+        NULLIF(TRIM(COALESCE(data->>'Tipo de Extintor', data->>'Tipo Extintor', data->>'tipo_extintor', '')), '')::text,
+        NULLIF(TRIM(COALESCE(data->>'Capacidade', data->>'capacidade', '')), '')::text,
+        NULLIF(TRIM(COALESCE(data->>'Localização', data->>'Localizacao', data->>'localizacao', '')), '')::text,
         CASE
           WHEN data->>'Data Vencimento' ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN (data->>'Data Vencimento')::date
           WHEN data->>'Data Vencimento' ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(data->>'Data Vencimento', 'DD/MM/YYYY')
@@ -88,10 +88,10 @@ async function ensureSPCITables() {
           WHEN data->>'Próxima Inspeção' ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(data->>'Próxima Inspeção', 'DD/MM/YYYY')
           ELSE NULL
         END,
-        NULLIF(TRIM(data->>'Status' || data->>'status'), '')::text,
-        NULLIF(TRIM(data->>'Número de Série' || data->>'Numero Serie' || data->>'numero_serie'), '')::text,
-        NULLIF(TRIM(data->>'Fabricante' || data->>'fabricante'), '')::text,
-        NULLIF(TRIM(data->>'Observações' || data->>'Observacoes' || data->>'observacoes'), '')::text,
+        NULLIF(TRIM(COALESCE(data->>'Status', data->>'status', '')), '')::text,
+        NULLIF(TRIM(COALESCE(data->>'Número de Série', data->>'Numero Serie', data->>'numero_serie', '')), '')::text,
+        NULLIF(TRIM(COALESCE(data->>'Fabricante', data->>'fabricante', '')), '')::text,
+        NULLIF(TRIM(COALESCE(data->>'Observações', data->>'Observacoes', data->>'observacoes', '')), '')::text,
         batch_id,
         now()
       FROM stg_spci_raw
