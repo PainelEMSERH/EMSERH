@@ -173,12 +173,12 @@ type KpiCardProps = {
 function KpiCard({ title, subtitle, href, hrefLabel, pct, doughnut, footer, badge, accentClass }: KpiCardProps) {
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border border-border bg-panel p-5 shadow-sm transition-shadow hover:shadow-md ${accentClass}`}
+      className={`group relative overflow-hidden rounded-2xl border border-border bg-panel p-5 shadow-sm transition-all hover:-translate-y-[1px] hover:shadow-md ${accentClass}`}
     >
-      <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-current opacity-[0.07]" aria-hidden />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-current/20" aria-hidden />
       <div className="relative flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">{title}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">{title}</p>
           <p className="mt-1 text-xs text-muted">{subtitle}</p>
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${badge.className}`}>
@@ -188,11 +188,11 @@ function KpiCard({ title, subtitle, href, hrefLabel, pct, doughnut, footer, badg
       <div className="relative mt-4 flex items-center gap-4">
         <div className="flex h-[88px] w-[88px] shrink-0 items-center justify-center">{doughnut}</div>
         <div className="min-w-0 flex-1">
-          <p className="text-3xl font-bold tabular-nums tracking-tight text-text">{pct.toFixed(1)}%</p>
-          <div className="mt-2 text-xs leading-relaxed text-muted">{footer}</div>
+          <p className="text-3xl font-semibold tabular-nums tracking-tight text-text">{pct.toFixed(1)}%</p>
+          <div className="mt-2 text-[12px] leading-relaxed text-muted">{footer}</div>
           <Link
             href={href}
-            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300"
+            className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300"
           >
             {hrefLabel}
             <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
@@ -547,19 +547,11 @@ export default function DashboardEPI() {
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-text md:text-3xl">
                 Saúde e Segurança no Trabalho
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-                {regionalSelecionada ? (
-                  <>
-                    Visão filtrada para <span className="font-medium text-text">{regionalSelecionada}</span>. Compare
-                    indicadores de EPI, ordens de serviço, acidentes e extintores em um só lugar.
-                  </>
-                ) : (
-                  <>
-                    Visão consolidada de <span className="font-medium text-text">todas as regionais</span>. Cada bloco
-                    responde: estamos no alvo? O que precisa de ação hoje?
-                  </>
-                )}
-              </p>
+              {regionalSelecionada ? (
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
+                  Visão filtrada para <span className="font-medium text-text">{regionalSelecionada}</span>.
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center md:flex-col md:items-stretch lg:flex-row lg:items-center">
@@ -638,9 +630,7 @@ export default function DashboardEPI() {
         <h2 id="dash-pillars-heading" className="mb-1 text-sm font-semibold text-text">
           Quatro pilares do SST
         </h2>
-        <p className="mb-4 text-xs text-muted">
-          EPI, OS, acidentes e extintores na mesma visão — use os atalhos para agir no detalhe.
-        </p>
+        <p className="mb-4 text-xs text-muted">Visão executiva com acesso rápido aos módulos operacionais.</p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <KpiCard
             title="EPI obrigatório"
@@ -715,29 +705,29 @@ export default function DashboardEPI() {
             }
           />
 
-          <div className="group relative overflow-hidden rounded-2xl border border-border bg-panel p-5 shadow-sm transition-shadow hover:shadow-md text-red-600 dark:text-red-500">
-            <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-current opacity-[0.07]" />
+          <div className="group relative overflow-hidden rounded-2xl border border-border bg-panel p-5 shadow-sm transition-all hover:-translate-y-[1px] hover:shadow-md text-red-600 dark:text-red-500">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-current/20" />
             <div className="relative flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Acidentes</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Acidentes</p>
                 <p className="mt-1 text-xs text-muted">Ano {new Date().getFullYear()}</p>
               </div>
-              <span className="rounded-full bg-red-500/15 px-2.5 py-0.5 text-[10px] font-semibold text-red-700 ring-1 ring-red-500/25 dark:text-red-300">
+              <span className="rounded-full bg-red-500/12 px-2.5 py-0.5 text-[10px] font-semibold text-red-700 ring-1 ring-red-500/20 dark:text-red-300">
                 Registros
               </span>
             </div>
             <div className="relative mt-4 flex gap-4">
-              <div className="flex h-[88px] w-[88px] shrink-0 flex-col items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/5">
+              <div className="flex h-[88px] w-[88px] shrink-0 flex-col items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/[0.04]">
                 <Flame className="h-8 w-8 text-red-500" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-3xl font-bold tabular-nums text-text">{formatThousands(acidentes?.totalAno || 0)}</p>
+                <p className="text-3xl font-semibold tabular-nums text-text">{formatThousands(acidentes?.totalAno || 0)}</p>
                 <p className="mt-1 text-xs text-muted">Total no ano</p>
-                <p className="mt-3 text-xs">
+                <p className="mt-3 text-[12px]">
                   <span className="text-muted">Neste mês:</span>{' '}
                   <span className="font-semibold text-text">{formatThousands(acidentes?.totalMes || 0)}</span>
                 </p>
-                <p className="mt-1 text-xs">
+                <p className="mt-1 text-[12px]">
                   <span className="text-muted">Com afastamento:</span>{' '}
                   <span className="font-semibold text-red-600 dark:text-red-400">
                     {formatThousands(acidentes?.comAfastamento || 0)}
@@ -745,7 +735,7 @@ export default function DashboardEPI() {
                 </p>
                 <Link
                   href="/acidentes"
-                  className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400"
+                  className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-500 dark:text-emerald-400"
                 >
                   Abrir acidentes
                   <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
@@ -877,7 +867,7 @@ export default function DashboardEPI() {
           <div className="flex items-center gap-2">
             <Target className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
             <h2 id="dash-mgmt-heading" className="text-sm font-semibold text-text">
-              Indicadores para gestão
+              Painel de Indicadores
             </h2>
           </div>
           <p className="mt-1 text-xs text-muted">
@@ -971,24 +961,24 @@ export default function DashboardEPI() {
           </div>
           <p className="mt-1 text-xs text-muted">Resumo por status das ações do plano (com filtro regional)</p>
           {gst ? (
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-border bg-card/60 px-3 py-2.5">
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
                 <p className="text-[11px] uppercase tracking-wide text-muted">Nº de ações</p>
                 <p className="mt-1 text-xl font-bold tabular-nums text-text">{formatThousands(gst.cards.total.count)}</p>
               </div>
-              <div className="rounded-xl border border-border bg-card/60 px-3 py-2.5">
+              <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
                 <p className="text-[11px] uppercase tracking-wide text-muted">No prazo</p>
                 <p className="mt-1 text-xl font-bold tabular-nums text-amber-700 dark:text-amber-300">
                   {formatThousands(gst.cards.no_prazo.count)}
                 </p>
               </div>
-              <div className="rounded-xl border border-border bg-card/60 px-3 py-2.5">
+              <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
                 <p className="text-[11px] uppercase tracking-wide text-muted">Em atraso</p>
                 <p className="mt-1 text-xl font-bold tabular-nums text-red-700 dark:text-red-300">
                   {formatThousands(gst.cards.em_atraso.count)}
                 </p>
               </div>
-              <div className="rounded-xl border border-border bg-card/60 px-3 py-2.5">
+              <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
                 <p className="text-[11px] uppercase tracking-wide text-muted">Concluído</p>
                 <p className="mt-1 text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
                   {formatThousands(gst.cards.concluido.count)}

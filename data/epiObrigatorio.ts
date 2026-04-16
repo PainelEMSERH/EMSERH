@@ -81,7 +81,7 @@ export function obrigatoriosWhereSql(column: string): string {
           'ÁÀÂÃÄáàâãäÉÈÊËéèêëÍÌÎÏíìîïÓÒÔÕÖóòôõöÚÙÛÜúùûüÇçÑñ',
           'AAAAAaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuCcNn'
         ),
-        '[^A-Z0-9 ]',
+        '[^A-Za-z0-9 ]',
         '',
         'g'
       ),
