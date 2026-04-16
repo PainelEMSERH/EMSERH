@@ -19,6 +19,36 @@ function convertBigIntToNumber(obj: any): any {
   return obj;
 }
 
+/** Prisma/pg pode devolver DECIMAL como objeto; JSON serializa mal e o front vira NaN / "-". */
+function normalizeAvgTempoResposta(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'bigint') return Number(v);
+  if (typeof v === 'string') {
+    const n = parseFloat(v.replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+  }
+  if (typeof v === 'object' && v !== null) {
+    if ('toNumber' in v && typeof (v as { toNumber: () => number }).toNumber === 'function') {
+      const n = (v as { toNumber: () => number }).toNumber();
+      return Number.isFinite(n) ? n : null;
+    }
+    const s = (v as { toString?: () => string }).toString?.();
+    if (s) {
+      const n = parseFloat(s.replace(',', '.'));
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return null;
+}
+
+function mapAvgOnRows(rows: any[], key = 'avgTempoResposta') {
+  return (rows || []).map((r) => ({
+    ...r,
+    [key]: normalizeAvgTempoResposta(r?.[key]),
+  }));
+}
+
 export async function GET(req: NextRequest) {
   try {
     await ensureDemandasTrabalhistasTables();
@@ -51,19 +81,21 @@ export async function GET(req: NextRequest) {
       SELECT
         COALESCE(regional, '') AS regional,
         COUNT(*)::int AS total,
-        ROUND(
-          AVG(
-            COALESCE(
-              tempo_resposta_dias,
-              CASE
-                WHEN data_chegada IS NOT NULL AND data_conclusao IS NOT NULL
-                THEN (data_conclusao - data_chegada)
-                ELSE NULL
-              END
-            )
-          )::numeric,
-          1
-        ) AS "avgTempoResposta"
+        (
+          ROUND(
+            AVG(
+              COALESCE(
+                tempo_resposta_dias::numeric,
+                CASE
+                  WHEN data_chegada IS NOT NULL AND data_conclusao IS NOT NULL
+                  THEN (data_conclusao - data_chegada)::numeric
+                  ELSE NULL
+                END
+              )
+            ),
+            1
+          )
+        )::float8 AS "avgTempoResposta"
       FROM demandas_trabalhistas
       ${whereSql}
       GROUP BY regional
@@ -87,19 +119,21 @@ export async function GET(req: NextRequest) {
         COALESCE(regional, '') AS regional,
         EXTRACT(MONTH FROM data_chegada)::int AS "mesNumero",
         COUNT(*)::int AS total,
-        ROUND(
-          AVG(
-            COALESCE(
-              tempo_resposta_dias,
-              CASE
-                WHEN data_chegada IS NOT NULL AND data_conclusao IS NOT NULL
-                THEN (data_conclusao - data_chegada)
-                ELSE NULL
-              END
-            )
-          )::numeric,
-          1
-        ) AS "avgTempoResposta"
+        (
+          ROUND(
+            AVG(
+              COALESCE(
+                tempo_resposta_dias::numeric,
+                CASE
+                  WHEN data_chegada IS NOT NULL AND data_conclusao IS NOT NULL
+                  THEN (data_conclusao - data_chegada)::numeric
+                  ELSE NULL
+                END
+              )
+            ),
+            1
+          )
+        )::float8 AS "avgTempoResposta"
       FROM demandas_trabalhistas
       ${whereSql}
       AND data_chegada IS NOT NULL
@@ -124,9 +158,9 @@ export async function GET(req: NextRequest) {
       prisma.$queryRawUnsafe<any[]>(perTipoDemandaSql),
     ]);
 
-    const perRegional = convertBigIntToNumber(perRegionalRaw || []);
+    const perRegional = mapAvgOnRows(convertBigIntToNumber(perRegionalRaw || []));
     const perMonth = convertBigIntToNumber(perMonthRaw || []);
-    const perRegionalMonth = convertBigIntToNumber(perRegionalMonthRaw || []);
+    const perRegionalMonth = mapAvgOnRows(convertBigIntToNumber(perRegionalMonthRaw || []));
     const perTipoDemanda = convertBigIntToNumber(perTipoDemandaRaw || []);
 
     return NextResponse.json({

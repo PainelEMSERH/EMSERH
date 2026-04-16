@@ -178,8 +178,22 @@ function formatDate(value?: string | null) {
 }
 
 function formatAvgDays(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return '-';
-  return Number(value).toFixed(1);
+  if (value === null || value === undefined) return '—';
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return n.toFixed(1);
+}
+
+/** Reforço no client caso o JSON ainda traga string/Decimal em algum ambiente. */
+function parseAvgFromApi(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string') {
+    const n = parseFloat(v.replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+  }
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 function TableHorizontalScroll({ children, depsKey }: { children: React.ReactNode; depsKey: string }) {
@@ -396,7 +410,12 @@ export default function DemandasTrabalhistasPage() {
       }>(`/api/demandas-trabalhistas/summary?${params.toString()}`);
 
       setSummary({
-        perRegional: Array.isArray(data.perRegional) ? data.perRegional : [],
+        perRegional: Array.isArray(data.perRegional)
+          ? data.perRegional.map((r) => ({
+              ...r,
+              avgTempoResposta: parseAvgFromApi(r.avgTempoResposta),
+            }))
+          : [],
         perMonth: Array.isArray(data.perMonth)
           ? data.perMonth.map((item) => ({
               mesNumero: Number(item.mesNumero),
@@ -404,7 +423,14 @@ export default function DemandasTrabalhistasPage() {
               total: Number(item.total || 0),
             }))
           : [],
-        perRegionalMonth: Array.isArray(data.perRegionalMonth) ? data.perRegionalMonth : [],
+        perRegionalMonth: Array.isArray(data.perRegionalMonth)
+          ? data.perRegionalMonth.map((item) => ({
+              regional: item.regional,
+              mesNumero: Number(item.mesNumero),
+              total: Number(item.total || 0),
+              avgTempoResposta: parseAvgFromApi(item.avgTempoResposta),
+            }))
+          : [],
         perTipoDemanda: Array.isArray(data.perTipoDemanda) ? data.perTipoDemanda : [],
       });
     } catch (error) {
@@ -751,8 +777,8 @@ export default function DemandasTrabalhistasPage() {
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900">Regional × mês (Jan a Dez)</h3>
                     <p className="mt-1 max-w-2xl text-xs text-slate-600">
-                      Em cada célula: quantidade de processos (data de chegada no mês) e tempo médio de resposta em dias
-                      (campo salvo ou diferença entre data de chegada e data de conclusão).
+                      Em cada célula: quantidade (chegada no mês) e média em dias (campo &quot;Tempo de resposta&quot; ou
+                      diferença entre chegada e conclusão). Onde não houver como calcular, aparece &quot;—&quot; nos dias.
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
@@ -821,10 +847,10 @@ export default function DemandasTrabalhistasPage() {
                   </div>
                 ) : (
                   <TableHorizontalScroll depsKey={summaryMatrixScrollDeps}>
-                    <table className="w-full min-w-[1100px] border-collapse text-[11px] uppercase">
+                    <table className="w-full min-w-[900px] border-collapse text-[10px] uppercase">
                       <thead>
-                        <tr className="border-b border-slate-200 bg-white">
-                          <th className="sticky left-0 z-20 min-w-[160px] max-w-[220px] border-r border-slate-200 bg-slate-50 px-3 py-3 text-left text-[10px] font-semibold tracking-wide text-slate-600 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.12)]">
+                        <tr className="border-b border-slate-200 bg-slate-50">
+                          <th className="sticky left-0 z-20 min-w-[120px] max-w-[180px] border-r border-slate-200 bg-slate-50 px-2 py-2 text-left text-[10px] font-semibold tracking-wide text-slate-600 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.12)]">
                             Regional
                           </th>
                           {MONTH_LABELS.map((label, i) => {
@@ -833,7 +859,7 @@ export default function DemandasTrabalhistasPage() {
                             return (
                               <th
                                 key={m}
-                                className="min-w-[118px] border-l border-slate-100 px-2 py-3 text-center text-[10px] font-semibold tracking-wide text-slate-600"
+                                className="min-w-[76px] border-l border-slate-200 px-1 py-2 text-center text-[10px] font-semibold tracking-wide text-slate-600"
                               >
                                 {label}
                               </th>
@@ -844,24 +870,37 @@ export default function DemandasTrabalhistasPage() {
                       <tbody className="divide-y divide-slate-200 bg-white">
                         {matrixRows.map((row) => (
                           <tr key={row.regional} className="hover:bg-slate-50/90">
-                            <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-3 align-top text-left text-[11px] font-semibold leading-snug text-slate-800 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.08)] [word-break:break-word] whitespace-normal">
+                            <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-2 py-1.5 align-middle text-left text-[10px] font-semibold leading-snug text-slate-800 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.08)] [word-break:break-word] whitespace-normal">
                               {row.regional}
                             </td>
                             {row.months.map((cell, i) => {
                               const m = i + 1;
                               if (matrixMonthVis[m] === false) return null;
+                              const semMedia =
+                                cell.avgTempoResposta === null || cell.avgTempoResposta === undefined;
                               return (
                                 <td
                                   key={m}
-                                  className="border-l border-slate-100 px-2 py-3 align-top text-center text-[11px]"
+                                  className="border-l border-slate-100 px-1 py-1.5 align-middle text-center"
                                 >
-                                  <div className="flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5">
-                                    <span className="text-lg font-bold tabular-nums text-emerald-700">{cell.total}</span>
-                                    <span className="text-[9px] font-medium normal-case text-slate-500">processos</span>
-                                    <span className="mt-1 text-sm font-semibold tabular-nums text-cyan-800">
-                                      {formatAvgDays(cell.avgTempoResposta)}
-                                    </span>
-                                    <span className="text-[9px] font-medium normal-case text-slate-500">dias méd.</span>
+                                  <div
+                                    className="mx-auto max-w-[5.5rem] rounded-md border border-slate-200 bg-slate-50/90 px-1 py-1 leading-tight"
+                                    title={
+                                      semMedia
+                                        ? 'Sem tempo calculável: preencha data de conclusão ou tempo de resposta nos registros deste recorte.'
+                                        : undefined
+                                    }
+                                  >
+                                    <p className="tabular-nums">
+                                      <span className="text-sm font-bold text-emerald-700">{cell.total}</span>
+                                      <span className="text-slate-400"> · </span>
+                                      <span className="text-xs font-semibold text-cyan-800">
+                                        {formatAvgDays(cell.avgTempoResposta)}
+                                      </span>
+                                    </p>
+                                    <p className="mt-0.5 text-[8px] font-medium normal-case leading-none text-slate-500">
+                                      qtd · dias méd.
+                                    </p>
                                   </div>
                                 </td>
                               );
