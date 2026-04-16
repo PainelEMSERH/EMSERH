@@ -10,6 +10,7 @@ import {
   applyFuzzyColumnMappings,
   pickBestWorksheetForPlanoAcao,
 } from '@/lib/plano-acao-import-map'
+import { ensurePlanoAcaoIndicadoresTable } from '@/lib/plano-acao-indicadores-ensure'
 
 const ROOT_ADMIN_EMAIL = 'jonathan.alves@emserh.ma.gov.br'
 
