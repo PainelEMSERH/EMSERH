@@ -82,11 +82,10 @@ function buildSeiUrl(numeroSei: string): string {
 export default function DemandasTrabalhistasPage() {
   const [regional, setRegional] = useState('');
   const [unidade, setUnidade] = useState('');
-  const [tipoDemanda, setTipoDemanda] = useState('');
   const [status, setStatus] = useState('');
   const [statusFinal, setStatusFinal] = useState('');
-  const [responsavel, setResponsavel] = useState('');
-  const [ano, setAno] = useState<string>('');
+  // filtros simplificados (sem tipoDemanda e responsável)
+  const [ano, setAno] = useState<string>('2026');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -96,6 +95,11 @@ export default function DemandasTrabalhistasPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summary, setSummary] = useState<{
+    perRegional: { regional: string; total: number; avgTempoResposta: number | null }[];
+    perMonth: { mesNumero: number; mes: string; total: number }[];
+  } | null>(null);
   const [options, setOptions] = useState<OptionsData>({
     regionais: [],
     unidades: [],
@@ -151,10 +155,8 @@ export default function DemandasTrabalhistasPage() {
       const params = new URLSearchParams();
       if (regional) params.set('regional', regional);
       if (unidade) params.set('unidade', unidade);
-      if (tipoDemanda) params.set('tipoDemanda', tipoDemanda);
       if (status) params.set('status', status);
       if (statusFinal) params.set('statusFinal', statusFinal);
-      if (responsavel) params.set('responsavel', responsavel);
       if (search) params.set('search', search);
       if (ano) params.set('ano', ano);
       params.set('page', String(page));
@@ -178,7 +180,7 @@ export default function DemandasTrabalhistasPage() {
 
   useEffect(() => {
     loadData();
-  }, [regional, unidade, tipoDemanda, status, statusFinal, responsavel, search, ano, page, pageSize, sortBy, sortDir]);
+  }, [regional, unidade, status, statusFinal, search, ano, page, pageSize, sortBy, sortDir]);
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
@@ -204,12 +206,10 @@ export default function DemandasTrabalhistasPage() {
   const limparFiltros = () => {
     setRegional('');
     setUnidade('');
-    setTipoDemanda('');
     setStatus('');
     setStatusFinal('');
-    setResponsavel('');
     setSearch('');
-    setAno('');
+    setAno('2026');
     setPage(1);
     setSortBy('dataChegada');
     setSortDir('desc');
@@ -339,7 +339,9 @@ export default function DemandasTrabalhistasPage() {
       <div className="rounded-xl border border-border bg-panel p-4 space-y-4">
         <div className="flex items-center gap-2 mb-2">
           <div className="h-px flex-1 bg-border" />
-          <span className="text-xs font-semibold text-muted uppercase tracking-wide px-2">Filtros</span>
+          <span className="text-xs font-semibold text-muted uppercase tracking-wide px-2">
+            Filtros (padrão ano 2026)
+          </span>
           <div className="h-px flex-1 bg-border" />
         </div>
 
@@ -420,25 +422,6 @@ export default function DemandasTrabalhistasPage() {
           </div>
 
           <div>
-            <label className="block text-xs text-muted mb-1">Tipo de demanda</label>
-            <select
-              value={tipoDemanda}
-              onChange={(e) => {
-                setTipoDemanda(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">Todas</option>
-              {options.tipos.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
             <label className="block text-xs text-muted mb-1">Status</label>
             <select
               value={status}
@@ -476,24 +459,7 @@ export default function DemandasTrabalhistasPage() {
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs text-muted mb-1">Responsável</label>
-            <select
-              value={responsavel}
-              onChange={(e) => {
-                setResponsavel(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">Todos</option>
-              {options.responsaveis.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
+
         </div>
 
         {(regional || unidade || tipoDemanda || status || statusFinal || responsavel || search) && (
