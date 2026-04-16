@@ -16,24 +16,45 @@ export async function GET(req: Request) {
     const tag = (url.searchParams.get('tag') || '').trim();
 
     if (tag) {
+      const cols = await prisma.$queryRawUnsafe<{ column_name: string }[]>(
+        `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'spci_planilha'
+        `,
+      );
+      const has = new Set(cols.map((c) => String(c.column_name)));
+      const baseCols = [
+        'id',
+        'TAG',
+        'Unidade',
+        'Regional',
+        'Local',
+        'Última recarga',
+        'Planej. Recarga',
+        'Data Execução Recarga',
+        'Mês Planej Recarga',
+        'Mês Exec Recarga',
+        '_import_batch_id',
+        '_imported_at',
+      ];
+      const selectCols = baseCols
+        .filter((c) => (c === 'id' ? has.has('id') : has.has(c)))
+        .map((c) => {
+          if (c === 'id') return 'id';
+          if (c === '_import_batch_id') return `"${c}"::text AS "${c}"`;
+          if (c === '_imported_at') return `"${c}"::text AS "${c}"`;
+          return `"${c}"`;
+        });
+
       const rows = await prisma.$queryRawUnsafe<any[]>(
         `
         SELECT
-          id,
-          "TAG",
-          "Unidade",
-          "Regional",
-          "Local",
-          "Última recarga",
-          "Planej. Recarga",
-          "Data Execução Recarga",
-          "Mês Planej Recarga",
-          "Mês Exec Recarga",
-          "_import_batch_id"::text AS _import_batch_id,
-          "_imported_at"::text AS _imported_at
+          ${selectCols.join(',\n          ')}
         FROM spci_planilha
         WHERE TRIM("TAG") = $1
-        ORDER BY "_imported_at" DESC NULLS LAST, id DESC
+        ORDER BY id DESC
         LIMIT 5
         `,
         tag,

@@ -94,6 +94,30 @@ async function ensureSPCIPlanilhaTable() {
       "_imported_at" TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+
+  // Backfill schema if table already existed without these columns.
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE spci_planilha
+      ADD COLUMN IF NOT EXISTS "Ano do Planejamento" INTEGER,
+      ADD COLUMN IF NOT EXISTS "TAG" TEXT,
+      ADD COLUMN IF NOT EXISTS "Unidade" TEXT,
+      ADD COLUMN IF NOT EXISTS "Local" TEXT,
+      ADD COLUMN IF NOT EXISTS "Regional" TEXT,
+      ADD COLUMN IF NOT EXISTS "Classe" TEXT,
+      ADD COLUMN IF NOT EXISTS "Massa/Volume (kg/L)" TEXT,
+      ADD COLUMN IF NOT EXISTS "TAG de Controle Mensal" TEXT,
+      ADD COLUMN IF NOT EXISTS "Data Tagueamento" TEXT,
+      ADD COLUMN IF NOT EXISTS "Lote Contrato" TEXT,
+      ADD COLUMN IF NOT EXISTS "Possui Contrato" TEXT,
+      ADD COLUMN IF NOT EXISTS "Nº série (Selo INMETRO)" TEXT,
+      ADD COLUMN IF NOT EXISTS "Última recarga" TEXT,
+      ADD COLUMN IF NOT EXISTS "Planej. Recarga" TEXT,
+      ADD COLUMN IF NOT EXISTS "Mês Planej Recarga" TEXT,
+      ADD COLUMN IF NOT EXISTS "Data Execução Recarga" TEXT,
+      ADD COLUMN IF NOT EXISTS "Mês Exec Recarga" TEXT,
+      ADD COLUMN IF NOT EXISTS "_import_batch_id" UUID,
+      ADD COLUMN IF NOT EXISTS "_imported_at" TIMESTAMPTZ NOT NULL DEFAULT now()
+  `);
 }
 
 function parseCSV(text: string): { headers: string[]; rows: Record<string, string>[] } {
