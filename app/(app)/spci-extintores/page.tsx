@@ -1,7 +1,23 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Flame, AlertTriangle, Clock, FileX, Search, ChevronLeft, ChevronRight, Settings, Save, X, Download, Filter, RefreshCw } from 'lucide-react';
+import {
+  Flame,
+  AlertTriangle,
+  Clock,
+  FileX,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Settings,
+  Save,
+  X,
+  Download,
+  Filter,
+  RefreshCw,
+  ShieldCheck,
+  MapPinned,
+} from 'lucide-react';
 import { formatarNomeUnidade } from '@/lib/spci/unidadeMapper';
 import MetaVsRealCard from '@/components/shared/MetaVsRealCard';
 
@@ -121,6 +137,57 @@ function formatarLocal(local: string | null | undefined): string {
     .trim();
 }
 
+type KpiStatProps = {
+  icon: React.ReactNode;
+  title: string;
+  value: string | number;
+  hint?: React.ReactNode;
+  accentClass: string;
+};
+
+function KpiStat({ icon, title, value, hint, accentClass }: KpiStatProps) {
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-border bg-panel p-4 shadow-sm transition-all hover:-translate-y-[1px] hover:shadow-md">
+      <div className={`pointer-events-none absolute inset-y-0 left-0 w-1 ${accentClass}`} aria-hidden />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/[0.04] via-transparent to-sky-500/[0.03] opacity-0 transition-opacity group-hover:opacity-100" />
+      <div className="relative flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-2">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-bg/80 text-muted [&_svg]:h-4 [&_svg]:w-4">
+            {icon}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">{title}</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-text">{value}</p>
+          </div>
+        </div>
+      </div>
+      {hint ? <div className="relative mt-2 text-[11px] leading-snug text-muted">{hint}</div> : null}
+    </div>
+  );
+}
+
+type MeterRowProps = {
+  label: string;
+  valueText: string;
+  pct: number;
+  barClass: string;
+};
+
+function MeterRow({ label, valueText, pct, barClass }: MeterRowProps) {
+  const w = Math.max(0, Math.min(100, pct));
+  return (
+    <div className="rounded-xl border border-border/70 bg-bg/40 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-text">{label}</span>
+        <span className="text-[11px] font-semibold tabular-nums text-muted">{valueText}</span>
+      </div>
+      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-border/60">
+        <div className={`h-full rounded-full ${barClass}`} style={{ width: `${w}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export default function SPCIExtintoresPage() {
   // Filtros
   const [regional, setRegional] = useState<string>('');
@@ -160,6 +227,19 @@ export default function SPCIExtintoresPage() {
     const emDia = Math.max(0, stats.total - stats.totalVencidos - stats.totalAVencer);
     const pctConforme = stats.total > 0 ? (emDia / stats.total) * 100 : 0;
     return { emDia, pctConforme };
+  }, [stats]);
+
+  const regionalShare = useMemo(() => {
+    if (!stats?.porRegional) return [];
+    const entries = Object.entries(stats.porRegional);
+    const total = entries.reduce((acc, [, n]) => acc + Number(n || 0), 0);
+    return entries
+      .map(([reg, count]) => ({
+        reg,
+        count: Number(count || 0),
+        pct: total > 0 ? (Number(count || 0) / total) * 100 : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
   }, [stats]);
 
   const isFutureMonthCell = (anoExercicio: number, month1to12: number): boolean => {
@@ -458,87 +538,141 @@ export default function SPCIExtintoresPage() {
       {statsLoading ? (
         <div className="text-center py-4 text-muted">Carregando estatísticas...</div>
       ) : stats ? (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-xl border border-border bg-panel p-4">
-            <p className="text-[11px] text-muted flex items-center gap-1">
-              <Flame className="w-3 h-3" />
-              Total de Extintores
-            </p>
-            <p className="mt-1 text-2xl font-semibold">{stats.total}</p>
-            <p className="mt-1 text-[11px] text-muted">
-              Em conformidade: <span className="font-semibold text-emerald-500">{kpi?.emDia ?? 0}</span> (
-              {(kpi?.pctConforme ?? 0).toFixed(1)}%)
-            </p>
-          </div>
-          <div className="rounded-xl border border-border bg-panel p-4">
-            <p className="text-[11px] text-muted flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3 text-red-400" />
-              Vencidos
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-red-300">{stats.totalVencidos}</p>
-            <p className="mt-1 text-[11px] text-muted">Prioridade máxima de regularização</p>
-          </div>
-          <div className="rounded-xl border border-border bg-panel p-4">
-            <p className="text-[11px] text-muted flex items-center gap-1">
-              <Clock className="w-3 h-3 text-yellow-400" />
-              A Vencer (30 dias)
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-yellow-300">{stats.totalAVencer}</p>
-            <p className="mt-1 text-[11px] text-muted">Janela de ação preventiva</p>
-          </div>
-          <div className="rounded-xl border border-border bg-panel p-4">
-            <p className="text-[11px] text-muted flex items-center gap-1">
-              <FileX className="w-3 h-3 text-orange-400" />
-              Sem Contrato
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-orange-300">{stats.totalSemContrato}</p>
-            <p className="mt-1 text-[11px] text-muted">Demandas administrativas pendentes</p>
-          </div>
+        <section className="relative overflow-hidden rounded-2xl border border-border bg-panel shadow-sm">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/[0.06] via-transparent to-sky-500/[0.05]" />
+          <div className="relative p-4 md:p-5 space-y-4">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Painel executivo</p>
+                <h2 className="mt-1 text-sm font-semibold text-text">Indicadores da carteira</h2>
+                <p className="mt-1 text-[11px] text-muted">
+                  Leitura rápida de risco, conformidade e regularização por unidade.
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-bg/70 px-3 py-2 text-right">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Conformidade</p>
+                <p className="text-lg font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                  {(kpi?.pctConforme ?? 0).toFixed(1)}%
+                </p>
+              </div>
+            </div>
 
-          <div className="rounded-xl border border-border bg-panel p-4 md:col-span-2 xl:col-span-2">
-            <p className="text-[11px] text-muted mb-1">Unidades 100% regularizadas</p>
-            <div className="flex items-end justify-between gap-2">
-              <p className="text-2xl font-semibold text-emerald-500">
-                {stats.unidadesRegularizadas}/{stats.totalUnidades}
-              </p>
-              <p className="text-sm font-semibold text-emerald-500">
-                {(stats.pctUnidadesRegularizadas || 0).toFixed(1)}%
-              </p>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <KpiStat
+                icon={<Flame className="text-emerald-500" />}
+                title="Total de extintores"
+                value={stats.total}
+                accentClass="bg-emerald-500"
+                hint={
+                  <>
+                    Em dia: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{kpi?.emDia ?? 0}</span>{' '}
+                    <span className="text-muted">({(kpi?.pctConforme ?? 0).toFixed(1)}%)</span>
+                  </>
+                }
+              />
+              <KpiStat
+                icon={<AlertTriangle className="text-red-400" />}
+                title="Vencidos"
+                value={stats.totalVencidos}
+                accentClass="bg-red-500"
+                hint="Prioridade máxima de regularização"
+              />
+              <KpiStat
+                icon={<Clock className="text-amber-400" />}
+                title="A vencer (30 dias)"
+                value={stats.totalAVencer}
+                accentClass="bg-amber-500"
+                hint="Janela de ação preventiva"
+              />
+              <KpiStat
+                icon={<FileX className="text-orange-400" />}
+                title="Sem contrato"
+                value={stats.totalSemContrato}
+                accentClass="bg-orange-500"
+                hint="Demandas administrativas pendentes"
+              />
             </div>
-            <p className="mt-1 text-[11px] text-muted">
-              Unidade regularizada = todos os extintores da unidade com status OK.
-            </p>
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
-              {Object.entries(stats.unidadesRegularizadasPorRegional || {}).map(([reg, item]) => (
-                <div
-                  key={reg}
-                  className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-bg/60 border border-border/60"
-                >
-                  <span className="text-muted font-medium">{reg}</span>
-                  <span className="font-semibold text-text tabular-nums">
-                    {item.regularizadas}/{item.total} ({item.pct.toFixed(0)}%)
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
 
-          <div className="rounded-xl border border-border bg-panel p-4 md:col-span-2 xl:col-span-2">
-            <p className="text-[11px] text-muted mb-1">Extintores por regional</p>
-            <p className="mt-1 text-[11px] text-muted">Volume da carteira no filtro atual</p>
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
-              {Object.entries(stats.porRegional || {}).map(([reg, count]) => (
-                <div
-                  key={reg}
-                  className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-bg/60 border border-border/60"
-                >
-                  <span className="text-muted font-medium">{reg}</span>
-                  <span className="font-semibold text-text tabular-nums">{count}</span>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="rounded-2xl border border-border bg-card/60 p-4 backdrop-blur-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2">
+                    <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-bg/80 text-emerald-500">
+                      <ShieldCheck className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
+                        Unidades 100% regularizadas
+                      </p>
+                      <p className="mt-1 text-xs text-muted">
+                        Unidade regularizada = todos os extintores da unidade com status OK.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                      {(stats.pctUnidadesRegularizadas || 0).toFixed(1)}%
+                    </p>
+                    <p className="text-[11px] font-semibold tabular-nums text-muted">
+                      {stats.unidadesRegularizadas}/{stats.totalUnidades}
+                    </p>
+                  </div>
                 </div>
-              ))}
+
+                <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-border/60">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400"
+                    style={{ width: `${Math.max(0, Math.min(100, stats.pctUnidadesRegularizadas || 0))}%` }}
+                  />
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-2">
+                  {Object.entries(stats.unidadesRegularizadasPorRegional || {}).map(([reg, item]) => (
+                    <MeterRow
+                      key={reg}
+                      label={reg}
+                      valueText={`${item.regularizadas}/${item.total} (${item.pct.toFixed(0)}%)`}
+                      pct={item.pct}
+                      barClass="bg-gradient-to-r from-emerald-500 to-teal-400"
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-card/60 p-4 backdrop-blur-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2">
+                    <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-bg/80 text-sky-500">
+                      <MapPinned className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
+                        Distribuição por regional
+                      </p>
+                      <p className="mt-1 text-xs text-muted">Participação da carteira no filtro atual</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-semibold tabular-nums text-text">{stats.total}</p>
+                    <p className="text-[11px] text-muted">extintores</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-2">
+                  {regionalShare.map(({ reg, count, pct }) => (
+                    <MeterRow
+                      key={reg}
+                      label={reg}
+                      valueText={`${count} (${pct.toFixed(0)}%)`}
+                      pct={pct}
+                      barClass="bg-gradient-to-r from-sky-500 to-indigo-400"
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </section>
       ) : null}
 
       {/* Meta vs Real */}
