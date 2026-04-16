@@ -71,15 +71,15 @@ const HIDDEN_BY_DEFAULT: ColId[] = ['empresa', 'cod_origem', 'diretoria', 'geren
 const COL_DEFS: { id: ColId; label: string; className?: string }[] = [
   { id: 'item', label: 'Item', className: 'max-w-[120px]' },
   { id: 'empresa', label: 'Empresa', className: 'max-w-[120px]' },
-  { id: 'unidade', label: 'Unidade', className: 'max-w-[180px]' },
+  { id: 'unidade', label: 'Unidade', className: 'min-w-[300px] max-w-[460px]' },
   { id: 'diretoria', label: 'Diretoria', className: 'max-w-[120px]' },
   { id: 'gerencia', label: 'Gerência', className: 'max-w-[120px]' },
   { id: 'cod_origem', label: 'Cod. origem', className: 'max-w-[90px]' },
   { id: 'data_origem', label: 'Data origem', className: 'whitespace-nowrap' },
   { id: 'origem', label: 'Origem', className: 'max-w-[100px]' },
-  { id: 'indicador', label: 'Indicador', className: 'max-w-[200px]' },
+  { id: 'indicador', label: 'Indicador', className: 'min-w-[160px] max-w-[280px]' },
   { id: 'auxiliar', label: 'Auxiliar', className: 'max-w-[120px]' },
-  { id: 'acao', label: 'Ação', className: 'max-w-[220px]' },
+  { id: 'acao', label: 'Ação', className: 'min-w-[260px] max-w-[420px]' },
   { id: 'regional', label: 'Regional', className: 'max-w-[140px]' },
   { id: 'responsavel', label: 'Responsável', className: 'max-w-[140px]' },
   { id: 'prazo', label: 'Prazo', className: 'whitespace-nowrap' },
@@ -87,8 +87,11 @@ const COL_DEFS: { id: ColId; label: string; className?: string }[] = [
   { id: 'novo_prazo', label: 'Novo prazo', className: 'whitespace-nowrap' },
   { id: 'status', label: 'Status', className: 'max-w-[160px]' },
   { id: 'evidencia', label: 'Evidência', className: 'max-w-[160px]' },
-  { id: 'comentarios', label: 'Comentários', className: 'max-w-[200px]' },
+  { id: 'comentarios', label: 'Comentários', className: 'min-w-[180px] max-w-[280px]' },
 ];
+
+/** Colunas que ficam em uma linha (datas). As outras quebram linha para não cortar texto. */
+const SINGLE_LINE_COLS: ColId[] = ['prazo', 'conclusao', 'novo_prazo', 'data_origem'];
 
 function defaultColVisibility(): Record<ColId, boolean> {
   const v = {} as Record<ColId, boolean>;
@@ -770,32 +773,43 @@ export default function CentralAcoesGSTClient() {
               <thead className="border-b border-border bg-muted/30 text-[10px] font-semibold uppercase tracking-wide text-muted">
                 <tr>
                   {COL_DEFS.filter((c) => colVis[c.id] !== false).map((c) => (
-                    <th key={c.id} className={`px-3 py-2 text-center ${c.className || ''}`}>
+                    <th key={c.id} className={`px-3 py-3 text-center ${c.className || ''}`}>
                       {c.label}
                     </th>
                   ))}
-                  <th className="w-28 px-3 py-2 text-center">Ações</th>
+                  <th className="w-28 px-3 py-3 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {rows.map((r) => (
                   <tr key={r.id} className="hover:bg-muted/20">
-                    {COL_DEFS.filter((c) => colVis[c.id] !== false).map((c) => (
-                      <td
-                        key={c.id}
-                        className={`truncate px-3 py-2 text-center align-middle ${
-                          c.id === 'item'
-                            ? 'font-medium text-text'
-                            : c.id === 'status' || c.id === 'evidencia'
-                              ? 'text-text'
-                              : 'text-muted'
-                        } ${c.className || ''}`}
-                        title={cellText(r, c.id)}
-                      >
-                        <div className="flex w-full justify-center">{renderCell(r, c.id)}</div>
-                      </td>
-                    ))}
-                    <td className="px-3 py-2 text-center align-middle">
+                    {COL_DEFS.filter((c) => colVis[c.id] !== false).map((c) => {
+                      const singleLine = SINGLE_LINE_COLS.includes(c.id);
+                      return (
+                        <td
+                          key={c.id}
+                          className={`px-3 text-center align-middle ${
+                            singleLine
+                              ? 'truncate py-3'
+                              : 'py-3.5 whitespace-normal break-words leading-relaxed [word-break:break-word]'
+                          } ${
+                            c.id === 'item'
+                              ? 'font-medium text-text'
+                              : c.id === 'status' || c.id === 'evidencia'
+                                ? 'text-text'
+                                : 'text-muted'
+                          } ${c.className || ''}`}
+                          title={cellText(r, c.id) || undefined}
+                        >
+                          {singleLine ? (
+                            <div className="flex w-full justify-center">{renderCell(r, c.id)}</div>
+                          ) : (
+                            <div className="mx-auto block w-full text-center">{renderCell(r, c.id)}</div>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="px-3 py-3.5 text-center align-middle">
                       <button
                         type="button"
                         onClick={() => openModal(r)}
