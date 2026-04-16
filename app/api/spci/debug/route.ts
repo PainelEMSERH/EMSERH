@@ -4,6 +4,19 @@ import { prisma } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// Evita erro "Do not know how to serialize a BigInt" no JSON
+function convertBigIntToNumber(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'bigint') return Number(obj);
+  if (Array.isArray(obj)) return obj.map(convertBigIntToNumber);
+  if (typeof obj === 'object') {
+    const out: any = {};
+    for (const [k, v] of Object.entries(obj)) out[k] = convertBigIntToNumber(v);
+    return out;
+  }
+  return obj;
+}
+
 /**
  * Rota de debug para verificar dados do SPCI
  */
@@ -59,7 +72,7 @@ export async function GET(req: Request) {
         `,
         tag,
       );
-      return NextResponse.json({ ok: true, tag, rows });
+      return NextResponse.json({ ok: true, tag, rows: convertBigIntToNumber(rows) });
     }
 
     // Conta total de registros
@@ -95,7 +108,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ok: true,
       total,
-      samples,
+      samples: convertBigIntToNumber(samples),
       unidades,
       regionais,
       message: 'Debug info do SPCI',

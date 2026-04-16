@@ -67,6 +67,29 @@ function normText(value: any): string | null {
   return s ? s : null;
 }
 
+function normHeaderKey(s: any): string {
+  return String(s ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function pickByHeaderNorm(row: Record<string, any>, norms: string[]): any {
+  // Build a normalized header map once per row
+  const map: Record<string, any> = {};
+  for (const k of Object.keys(row || {})) {
+    const nk = normHeaderKey(k);
+    if (!nk) continue;
+    if (!(nk in map)) map[nk] = (row as any)[k];
+  }
+  for (const n of norms) {
+    const v = map[n];
+    if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+  }
+  return undefined;
+}
+
 async function ensureSPCIPlanilhaTable() {
   // Table used by `/spci-extintores` APIs (spci_planilha).
   // Uses quoted column names to match existing API queries.
@@ -187,22 +210,24 @@ export async function POST(req: Request) {
       const anoPlanejamento = r['Ano do Planejamento'] ?? r['Ano Planejamento'] ?? r['Ano'] ?? null;
       const ultimaRecarga = toDateBR(r['Última recarga'] ?? r['Ultima recarga'] ?? r['Última Recarga'] ?? r['Ultima Recarga']);
       const planejRecarga = toDateBR(r['Planej. Recarga'] ?? r['Planej Recarga'] ?? r['Planej.Recarga'] ?? r['Planejamento Recarga']);
-      const dataExec = toDateBR(
+      const dataExecRaw =
+        pickByHeaderNorm(r, [
+          // Variações mais comuns
+          'dataexecucaorecarga',
+          'dataexecucaoderecarga',
+          'dataexecrecarga',
+          // “Execução de dados Recarga” (seu print)
+          'execucaodedadosrecarga',
+          'execucaodadosrecarga',
+          // Fallbacks curtos
+          'execucaorecarga',
+          'execrecarga',
+        ]) ??
+        // Fallback final (caso o header venha exatamente como esperado)
         r['Data Execução Recarga'] ??
-          r['Data Execucao Recarga'] ??
-          r['Data Exec. Recarga'] ??
-          r['Data Exec Recarga'] ??
-          r['Exec. Recarga'] ??
-          r['Exec Recarga'] ??
-          r['Execução Recarga'] ??
-          r['Execucao Recarga'] ??
-          r['Execução de Recarga'] ??
-          r['Execucao de Recarga'] ??
-          r['Execução de dados Recarga'] ??
-          r['Execucao de dados Recarga'] ??
-          r['Data de Execução Recarga'] ??
-          r['Data de Execucao Recarga'],
-      );
+        r['Execução de dados Recarga'];
+
+      const dataExec = toDateBR(dataExecRaw);
 
       const mesPlanej = planejRecarga ? getMesBR(parseDateBR(planejRecarga)!) : null;
       const mesExec = dataExec ? getMesBR(parseDateBR(dataExec)!) : null;
