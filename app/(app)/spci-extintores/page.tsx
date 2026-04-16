@@ -36,6 +36,10 @@ type StatsData = {
   totalAVencer: number;
   totalSemContrato: number;
   porRegional: Record<string, number>;
+  unidadesRegularizadas: number;
+  totalUnidades: number;
+  pctUnidadesRegularizadas: number;
+  unidadesRegularizadasPorRegional: Record<string, { regularizadas: number; total: number; pct: number }>;
 };
 
 type MetaRealData = {
@@ -150,6 +154,13 @@ export default function SPCIExtintoresPage() {
   const [unidades, setUnidades] = useState<string[]>([]);
   const [classes, setClasses] = useState<string[]>([]);
   const [anos, setAnos] = useState<number[]>([]);
+
+  const kpi = useMemo(() => {
+    if (!stats) return null;
+    const emDia = Math.max(0, stats.total - stats.totalVencidos - stats.totalAVencer);
+    const pctConforme = stats.total > 0 ? (emDia / stats.total) * 100 : 0;
+    return { emDia, pctConforme };
+  }, [stats]);
 
   const isFutureMonthCell = (anoExercicio: number, month1to12: number): boolean => {
     const now = new Date();
@@ -447,13 +458,17 @@ export default function SPCIExtintoresPage() {
       {statsLoading ? (
         <div className="text-center py-4 text-muted">Carregando estatísticas...</div>
       ) : stats ? (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-border bg-panel p-4">
             <p className="text-[11px] text-muted flex items-center gap-1">
               <Flame className="w-3 h-3" />
               Total de Extintores
             </p>
             <p className="mt-1 text-2xl font-semibold">{stats.total}</p>
+            <p className="mt-1 text-[11px] text-muted">
+              Em conformidade: <span className="font-semibold text-emerald-500">{kpi?.emDia ?? 0}</span> (
+              {(kpi?.pctConforme ?? 0).toFixed(1)}%)
+            </p>
           </div>
           <div className="rounded-xl border border-border bg-panel p-4">
             <p className="text-[11px] text-muted flex items-center gap-1">
@@ -461,6 +476,7 @@ export default function SPCIExtintoresPage() {
               Vencidos
             </p>
             <p className="mt-1 text-2xl font-semibold text-red-300">{stats.totalVencidos}</p>
+            <p className="mt-1 text-[11px] text-muted">Prioridade máxima de regularização</p>
           </div>
           <div className="rounded-xl border border-border bg-panel p-4">
             <p className="text-[11px] text-muted flex items-center gap-1">
@@ -468,6 +484,7 @@ export default function SPCIExtintoresPage() {
               A Vencer (30 dias)
             </p>
             <p className="mt-1 text-2xl font-semibold text-yellow-300">{stats.totalAVencer}</p>
+            <p className="mt-1 text-[11px] text-muted">Janela de ação preventiva</p>
           </div>
           <div className="rounded-xl border border-border bg-panel p-4">
             <p className="text-[11px] text-muted flex items-center gap-1">
@@ -475,17 +492,31 @@ export default function SPCIExtintoresPage() {
               Sem Contrato
             </p>
             <p className="mt-1 text-2xl font-semibold text-orange-300">{stats.totalSemContrato}</p>
+            <p className="mt-1 text-[11px] text-muted">Demandas administrativas pendentes</p>
           </div>
-          <div className="rounded-xl border border-border bg-panel p-4">
-            <p className="text-[11px] text-muted mb-1">Por Regional</p>
-            <div className="mt-1 grid grid-cols-2 gap-1.5 text-[11px]">
-              {Object.entries(stats.porRegional).map(([reg, count]) => (
+          <div className="rounded-xl border border-border bg-panel p-4 xl:col-span-2">
+            <p className="text-[11px] text-muted mb-1">Unidades 100% regularizadas</p>
+            <div className="flex items-end justify-between gap-2">
+              <p className="text-2xl font-semibold text-emerald-500">
+                {stats.unidadesRegularizadas}/{stats.totalUnidades}
+              </p>
+              <p className="text-sm font-semibold text-emerald-500">
+                {(stats.pctUnidadesRegularizadas || 0).toFixed(1)}%
+              </p>
+            </div>
+            <p className="mt-1 text-[11px] text-muted">
+              Unidade regularizada = todos os extintores da unidade com status OK.
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-1.5 text-[11px]">
+              {Object.entries(stats.unidadesRegularizadasPorRegional || {}).map(([reg, item]) => (
                 <div
                   key={reg}
                   className="flex items-center justify-between px-2 py-1 rounded-lg bg-bg/60 border border-border/60"
                 >
                   <span className="text-muted font-medium">{reg}:</span>
-                  <span className="font-semibold text-text">{count}</span>
+                  <span className="font-semibold text-text">
+                    {item.regularizadas}/{item.total} ({item.pct.toFixed(0)}%)
+                  </span>
                 </div>
               ))}
             </div>
