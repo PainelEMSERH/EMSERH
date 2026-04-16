@@ -17,14 +17,6 @@ export async function GET(req: Request) {
     const regional = url.searchParams.get('regional') || '';
     const unidade = url.searchParams.get('unidade') || '';
 
-    if (!regional) {
-      return NextResponse.json({ 
-        ok: false, 
-        error: 'Regional é obrigatória',
-        meta: 0 
-      });
-    }
-
     // Busca colaboradores ativos da regional/unidade
     const wh: string[] = [];
     const regTrim = regional.trim();
@@ -255,7 +247,7 @@ export async function GET(req: Request) {
       ok: true,
       meta: totalMeta,
       colaboradores: colaboradores.length,
-      regional: regTrim,
+      regional: regTrim || null,
       unidade: uniTrim || null,
     });
   } catch (e: any) {

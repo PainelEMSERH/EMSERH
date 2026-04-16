@@ -237,7 +237,7 @@ function IndicatorCard({
   hrefLabel,
 }: IndicatorCardProps) {
   return (
-    <div className="group relative flex min-h-[204px] flex-col overflow-hidden rounded-2xl border border-border bg-panel p-5 shadow-sm transition-all hover:-translate-y-[1px] hover:shadow-md">
+    <div className="group relative flex h-[204px] flex-col overflow-hidden rounded-2xl border border-border bg-panel p-5 shadow-sm transition-all hover:-translate-y-[1px] hover:shadow-md">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-emerald-500/20" aria-hidden />
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-2.5">
@@ -246,7 +246,7 @@ function IndicatorCard({
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">{title}</p>
-            <p className="mt-0.5 text-xs text-muted">{subtitle}</p>
+            <p className="mt-0.5 truncate text-xs text-muted">{subtitle}</p>
           </div>
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${badge.className}`}>{badge.text}</span>
@@ -256,8 +256,8 @@ function IndicatorCard({
         <p className="mt-0.5 text-4xl font-semibold tabular-nums tracking-tight text-text">{value}</p>
       </div>
       <div className="mt-3 space-y-1 text-xs text-muted">
-        <p>{line1}</p>
-        {line2 ? <p>{line2}</p> : null}
+        <p className="truncate">{line1}</p>
+        {line2 ? <p className="truncate">{line2}</p> : null}
       </div>
       <div className="mt-auto pt-4">
         <Link href={href} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-500 dark:text-emerald-400">

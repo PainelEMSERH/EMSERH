@@ -16,14 +16,6 @@ export async function GET(req: Request) {
     const unidade = url.searchParams.get('unidade') || '';
     const ano = parseInt(url.searchParams.get('ano') || '2026', 10);
 
-    if (!regional) {
-      return NextResponse.json({ 
-        ok: false, 
-        error: 'Regional é obrigatória',
-        meses: {}
-      });
-    }
-
     // Inicializa objeto com todos os meses zerados
     const meses: Record<string, number> = {};
     for (let m = 1; m <= 12; m++) {

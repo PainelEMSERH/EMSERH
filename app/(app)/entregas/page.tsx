@@ -396,14 +396,10 @@ export default function EntregasPage() {
 
   // Carrega alertas de entregas vencidas (quando entregar de novo — controle de qualidade)
   useEffect(() => {
-    if (!state.regional) {
-      setAlertasVencidas([]);
-      return;
-    }
     let cancelled = false;
     setLoadingAlertas(true);
     const params = new URLSearchParams();
-    params.set('regional', state.regional);
+    if (state.regional) params.set('regional', state.regional);
     if (state.unidade) params.set('unidade', state.unidade);
     fetch(`/api/entregas/alertas-vencidas?${params.toString()}`, { cache: 'no-store' })
       .then((r) => r.json())
@@ -548,21 +544,16 @@ export default function EntregasPage() {
 
   // Carrega meta e progresso quando regional estiver selecionada
   useEffect(() => {
-    if (!state.regional) {
-      setMetaData(null);
-      return;
-    }
-
     let on = true;
     setMetaData(null); // Reseta enquanto carrega
     (async () => {
       try {
         const params = new URLSearchParams();
-        params.set('regional', state.regional);
+        if (state.regional) params.set('regional', state.regional);
         params.set('ano', '2026');
         if (state.unidade) params.set('unidade', state.unidade);
 
-        console.log('[Tracker] Buscando meta e progresso para:', state.regional);
+        console.log('[Tracker] Buscando meta e progresso para:', state.regional || '(consolidado)');
 
         // Busca meta
         const metaResponse = await fetch(`/api/entregas/meta?${params.toString()}`, { cache: 'no-store' });
@@ -647,16 +638,10 @@ export default function EntregasPage() {
   useEffect(() => {
     let on = true;
     (async () => {
-      if (!state.regional) {
-        setRows([]);
-        setTotal(0);
-        setLoading(false);
-        return;
-      }
       setLoading(true);
       try {
         const params = new URLSearchParams();
-        params.set('regional', state.regional);
+        if (state.regional) params.set('regional', state.regional);
         if (state.unidade) params.set('unidade', state.unidade);
         if (state.q) params.set('q', state.q);
         if (state.entregue) params.set('entregue', state.entregue);
@@ -1031,9 +1016,9 @@ export default function EntregasPage() {
       {tab === 'lista' && (
         <>
           {/* Tracker de Progresso - META vs REAL (no topo da aba Lista) */}
-          {state.regional && (() => {
+          {(() => {
             // Se ainda está carregando, mostra loading
-            if (metaData === null && state.regional) {
+            if (metaData === null) {
               return (
                 <div className="rounded-xl border border-border bg-panel p-4 text-center">
                   <div className="flex items-center justify-center gap-2">
@@ -1103,7 +1088,9 @@ export default function EntregasPage() {
             return (
           <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
             <div className="flex items-center justify-between mb-1">
-              <h2 className="text-sm font-semibold">Meta vs Real - Entregas de EPI ({state.regional})</h2>
+              <h2 className="text-sm font-semibold">
+                Meta vs Real - Entregas de EPI ({state.regional ? state.regional : 'Consolidado'})
+              </h2>
               <span className="rounded-lg border border-border bg-bg px-3 py-1.5 text-xs font-semibold tabular-nums">
                 {ANO_ENTREGAS_TRACKER}
               </span>
@@ -1128,7 +1115,7 @@ export default function EntregasPage() {
                         className="text-center text-xs font-bold tabular-nums text-text bg-muted/30 py-1.5 rounded"
                         title={`${mesesNomes[idx]}: meta acumulada ${head.toLocaleString('pt-BR')} itens (${fmtPctEntregas(pctMeta)}% da meta anual)`}
                       >
-                        {head.toLocaleString('pt-BR')}
+                        {fmtPctEntregas(pctMeta)}%
                       </div>
                     );
                   })}
@@ -1166,7 +1153,7 @@ export default function EntregasPage() {
                             : `${mesesNomes[idx]}: ${realQtd.toLocaleString('pt-BR')} itens acum. · meta ${metaQtd.toLocaleString('pt-BR')} · cobertura ${fmtPctEntregas(realPct)}%`
                         }
                       >
-                        {future ? '—' : realQtd.toLocaleString('pt-BR')}
+                        {future ? '—' : `${fmtPctEntregas(realPct)}%`}
                       </div>
                     );
                   })}
@@ -1269,7 +1256,7 @@ export default function EntregasPage() {
                     className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
                     aria-label="Selecione a Regional"
                   >
-                    <option value="">Selecione…</option>
+                    <option value="">Consolidado (todas)</option>
                     {regionais.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
@@ -1279,7 +1266,6 @@ export default function EntregasPage() {
                     value={state.unidade}
                     onChange={e => setFilter({ unidade: e.target.value, page: 1 })}
                     className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!state.regional}
                     aria-label="Selecione a Unidade"
                   >
                     <option value="">(todas)</option>

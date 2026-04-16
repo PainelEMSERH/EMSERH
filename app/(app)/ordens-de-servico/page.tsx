@@ -510,10 +510,10 @@ export default function OrdemServicoPage() {
                       return (
                         <div
                           key={mes}
-                          className="text-center text-xs font-bold tabular-nums text-text bg-muted/30 py-1.5 rounded"
+                          className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded"
                           title={`${mesesNomes[idx]}: meta acumulada ${head.toLocaleString('pt-BR')} (${fmtPct(pctTotal)}% da coorte)`}
                         >
-                          {head.toLocaleString('pt-BR')}
+                          {fmtPct(pctTotal)}%
                         </div>
                       );
                     })}
@@ -550,7 +550,7 @@ export default function OrdemServicoPage() {
                               : `${mesesNomes[idx]}: ${realQtd.toLocaleString('pt-BR')} OS acum. · meta ${metaQtd.toLocaleString('pt-BR')} · cobertura ${fmtPct(realPct)}%`
                           }
                         >
-                          {future ? '—' : realQtd.toLocaleString('pt-BR')}
+                          {future ? '—' : `${fmtPct(realPct)}%`}
                         </div>
                       );
                     })}
@@ -558,7 +558,7 @@ export default function OrdemServicoPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <div className="w-20 font-bold text-sm text-blue-600 dark:text-blue-400">EVOL.</div>
+                  <div className="w-20 font-bold text-xs text-blue-600 dark:text-blue-400">EVOL.</div>
                   <div className="flex-1 grid grid-cols-12 gap-1">
                     {mesesKeys.map((mes, idx) => {
                       const m = idx + 1;
@@ -586,9 +586,12 @@ export default function OrdemServicoPage() {
                             : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
 
                       return (
-                        <div key={mes} className={`text-center text-xs font-bold tabular-nums py-1.5 rounded ${cellClass}`}>
-                          {sinal}
-                          {fmtPct(evol)}%
+                        <div
+                          key={mes}
+                          className={`text-center text-[10px] font-medium py-1 rounded ${cellClass}`}
+                          title={`${mesesNomes[idx]}: ${sinal}${fmtPct(evol)}% do real no mês`}
+                        >
+                          {sinal}{fmtPct(evol)}%
                         </div>
                       );
                     })}

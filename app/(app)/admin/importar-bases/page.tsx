@@ -19,6 +19,13 @@ const IMPORT_MODULES: ImportModule[] = [
     endpoint: '/api/import/spci',
   },
   {
+    id: 'spci_planilha',
+    name: 'SPCI - Planejamento de Recarga',
+    description: 'Importar base de planejamento (Planej. Recarga / Exec. Recarga) usada na tela SPCI / Extintores',
+    icon: '🗓️',
+    endpoint: '/api/import/spci-planilha',
+  },
+  {
     id: 'cipa',
     name: 'CIPA',
     description: 'Importar base de membros e atividades da CIPA',
@@ -199,6 +206,16 @@ export default function ImportarBasesPage() {
                     {selectedModule === 'spci' && (
                       <>
                         <p>Colunas esperadas: Unidade, Regional, Tipo de Extintor, Capacidade, Localização, Data Vencimento, Última Inspeção, Próxima Inspeção, Status</p>
+                      </>
+                    )}
+                    {selectedModule === 'spci_planilha' && (
+                      <>
+                        <p>
+                          Colunas esperadas (mínimo): TAG, Unidade, Regional, Local, Última recarga, Planej. Recarga, Data Execução Recarga
+                        </p>
+                        <p className="mt-1">
+                          Datas aceitas: <strong>DD/MM/YYYY</strong>, <strong>YYYY-MM-DD</strong> ou número do Excel (ex.: <strong>46065</strong>).
+                        </p>
                       </>
                     )}
                     {selectedModule === 'cipa' && (
