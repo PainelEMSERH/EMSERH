@@ -41,6 +41,21 @@ type OptionsData = {
   statusFinal: string[];
 };
 
+function getStatusClasses(value: string) {
+  if (!value) return 'bg-slate-200 text-slate-700 border-slate-300';
+  const v = value.toUpperCase();
+  if (v.includes('CONCLU') || v.includes('ENCERR')) {
+    return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+  }
+  if (v.includes('PEND') || v.includes('AGUARD')) {
+    return 'bg-amber-100 text-amber-800 border-amber-300';
+  }
+  if (v.includes('ANDAMENTO') || v.includes('TRAMIT')) {
+    return 'bg-sky-100 text-sky-800 border-sky-300';
+  }
+  return 'bg-slate-200 text-slate-700 border-slate-300';
+}
+
 async function fetchJSON<T = any>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: 'no-store', ...init });
   const json = await res.json().catch(() => ({}));
@@ -554,19 +569,7 @@ export default function DemandasTrabalhistasPage() {
                 {rows.map((row) => (
                   <tr key={row.id} className="hover:bg-bg/30 text-[11px] uppercase">
                     <td className="px-4 py-3 text-center whitespace-nowrap">
-                      {row.numeroSei ? (
-                        <a
-                          href={buildSeiUrl(row.numeroSei)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-500 underline-offset-2 hover:underline"
-                        >
-                          <span>{row.numeroSei}</span>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      ) : (
-                        '-'
-                      )}
+                      {row.numeroSei || '-'}
                     </td>
                     <td className="px-4 py-3 text-center min-w-[220px]">{row.demandante || '-'}</td>
                     <td className="px-4 py-3 text-center min-w-[180px]">{row.tipoDemanda || '-'}</td>
@@ -577,13 +580,37 @@ export default function DemandasTrabalhistasPage() {
                     <td className="px-4 py-3 text-center">{row.mesChegada || '-'}</td>
                     <td className="px-4 py-3 text-center">{row.anoChegada ?? '-'}</td>
                     <td className="px-4 py-3 text-center">{row.responsavel || '-'}</td>
-                    <td className="px-4 py-3 text-center">{row.status || '-'}</td>
+                    <td className="px-4 py-3 text-center">
+                      {row.status ? (
+                        <span
+                          className={`inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${getStatusClasses(
+                            row.status
+                          )}`}
+                        >
+                          {row.status}
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center">{row.prazoDias ?? '-'}</td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">{formatDate(row.dataLimite)}</td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">{formatDate(row.dataConclusao)}</td>
                     <td className="px-4 py-3 text-center">{row.mesConclusao || '-'}</td>
                     <td className="px-4 py-3 text-center">{row.destino || '-'}</td>
-                    <td className="px-4 py-3 text-center">{row.statusFinal || '-'}</td>
+                    <td className="px-4 py-3 text-center">
+                      {row.statusFinal ? (
+                        <span
+                          className={`inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${getStatusClasses(
+                            row.statusFinal
+                          )}`}
+                        >
+                          {row.statusFinal}
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center">{row.tempoRespostaDias ?? '-'}</td>
                     <td className="px-4 py-3 text-center">
                       <button
