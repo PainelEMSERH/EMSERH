@@ -559,155 +559,6 @@ export default function DemandasTrabalhistasPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-panel p-4 space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="h-px flex-1 bg-border" />
-          <span className="text-xs font-semibold text-muted uppercase tracking-wide px-2">
-            Filtros (padrão ano 2026)
-          </span>
-          <div className="h-px flex-1 bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="lg:col-span-2">
-            <label className="block text-xs text-muted mb-1">Buscar (Nº SEI ou Demandante)</label>
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                placeholder="Digite Nº SEI ou Demandante..."
-                className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs text-muted mb-1">Regional</label>
-            <select
-              value={regional}
-              onChange={(e) => {
-                setRegional(e.target.value);
-                setUnidade('');
-                setPage(1);
-              }}
-              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">Todas</option>
-              {options.regionais.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs text-muted mb-1">Ano Chegada</label>
-            <select
-              value={ano}
-              onChange={(e) => {
-                setAno(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">Todos</option>
-              {options.anosChegada.map((item) => (
-                <option key={item} value={String(item)}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs text-muted mb-1">Unidade</label>
-            <select
-              value={unidade}
-              onChange={(e) => {
-                setUnidade(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">Todas</option>
-              {unidadesFiltradas.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs text-muted mb-1">Status</label>
-            <select
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">Todos</option>
-              {options.status.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs text-muted mb-1">Status Final</label>
-            <select
-              value={statusFinal}
-              onChange={(e) => {
-                setStatusFinal(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">Todos</option>
-              {options.statusFinal.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
-
-
-        </div>
-
-        {(regional || unidade || status || statusFinal || search || ano !== '2026') && (
-          <div className="flex justify-end">
-            <button
-              onClick={limparFiltros}
-              className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors"
-            >
-              Limpar filtros
-            </button>
-          </div>
-        )}
-      </div>
-
-      {!loading && rows.length > 0 && (
-        <div className="rounded-xl border border-border bg-panel p-3 shadow-sm">
-          <div className="flex items-center justify-between text-sm">
-            <div className="text-muted">
-              Mostrando <span className="font-semibold text-text">{rows.length}</span> de{' '}
-              <span className="font-semibold text-text">{total.toLocaleString()}</span> demandas
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="bg-gradient-to-r from-emerald-700 via-emerald-600 to-cyan-600 px-5 py-5 text-white">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -860,6 +711,153 @@ export default function DemandasTrabalhistasPage() {
           )}
         </div>
       </div>
+
+      <div className="rounded-xl border border-border bg-panel p-4 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs font-semibold text-muted uppercase tracking-wide px-2">
+            Filtros (padrão ano 2026)
+          </span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="lg:col-span-2">
+            <label className="block text-xs text-muted mb-1">Buscar (Nº SEI ou Demandante)</label>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Digite Nº SEI ou Demandante..."
+                className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-muted mb-1">Regional</label>
+            <select
+              value={regional}
+              onChange={(e) => {
+                setRegional(e.target.value);
+                setUnidade('');
+                setPage(1);
+              }}
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Todas</option>
+              {options.regionais.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs text-muted mb-1">Ano Chegada</label>
+            <select
+              value={ano}
+              onChange={(e) => {
+                setAno(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Todos</option>
+              {options.anosChegada.map((item) => (
+                <option key={item} value={String(item)}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs text-muted mb-1">Unidade</label>
+            <select
+              value={unidade}
+              onChange={(e) => {
+                setUnidade(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Todas</option>
+              {unidadesFiltradas.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs text-muted mb-1">Status</label>
+            <select
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Todos</option>
+              {options.status.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs text-muted mb-1">Status Final</label>
+            <select
+              value={statusFinal}
+              onChange={(e) => {
+                setStatusFinal(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Todos</option>
+              {options.statusFinal.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {(regional || unidade || status || statusFinal || search || ano !== '2026') && (
+          <div className="flex justify-end">
+            <button
+              onClick={limparFiltros}
+              className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors"
+            >
+              Limpar filtros
+            </button>
+          </div>
+        )}
+      </div>
+
+      {!loading && rows.length > 0 && (
+        <div className="rounded-xl border border-border bg-panel p-3 shadow-sm">
+          <div className="flex items-center justify-between text-sm">
+            <div className="text-muted">
+              Mostrando <span className="font-semibold text-text">{rows.length}</span> de{' '}
+              <span className="font-semibold text-text">{total.toLocaleString()}</span> demandas
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-xl border border-border bg-panel shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center justify-end gap-3 border-b border-border bg-bg/40 px-4 py-3">
