@@ -16,7 +16,6 @@ import {
   Filter,
   RefreshCw,
   ShieldCheck,
-  MapPinned,
 } from 'lucide-react';
 import { formatarNomeUnidade } from '@/lib/spci/unidadeMapper';
 import MetaVsRealCard from '@/components/shared/MetaVsRealCard';
@@ -166,28 +165,6 @@ function KpiStat({ icon, title, value, hint, accentClass }: KpiStatProps) {
   );
 }
 
-type MeterRowProps = {
-  label: string;
-  valueText: string;
-  pct: number;
-  barClass: string;
-};
-
-function MeterRow({ label, valueText, pct, barClass }: MeterRowProps) {
-  const w = Math.max(0, Math.min(100, pct));
-  return (
-    <div className="rounded-xl border border-border/70 bg-bg/40 px-3 py-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold text-text">{label}</span>
-        <span className="text-[11px] font-semibold tabular-nums text-muted">{valueText}</span>
-      </div>
-      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-border/60">
-        <div className={`h-full rounded-full ${barClass}`} style={{ width: `${w}%` }} />
-      </div>
-    </div>
-  );
-}
-
 export default function SPCIExtintoresPage() {
   // Filtros
   const [regional, setRegional] = useState<string>('');
@@ -227,19 +204,6 @@ export default function SPCIExtintoresPage() {
     const emDia = Math.max(0, stats.total - stats.totalVencidos - stats.totalAVencer);
     const pctConforme = stats.total > 0 ? (emDia / stats.total) * 100 : 0;
     return { emDia, pctConforme };
-  }, [stats]);
-
-  const regionalShare = useMemo(() => {
-    if (!stats?.porRegional) return [];
-    const entries = Object.entries(stats.porRegional);
-    const total = entries.reduce((acc, [, n]) => acc + Number(n || 0), 0);
-    return entries
-      .map(([reg, count]) => ({
-        reg,
-        count: Number(count || 0),
-        pct: total > 0 ? (Number(count || 0) / total) * 100 : 0,
-      }))
-      .sort((a, b) => b.count - a.count);
   }, [stats]);
 
   const isFutureMonthCell = (anoExercicio: number, month1to12: number): boolean => {
@@ -541,133 +505,52 @@ export default function SPCIExtintoresPage() {
         <section className="relative overflow-hidden rounded-2xl border border-border bg-panel shadow-sm">
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/[0.06] via-transparent to-sky-500/[0.05]" />
           <div className="relative p-4 md:p-5 space-y-4">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Painel executivo</p>
-                <h2 className="mt-1 text-sm font-semibold text-text">Indicadores da carteira</h2>
-                <p className="mt-1 text-[11px] text-muted">
-                  Leitura rápida de risco, conformidade e regularização por unidade.
-                </p>
-              </div>
-              <div className="rounded-xl border border-border bg-bg/70 px-3 py-2 text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Conformidade</p>
-                <p className="text-lg font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-                  {(kpi?.pctConforme ?? 0).toFixed(1)}%
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <KpiStat
-                icon={<Flame className="text-emerald-500" />}
-                title="Total de extintores"
-                value={stats.total}
-                accentClass="bg-emerald-500"
-                hint={
-                  <>
-                    Em dia: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{kpi?.emDia ?? 0}</span>{' '}
-                    <span className="text-muted">({(kpi?.pctConforme ?? 0).toFixed(1)}%)</span>
-                  </>
-                }
-              />
-              <KpiStat
-                icon={<AlertTriangle className="text-red-400" />}
-                title="Vencidos"
-                value={stats.totalVencidos}
-                accentClass="bg-red-500"
-                hint="Prioridade máxima de regularização"
-              />
-              <KpiStat
-                icon={<Clock className="text-amber-400" />}
-                title="A vencer (30 dias)"
-                value={stats.totalAVencer}
-                accentClass="bg-amber-500"
-                hint="Janela de ação preventiva"
-              />
-              <KpiStat
-                icon={<FileX className="text-orange-400" />}
-                title="Sem contrato"
-                value={stats.totalSemContrato}
-                accentClass="bg-orange-500"
-                hint="Demandas administrativas pendentes"
-              />
-            </div>
-
-            <div className="grid gap-3 lg:grid-cols-2">
-              <div className="rounded-2xl border border-border bg-card/60 p-4 backdrop-blur-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2">
-                    <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-bg/80 text-emerald-500">
-                      <ShieldCheck className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-                        Unidades 100% regularizadas
-                      </p>
-                      <p className="mt-1 text-xs text-muted">
-                        Unidade regularizada = todos os extintores da unidade com status OK.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-                      {(stats.pctUnidadesRegularizadas || 0).toFixed(1)}%
-                    </p>
-                    <p className="text-[11px] font-semibold tabular-nums text-muted">
-                      {stats.unidadesRegularizadas}/{stats.totalUnidades}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-border/60">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400"
-                    style={{ width: `${Math.max(0, Math.min(100, stats.pctUnidadesRegularizadas || 0))}%` }}
-                  />
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 gap-2">
-                  {Object.entries(stats.unidadesRegularizadasPorRegional || {}).map(([reg, item]) => (
-                    <MeterRow
-                      key={reg}
-                      label={reg}
-                      valueText={`${item.regularizadas}/${item.total} (${item.pct.toFixed(0)}%)`}
-                      pct={item.pct}
-                      barClass="bg-gradient-to-r from-emerald-500 to-teal-400"
-                    />
-                  ))}
-                </div>
+            <div className="grid gap-3 lg:grid-cols-12">
+              <div className="grid gap-3 sm:grid-cols-2 lg:col-span-7">
+                <KpiStat
+                  icon={<Flame className="text-emerald-500" />}
+                  title="Total de extintores"
+                  value={stats.total}
+                  accentClass="bg-emerald-500"
+                  hint={
+                    <>
+                      Em dia: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{kpi?.emDia ?? 0}</span>{' '}
+                      <span className="text-muted">({(kpi?.pctConforme ?? 0).toFixed(1)}%)</span>
+                    </>
+                  }
+                />
+                <KpiStat
+                  icon={<AlertTriangle className="text-red-400" />}
+                  title="Vencidos"
+                  value={stats.totalVencidos}
+                  accentClass="bg-red-500"
+                />
+                <KpiStat
+                  icon={<Clock className="text-amber-400" />}
+                  title="A vencer 30 dias"
+                  value={stats.totalAVencer}
+                  accentClass="bg-amber-500"
+                />
+                <KpiStat
+                  icon={<FileX className="text-orange-400" />}
+                  title="Sem contrato"
+                  value={stats.totalSemContrato}
+                  accentClass="bg-orange-500"
+                />
               </div>
 
-              <div className="rounded-2xl border border-border bg-card/60 p-4 backdrop-blur-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2">
-                    <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-bg/80 text-sky-500">
-                      <MapPinned className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-                        Distribuição por regional
-                      </p>
-                      <p className="mt-1 text-xs text-muted">Participação da carteira no filtro atual</p>
-                    </div>
+              <div className="lg:col-span-5">
+                <div className="flex h-full min-h-[208px] flex-col items-center justify-center rounded-3xl border border-border bg-gradient-to-br from-emerald-600 to-emerald-500 p-5 text-white shadow-sm">
+                  <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/30 bg-white/10">
+                    <ShieldCheck className="h-5 w-5" />
                   </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-semibold tabular-nums text-text">{stats.total}</p>
-                    <p className="text-[11px] text-muted">extintores</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 gap-2">
-                  {regionalShare.map(({ reg, count, pct }) => (
-                    <MeterRow
-                      key={reg}
-                      label={reg}
-                      valueText={`${count} (${pct.toFixed(0)}%)`}
-                      pct={pct}
-                      barClass="bg-gradient-to-r from-sky-500 to-indigo-400"
-                    />
-                  ))}
+                  <p className="text-center text-[13px] font-semibold uppercase tracking-wide">Unidades 100% regularizadas</p>
+                  <p className="mt-3 text-4xl font-bold tabular-nums">
+                    {(stats.pctUnidadesRegularizadas || 0).toFixed(1)}%
+                  </p>
+                  <p className="mt-1 text-sm font-medium tabular-nums text-white/90">
+                    {stats.unidadesRegularizadas}/{stats.totalUnidades}
+                  </p>
                 </div>
               </div>
             </div>
