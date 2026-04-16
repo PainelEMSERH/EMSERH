@@ -10,6 +10,26 @@ function esc(s: string) {
   return s.replace(/'/g, "''");
 }
 
+/** Chave única para agrupar "NORTE", "Norte", " norte " */
+function regionalNormKey(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+/** Rótulo amigável: primeira maiúscula por palavra (NORTE → Norte) */
+function regionalCanonicalLabel(s: string): string {
+  const t = s.trim().replace(/\s+/g, ' ');
+  if (!t) return t;
+  return t
+    .split(' ')
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w))
+    .join(' ');
+}
+
 export async function GET(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) {
@@ -29,7 +49,9 @@ export async function GET(req: NextRequest) {
 
     const where: string[] = ['1=1'];
     if (regional) {
-      where.push(`COALESCE(regional, '') ILIKE '%${esc(regional)}%'`);
+      where.push(
+        `LOWER(TRIM(COALESCE(regional, ''))) = LOWER(TRIM('${esc(regional)}'))`,
+      );
     }
     if (status) {
       where.push(`COALESCE(status, '') ILIKE '%${esc(status)}%'`);
@@ -93,9 +115,21 @@ export async function GET(req: NextRequest) {
       regRows = [];
     }
 
-    const regionais = (regRows || [])
+    const rawRegionais = (regRows || [])
       .map((r) => String(r?.regional || '').trim())
       .filter(Boolean);
+
+    const regionalUniq = new Map<string, string>();
+    for (const label of rawRegionais) {
+      const k = regionalNormKey(label);
+      if (!k) continue;
+      if (!regionalUniq.has(k)) {
+        regionalUniq.set(k, regionalCanonicalLabel(label));
+      }
+    }
+    const regionais = Array.from(regionalUniq.values()).sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }),
+    );
 
     return NextResponse.json({ ok: true, rows, total, regionais, page, pageSize });
   } catch (e: any) {
