@@ -7,6 +7,7 @@ import {
   Activity,
   AlertTriangle,
   ClipboardCheck,
+  FileText,
   ChevronRight,
   Flame,
   HardHat,
