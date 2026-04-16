@@ -1,6 +1,8 @@
 
 import { NextRequest } from 'next/server'
 import { obrigatoriosWhereSql } from '@/data/epiObrigatorio'
+import { isEpiObrigatorio } from '@/data/epiObrigatorio'
+import { findBestFunctionMatch } from '@/lib/functionMatcher'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -136,30 +138,118 @@ export async function GET(req: NextRequest) {
     kpis.colaboradoresAtendidos = Number(rows?.[0]?.c || 0)
   } catch {}
 
-  // 2) Itens planejados (obrigatórios) — coorte atual v2 × stg_epi_map
+  // 2) Itens planejados (obrigatórios) — META GLOBAL (todas as regionais), mesma base da tela de entregas
   let planejadosCohorte = 0
   try {
-    // Meta é global (todas as regionais), alinhada com a referência da tela de entregas.
-    const elig = `
-      WITH elig AS (
-        SELECT DISTINCT UPPER(REGEXP_REPLACE(a.funcao, '[^A-Z0-9]+', '', 'g')) AS func_key
-        FROM stg_alterdata_v2 a
-        WHERE ${ATIVO_DEMISSAO}
-          AND COALESCE(a.cpf, '') != ''
-          AND COALESCE(a.funcao, '') != ''
-          ${exclSituacaoSql}
-      )
-    `
-    const obrigPlan = obrigatoriosWhereSql('m.epi_item')
-    const r: any[] = await prisma.$queryRawUnsafe(`${elig}
-      SELECT COALESCE(SUM(m.quantidade), 0)::int AS q
-      FROM elig e
-      JOIN stg_epi_map m
-        ON UPPER(REGEXP_REPLACE(m.alterdata_funcao, '[^A-Z0-9]+', '', 'g')) = e.func_key
-      WHERE ${obrigPlan}
+    const colaboradores: any[] = await prisma.$queryRawUnsafe(`
+      SELECT
+        COALESCE(a.cpf, '') AS cpf,
+        COALESCE(a.funcao, '') AS funcao
+      FROM stg_alterdata_v2 a
+      WHERE ${ATIVO_DEMISSAO}
+        AND COALESCE(a.cpf, '') != ''
+        AND COALESCE(a.funcao, '') != ''
+        ${exclSituacaoSql}
     `)
-    planejadosCohorte = Number(r?.[0]?.q || 0)
-    // Meta anual = demanda da coorte (não ×12). Meta mensal = fatia linear.
+
+    const kitRows: any[] = await prisma.$queryRawUnsafe(`
+      SELECT
+        COALESCE(pcg::text, '') AS pcg,
+        COALESCE(alterdata_funcao::text, '') AS funcao,
+        COALESCE(funcao_normalizada::text, alterdata_funcao::text, '') AS funcao_norm,
+        COALESCE(unidade_hospitalar::text, '') AS unidade_hosp,
+        COALESCE(epi_item::text, '') AS item,
+        COALESCE(quantidade::numeric, 1) AS qtd
+      FROM stg_epi_map
+    `)
+
+    const normKey = (s: any): string =>
+      (s ?? '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/gi, '')
+        .toLowerCase()
+    const normFuncKey = (s: any): string => {
+      const raw = (s ?? '').toString()
+      const cleaned = raw.replace(/\(A\)/gi, '').replace(/\s+/g, ' ')
+      return normKey(cleaned)
+    }
+    const isSemSetorBase = (s: any) => {
+      const v = String(s ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/\s+/g, ' ')
+        .trim()
+      return v.includes('SEM SETOR')
+    }
+    const isPcgUniversal = (s: any) => {
+      const v = String(s ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/\s+/g, ' ')
+        .trim()
+      return v.includes('PCG UNIVERSAL')
+    }
+
+    const allFunctionsList = Array.from(
+      new Set(
+        kitRows
+          .flatMap((r: any) => [r.funcao, r.funcao_norm, r.funcao_normalizada])
+          .map((x: any) => String(x || '').trim())
+          .filter(Boolean),
+      ),
+    )
+    const kitCache = new Map<string, number>()
+    let totalMeta = 0
+
+    for (const colab of colaboradores) {
+      const funcao = String(colab.funcao || '').trim()
+      if (!funcao) continue
+      let finalFuncKey = normFuncKey(funcao)
+      if (allFunctionsList.length > 0) {
+        const matchedFunc = findBestFunctionMatch(funcao, allFunctionsList)
+        if (matchedFunc) finalFuncKey = normFuncKey(matchedFunc)
+      }
+
+      let somaKit = 0
+      if (kitCache.has(finalFuncKey)) {
+        somaKit = kitCache.get(finalFuncKey)!
+      } else {
+        const semSetorRows: any[] = []
+        const anySetorRows: any[] = []
+        for (const r of kitRows) {
+          const rFuncKey = normFuncKey(r.funcao_norm || r.funcao || '')
+          const rFuncAlt = normFuncKey(r.funcao || '')
+          if (rFuncKey !== finalFuncKey && rFuncAlt !== finalFuncKey) continue
+
+          const item = String(r.item || '').trim()
+          if (!item || item.toUpperCase() === 'SEM EPI' || !isEpiObrigatorio(item)) continue
+          if (!isPcgUniversal(r.pcg)) continue
+
+          if (isSemSetorBase(r.unidade_hosp)) semSetorRows.push(r)
+          anySetorRows.push(r)
+        }
+        const baseRows = semSetorRows.length > 0 ? semSetorRows : anySetorRows
+        const byItem = new Map<string, number>()
+        for (const r of baseRows) {
+          const item = String(r.item || '').trim()
+          const qtd = Number(r.qtd || 1) || 1
+          if (!item || qtd <= 0) continue
+          const k = normKey(item)
+          const existing = byItem.get(k)
+          if (!existing || qtd > existing) byItem.set(k, qtd)
+        }
+        somaKit = Array.from(byItem.values()).reduce((acc, qtd) => acc + qtd, 0)
+        kitCache.set(finalFuncKey, somaKit)
+      }
+
+      totalMeta += somaKit
+    }
+
+    planejadosCohorte = totalMeta
     kpis.metaAnual.valorMeta = planejadosCohorte
     kpis.metaMensal.valorMeta =
       planejadosCohorte > 0 ? Math.max(1, Math.ceil(planejadosCohorte / 12)) : 0
@@ -201,7 +291,6 @@ export async function GET(req: NextRequest) {
         AND ${obrig}
     `)
     const qM = Number(qMes?.[0]?.q || 0)
-    kpis.itensEntregues = qM
     kpis.metaMensal.realizado = qM
 
     const qYtd: any[] = await prisma.$queryRawUnsafe(`
@@ -226,7 +315,10 @@ export async function GET(req: NextRequest) {
         AND b.data <= '${fimDate}'::date
         AND ${obrig}
     `)
-    kpis.metaAnual.realizado = Number(qYtd?.[0]?.q || 0)
+    const qY = Number(qYtd?.[0]?.q || 0)
+    kpis.metaAnual.realizado = qY
+    // Card de visão rápida usa acumulado anual para evitar zerar por variação mensal.
+    kpis.itensEntregues = qY
   } catch {}
 
   // 4) pendências e estoque
@@ -271,7 +363,6 @@ export async function GET(req: NextRequest) {
     const entr: number[] = []
     const baseRef = new Date(ini)
 
-    const obrigPlan = obrigatoriosWhereSql('m.epi_item')
     const obrigEnt = obrigatoriosWhereSql('b.item')
 
     for (let delta = -5; delta <= 0; delta++) {
@@ -282,29 +373,7 @@ export async function GET(req: NextRequest) {
       const eDate = endOfMonth(y, m).toISOString().substring(0, 10)
       labels.push(String(m).padStart(2, '0') + '/' + y)
 
-      try {
-        // Planejado mensal da série também permanece global (não filtra por regional).
-        const elig = `
-          WITH elig AS (
-            SELECT DISTINCT UPPER(REGEXP_REPLACE(a.funcao, '[^A-Z0-9]+', '', 'g')) AS func_key
-            FROM stg_alterdata_v2 a
-            WHERE ${ATIVO_DEMISSAO}
-              AND COALESCE(a.cpf, '') != ''
-              AND COALESCE(a.funcao, '') != ''
-              ${exclSituacaoSql}
-          )
-        `
-        const r: any[] = await prisma.$queryRawUnsafe(`${elig}
-          SELECT COALESCE(SUM(m.quantidade), 0)::int AS q
-          FROM elig e
-          JOIN stg_epi_map m
-            ON UPPER(REGEXP_REPLACE(m.alterdata_funcao, '[^A-Z0-9]+', '', 'g')) = e.func_key
-          WHERE ${obrigPlan}
-        `)
-        its.push(Number(r?.[0]?.q || 0))
-      } catch {
-        its.push(0)
-      }
+      its.push(Number(kpis.metaMensal.valorMeta || 0))
 
       try {
         const eligSql = `

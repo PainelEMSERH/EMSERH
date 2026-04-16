@@ -210,6 +210,64 @@ function KpiCard({ title, subtitle, href, hrefLabel, pct, doughnut, footer, badg
   )
 }
 
+type IndicatorCardProps = {
+  icon: React.ReactNode
+  title: string
+  subtitle: string
+  badge: { text: string; className: string }
+  value: string
+  valueLabel: string
+  line1: string
+  line2?: string
+  href: string
+  hrefLabel: string
+}
+
+function IndicatorCard({
+  icon,
+  title,
+  subtitle,
+  badge,
+  value,
+  valueLabel,
+  line1,
+  line2,
+  href,
+  hrefLabel,
+}: IndicatorCardProps) {
+  return (
+    <div className="group relative flex min-h-[204px] flex-col overflow-hidden rounded-2xl border border-border bg-panel p-5 shadow-sm transition-all hover:-translate-y-[1px] hover:shadow-md">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-emerald-500/20" aria-hidden />
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bg/80 text-muted [&_svg]:h-4 [&_svg]:w-4">
+            {icon}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">{title}</p>
+            <p className="mt-0.5 text-xs text-muted">{subtitle}</p>
+          </div>
+        </div>
+        <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${badge.className}`}>{badge.text}</span>
+      </div>
+      <div className="mt-5">
+        <p className="text-[11px] uppercase tracking-wide text-muted">{valueLabel}</p>
+        <p className="mt-0.5 text-4xl font-semibold tabular-nums tracking-tight text-text">{value}</p>
+      </div>
+      <div className="mt-3 space-y-1 text-xs text-muted">
+        <p>{line1}</p>
+        {line2 ? <p>{line2}</p> : null}
+      </div>
+      <div className="mt-auto pt-4">
+        <Link href={href} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-500 dark:text-emerald-400">
+          {hrefLabel}
+          <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardEPI() {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
@@ -434,6 +492,14 @@ export default function DashboardEPI() {
           position: 'top' as const,
           labels: { usePointStyle: true, padding: 14, font: { size: 11 }, color: tickColor },
         },
+        tooltip: {
+          callbacks: {
+            label(ctx: any) {
+              const v = Number(ctx.parsed?.y ?? 0)
+              return `${ctx.dataset.label}: ${formatThousands(v)} itens`
+            },
+          },
+        },
       },
       scales: {
         y: {
@@ -555,6 +621,8 @@ export default function DashboardEPI() {
     return Math.max(0, Math.min(100, (Number(gst.cards?.concluido?.count || 0) / Number(gst.total || 1)) * 100))
   }, [gst])
   const gstHealth = healthLabel(gstPct)
+  const anoAtual = new Date().getFullYear()
+  const acidentesHealth = healthLabel(acidentes?.totalAno ? Math.max(0, 100 - acidentes.totalAno * 2) : 100)
 
   if (loading) {
     return (
@@ -675,27 +743,35 @@ export default function DashboardEPI() {
             icon={<Users />}
             label="Colaboradores (base do mês)"
             value={formatThousands(epi.kpis.colaboradoresAtendidos)}
-            hint="Ativos na base (v2), com filtro regional quando aplicável"
+            hint="Colaboradores ativos da base oficial, respeitando o filtro regional"
           />
           <MiniStat
             icon={<Package />}
             label="Itens entregues"
             value={formatThousands(epi.kpis.itensEntregues)}
-            hint="Quantidade registrada em entregas"
+            hint={`Acumulado no ano ${new Date().getFullYear()} (filtro regional aplicado)`}
+          />
+          <MiniStat
+            icon={<Target />}
+            label="CIPA executado"
+            value={cipa && cipa.totalMeta > 0 ? `${cipaPct.toFixed(1)}%` : '—'}
+            hint={
+              cipa && cipa.totalMeta > 0
+                ? `${formatThousands(cipa.totalReal)} de ${formatThousands(cipa.totalMeta)} atividades`
+                : 'Sem meta CIPA no filtro atual'
+            }
+            variant={cipaPct >= 85 ? 'default' : cipaPct >= 60 ? 'warn' : 'danger'}
           />
           <MiniStat
             icon={<ClipboardCheck />}
-            label="Pendências abertas"
-            value={formatThousands(epi.kpis.pendenciasAbertas)}
-            hint="Acompanhe na tela de entregas"
-            variant={epi.kpis.pendenciasAbertas > 0 ? 'warn' : 'default'}
-          />
-          <MiniStat
-            icon={<AlertTriangle />}
-            label="Pendências vencidas"
-            value={formatThousands(epi.alertas.pendenciasVencidas || 0)}
-            hint="Requer prioridade"
-            variant={(epi.alertas.pendenciasVencidas || 0) > 0 ? 'danger' : 'default'}
+            label="Ações GST concluídas"
+            value={formatThousands(gst?.cards?.concluido?.count || 0)}
+            hint={
+              gst && gst.total > 0
+                ? `${((Number(gst.cards.concluido.count) / Number(gst.total)) * 100).toFixed(1)}% do plano de ação`
+                : 'Sem dados GST no filtro atual'
+            }
+            variant={gstPct >= 85 ? 'default' : gstPct >= 60 ? 'warn' : 'danger'}
           />
         </div>
       </section>
@@ -706,223 +782,105 @@ export default function DashboardEPI() {
           Indicadores Estratégicos
         </h2>
         <p className="mb-4 text-xs text-muted">
-          Monitoramento executivo com leitura rápida e navegação direta para cada módulo.
+          Leitura executiva padronizada para decisão rápida: status atual, número-chave e ação recomendada.
         </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <KpiCard
-            title="EPI obrigatório"
-            subtitle="Cumprimento mensal dos itens críticos"
+          <IndicatorCard
+            icon={<Shield />}
+            title="EPI"
+            subtitle={`Aderência mensal (${anoAtual})`}
+            badge={epiHealth}
+            value={`${mensPct.toFixed(1)}%`}
+            valueLabel="Cumprimento"
+            line1={`${formatThousands(epi.kpis.metaMensal.realizado)} de ${formatThousands(epi.kpis.metaMensal.valorMeta)} itens no mês`}
+            line2={`Acumulado anual: ${epiYtdPct.toFixed(1)}%`}
             href="/entregas"
             hrefLabel="Abrir entregas de EPI"
-            pct={mensPct}
-            badge={epiHealth}
-            accentClass="text-emerald-600 dark:text-emerald-500"
-            doughnut={
-              <DoughnutChart
-                data={{
-                  labels: ['Realizado', 'Restante'],
-                  datasets: [
-                    {
-                      data: [mensPct, Math.max(0, 100 - mensPct)],
-                      borderWidth: 0,
-                      backgroundColor: ['rgb(16, 185, 129)', donutTrack],
-                    },
-                  ],
-                }}
-                width={88}
-                height={88}
-              />
-            }
-            footer={
-              <>
-                <span className={`font-medium ${variacaoCor}`}>
-                  {variacaoIcon} {Math.abs(epi.kpis.variacaoMensalPerc).toFixed(1)}% vs meta mensal
-                </span>
-                <span className="block text-[11px] text-muted">
-                  {formatThousands(epi.kpis.metaMensal.realizado)} / {formatThousands(epi.kpis.metaMensal.valorMeta)} itens
-                  previstos no mês
-                </span>
-              </>
-            }
           />
 
-          <KpiCard
-            title="Ordem de serviço"
-            subtitle={`Conformidade de assinatura • ${new Date().getFullYear()}`}
+          <IndicatorCard
+            icon={<FileText />}
+            title="Ordem de Serviço"
+            subtitle={`Conformidade anual (${anoAtual})`}
+            badge={osHealth}
+            value={`${osPct.toFixed(1)}%`}
+            valueLabel="Conformidade"
+            line1={
+              osMeta
+                ? `${formatThousands(osMeta.totalReal)} de ${formatThousands(osMeta.totalMeta)} colaboradores com registro`
+                : 'Sem dados de OS no filtro atual'
+            }
+            line2={osMeta ? `Base considerada: ${formatThousands(osMeta.totalColaboradores)} colaboradores` : undefined}
             href="/ordens-de-servico"
             hrefLabel="Abrir ordens de serviço"
-            pct={osPct}
-            badge={osHealth}
-            accentClass="text-blue-600 dark:text-blue-400"
-            doughnut={
-              <DoughnutChart
-                data={{
-                  labels: ['Concluído', 'Pendente'],
-                  datasets: [
-                    {
-                      data: [osPct, Math.max(0, 100 - osPct)],
-                      borderWidth: 0,
-                      backgroundColor: ['rgb(59, 130, 246)', donutTrack],
-                    },
-                  ],
-                }}
-                width={88}
-                height={88}
-              />
-            }
-            footer={
-              osMeta ? (
-                <>
-                  {formatThousands(osMeta.totalReal)} de {formatThousands(osMeta.totalMeta)} colaboradores com registro
-                  concluído no período
-                </>
-              ) : (
-                'Sem dados de OS para o ano atual'
-              )
-            }
           />
 
-          <div className="group relative overflow-hidden rounded-2xl border border-border bg-panel p-5 shadow-sm transition-all hover:-translate-y-[1px] hover:shadow-md text-red-600 dark:text-red-500">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-current/20" />
-            <div className="relative flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Acidentes</p>
-                <p className="mt-1 text-xs text-muted">Incidência anual e leitura mensal</p>
-              </div>
-              <span className="rounded-full bg-red-500/12 px-2.5 py-0.5 text-[10px] font-semibold text-red-700 ring-1 ring-red-500/20 dark:text-red-300">
-                Registros
-              </span>
-            </div>
-            <div className="relative mt-4 flex gap-4">
-              <div className="flex h-[88px] w-[88px] shrink-0 flex-col items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/[0.04]">
-                <Flame className="h-8 w-8 text-red-500" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-3xl font-semibold tabular-nums text-text">{formatThousands(acidentes?.totalAno || 0)}</p>
-                <p className="mt-1 text-xs text-muted">Total no ano</p>
-                <p className="mt-3 text-[12px]">
-                  <span className="text-muted">Neste mês:</span>{' '}
-                  <span className="font-semibold text-text">{formatThousands(acidentes?.totalMes || 0)}</span>
-                </p>
-                <p className="mt-1 text-[12px]">
-                  <span className="text-muted">Com afastamento:</span>{' '}
-                  <span className="font-semibold text-red-600 dark:text-red-400">
-                    {formatThousands(acidentes?.comAfastamento || 0)}
-                  </span>
-                </p>
-                <Link
-                  href="/acidentes"
-                  className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-500 dark:text-emerald-400"
-                >
-                  Abrir acidentes
-                  <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                </Link>
-              </div>
-            </div>
-          </div>
+          <IndicatorCard
+            icon={<Flame />}
+            title="Acidentes"
+            subtitle={`Ocorrências registradas (${anoAtual})`}
+            badge={acidentesHealth}
+            value={formatThousands(acidentes?.totalAno || 0)}
+            valueLabel="Total no ano"
+            line1={`Mês atual: ${formatThousands(acidentes?.totalMes || 0)} | Com afastamento: ${formatThousands(acidentes?.comAfastamento || 0)}`}
+            line2={regionalSelecionada ? `Regional filtrada: ${regionalSelecionada}` : 'Consolidado de todas as regionais'}
+            href="/acidentes"
+            hrefLabel="Abrir acidentes"
+          />
 
-          <KpiCard
-            title="SPCI • Extintores"
-            subtitle="Saúde da carteira de inspeção"
+          <IndicatorCard
+            icon={<Flame />}
+            title="SPCI"
+            subtitle="Condição da carteira de extintores"
+            badge={spciHealth}
+            value={`${spciSaudavelPct.toFixed(1)}%`}
+            valueLabel="Em conformidade"
+            line1={
+              spci
+                ? `${formatThousands((spci.stats.total || 0) - (spci.stats.totalVencidos + spci.stats.totalAVencer))} de ${formatThousands(spci.stats.total || 0)} em dia`
+                : 'Sem dados SPCI no filtro atual'
+            }
+            line2={
+              spci
+                ? `Vencidos: ${formatThousands(spci.stats.totalVencidos)} | A vencer: ${formatThousands(spci.stats.totalAVencer)}`
+                : undefined
+            }
             href="/spci-extintores"
             hrefLabel="Abrir SPCI / extintores"
-            pct={spciSaudavelPct}
-            badge={spciHealth}
-            accentClass="text-violet-600 dark:text-violet-400"
-            doughnut={
-              <DoughnutChart
-                data={{
-                  labels: ['Em dia', 'Atenção'],
-                  datasets: [
-                    {
-                      data: [spciSaudavelPct, Math.max(0, 100 - spciSaudavelPct)],
-                      borderWidth: 0,
-                      backgroundColor: ['rgb(139, 92, 246)', donutTrack],
-                    },
-                  ],
-                }}
-                width={88}
-                height={88}
-              />
-            }
-            footer={
-              spci ? (
-                <>
-                  {formatThousands(
-                    (spci.stats.total || 0) - (spci.stats.totalVencidos + spci.stats.totalAVencer),
-                  )}{' '}
-                  de {formatThousands(spci.stats.total || 0)} sem vencimento próximo
-                  <span className="mt-1 block text-[11px] text-muted">
-                    Vencidos: {formatThousands(spci.stats.totalVencidos)} · A vencer:{' '}
-                    {formatThousands(spci.stats.totalAVencer)}
-                  </span>
-                </>
-              ) : (
-                'Sem dados de SPCI para o filtro atual'
-              )
-            }
           />
 
-          <KpiCard
+          <IndicatorCard
+            icon={<Users />}
             title="CIPA"
-            subtitle={`Execução do cronograma • ${cipa?.ano ?? new Date().getFullYear()}`}
+            subtitle={`Execução do cronograma (${cipa?.ano ?? anoAtual})`}
+            badge={cipaHealth}
+            value={`${cipaPct.toFixed(1)}%`}
+            valueLabel="Execução"
+            line1={`${formatThousands(cipa?.totalReal || 0)} de ${formatThousands(cipa?.totalMeta || 0)} atividades realizadas`}
+            line2={cipa && cipa.totalMeta > 0 ? `Saldo para concluir: ${formatThousands(Math.max(0, cipa.totalMeta - cipa.totalReal))}` : 'Sem meta CIPA no filtro atual'}
             href="/cipa"
             hrefLabel="Abrir CIPA"
-            pct={cipaPct}
-            badge={cipaHealth}
-            accentClass="text-emerald-600 dark:text-emerald-400"
-            doughnut={
-              <DoughnutChart
-                data={{
-                  labels: ['Realizado', 'Pendente'],
-                  datasets: [
-                    {
-                      data: [cipaPct, Math.max(0, 100 - cipaPct)],
-                      borderWidth: 0,
-                      backgroundColor: ['rgb(16, 185, 129)', donutTrack],
-                    },
-                  ],
-                }}
-                width={88}
-                height={88}
-              />
-            }
-            footer={
-              cipa && cipa.totalMeta > 0
-                ? `${formatThousands(cipa.totalReal)} de ${formatThousands(cipa.totalMeta)} atividades executadas`
-                : 'Sem cronograma carregado para o filtro atual'
-            }
           />
 
-          <KpiCard
+          <IndicatorCard
+            icon={<ClipboardCheck />}
             title="Ações GST"
-            subtitle="Performance do plano de ação por status"
+            subtitle="Execução do plano por status"
+            badge={gstHealth}
+            value={`${gstPct.toFixed(1)}%`}
+            valueLabel="Concluídas"
+            line1={
+              gst
+                ? `${formatThousands(gst.cards.concluido.count)} de ${formatThousands(gst.total)} ações concluídas`
+                : 'Sem dados GST no filtro atual'
+            }
+            line2={
+              gst
+                ? `No prazo: ${formatThousands(gst.cards.no_prazo.count)} | Em atraso: ${formatThousands(gst.cards.em_atraso.count)}`
+                : undefined
+            }
             href="/central-acoes-gst"
             hrefLabel="Abrir Central de Ações GST"
-            pct={gstPct}
-            badge={gstHealth}
-            accentClass="text-emerald-600 dark:text-emerald-400"
-            doughnut={
-              <DoughnutChart
-                data={{
-                  labels: ['Concluído', 'Demais'],
-                  datasets: [
-                    {
-                      data: [gstPct, Math.max(0, 100 - gstPct)],
-                      borderWidth: 0,
-                      backgroundColor: ['rgb(16, 185, 129)', donutTrack],
-                    },
-                  ],
-                }}
-                width={88}
-                height={88}
-              />
-            }
-            footer={
-              gst
-                ? `${formatThousands(gst.cards.concluido.count)} concluídas de ${formatThousands(gst.total)} ações totais`
-                : 'Sem dados da Central de Ações GST para o filtro atual'
-            }
           />
         </div>
       </section>
@@ -970,17 +928,7 @@ export default function DashboardEPI() {
       </section>
 
       {/* Gráficos */}
-      <section className="grid grid-cols-1 gap-6 lg:grid-cols-2" aria-label="Gráficos de evolução">
-        <div className="rounded-2xl border border-border bg-panel p-5 shadow-sm md:p-6">
-          <div className="mb-1 flex items-center gap-2">
-            <Shield className="h-4 w-4 text-emerald-600" />
-            <h3 className="text-sm font-semibold text-text">EPI — planejado × realizado</h3>
-          </div>
-          <p className="text-xs text-muted">Últimos 6 meses • apenas itens obrigatórios</p>
-          <div className="mt-4 h-72">
-            <Line data={lineChartData} options={lineChartOptions as any} />
-          </div>
-        </div>
+      <section className="grid grid-cols-1 gap-6" aria-label="Gráficos de evolução">
         <div className="rounded-2xl border border-border bg-panel p-5 shadow-sm md:p-6">
           <div className="mb-1 flex items-center gap-2">
             <Activity className="h-4 w-4 text-red-500" />
