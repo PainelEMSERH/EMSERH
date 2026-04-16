@@ -494,7 +494,8 @@ export default function SPCIExtintoresPage() {
             <p className="mt-1 text-2xl font-semibold text-orange-300">{stats.totalSemContrato}</p>
             <p className="mt-1 text-[11px] text-muted">Demandas administrativas pendentes</p>
           </div>
-          <div className="rounded-xl border border-border bg-panel p-4 xl:col-span-2">
+
+          <div className="rounded-xl border border-border bg-panel p-4 md:col-span-2 xl:col-span-2">
             <p className="text-[11px] text-muted mb-1">Unidades 100% regularizadas</p>
             <div className="flex items-end justify-between gap-2">
               <p className="text-2xl font-semibold text-emerald-500">
@@ -507,16 +508,32 @@ export default function SPCIExtintoresPage() {
             <p className="mt-1 text-[11px] text-muted">
               Unidade regularizada = todos os extintores da unidade com status OK.
             </p>
-            <div className="mt-2 grid grid-cols-2 gap-1.5 text-[11px]">
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
               {Object.entries(stats.unidadesRegularizadasPorRegional || {}).map(([reg, item]) => (
                 <div
                   key={reg}
-                  className="flex items-center justify-between px-2 py-1 rounded-lg bg-bg/60 border border-border/60"
+                  className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-bg/60 border border-border/60"
                 >
-                  <span className="text-muted font-medium">{reg}:</span>
-                  <span className="font-semibold text-text">
+                  <span className="text-muted font-medium">{reg}</span>
+                  <span className="font-semibold text-text tabular-nums">
                     {item.regularizadas}/{item.total} ({item.pct.toFixed(0)}%)
                   </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-panel p-4 md:col-span-2 xl:col-span-2">
+            <p className="text-[11px] text-muted mb-1">Extintores por regional</p>
+            <p className="mt-1 text-[11px] text-muted">Volume da carteira no filtro atual</p>
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+              {Object.entries(stats.porRegional || {}).map(([reg, count]) => (
+                <div
+                  key={reg}
+                  className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-bg/60 border border-border/60"
+                >
+                  <span className="text-muted font-medium">{reg}</span>
+                  <span className="font-semibold text-text tabular-nums">{count}</span>
                 </div>
               ))}
             </div>
