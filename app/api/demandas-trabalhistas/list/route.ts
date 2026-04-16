@@ -5,6 +5,20 @@ import { ensureDemandasTrabalhistasTables } from '@/lib/demandas-trabalhistas';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function convertBigIntToNumber(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'bigint') return Number(obj);
+  if (Array.isArray(obj)) return obj.map(convertBigIntToNumber);
+  if (typeof obj === 'object') {
+    const converted: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      converted[key] = convertBigIntToNumber(value);
+    }
+    return converted;
+  }
+  return obj;
+}
+
 const SORT_MAP: Record<string, string> = {
   numeroSei: 'numero_sei',
   demandante: 'demandante',
@@ -104,10 +118,13 @@ export async function GET(req: NextRequest) {
       prisma.$queryRawUnsafe<any[]>(countSql),
     ]);
 
+    const safeRows = convertBigIntToNumber(Array.isArray(rows) ? rows : []);
+    const safeTotal = convertBigIntToNumber(totalRes);
+
     return NextResponse.json({
       ok: true,
-      rows: Array.isArray(rows) ? rows : [],
-      totalCount: Number(totalRes?.[0]?.total ?? 0),
+      rows: safeRows,
+      totalCount: Number(safeTotal?.[0]?.total ?? 0),
     });
   } catch (e: any) {
     console.error('[demandas-trabalhistas/list] error', e);
