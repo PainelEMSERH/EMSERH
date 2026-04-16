@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { isEpiObrigatorio } from '@/data/epiObrigatorio';
 import { Settings, Package, Info, CheckCircle2, XCircle, AlertCircle, Clock } from 'lucide-react';
 import { findBestUnitMatch } from '@/lib/unitMatcher';
+import MetaVsRealCard from '@/components/shared/MetaVsRealCard';
 
 type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string; entregue?: boolean; nome_site?: string | null; };
 type KitItem = { item: string; quantidade: number; nome_site?: string | null; };
@@ -1086,141 +1087,80 @@ export default function EntregasPage() {
             }
 
             return (
-          <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
-            <div className="flex items-center justify-between mb-1">
-              <h2 className="text-sm font-semibold">
-                Meta vs Real - Entregas de EPI ({state.regional ? state.regional : 'Consolidado'})
-              </h2>
+          <MetaVsRealCard
+            title={`Meta vs Real - Entregas de EPI (${state.regional ? state.regional : 'Consolidado'})`}
+            yearControl={
               <span className="rounded-lg border border-border bg-bg px-3 py-1.5 text-xs font-semibold tabular-nums">
                 {ANO_ENTREGAS_TRACKER}
               </span>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <div className="w-20 font-bold text-sm text-text">META</div>
-                <div className="flex-1 grid grid-cols-12 gap-1">
-                  {meses.map((mes, idx) => {
-                    const head = metaAcumArr[idx] ?? 0;
-                    const pctMeta =
-                      metaTotal > 0 ? Math.min(100, Math.round((head / metaTotal) * 10000) / 100) : 0;
-                    return (
-                      <div
-                        key={mes}
-                        className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded"
-                        title={`${mesesNomes[idx]}: meta acumulada ${head.toLocaleString('pt-BR')} itens (${fmtPctEntregas(pctMeta)}% da meta anual)`}
-                      >
-                        {fmtPctEntregas(pctMeta)}%
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
-                <div className="flex-1 grid grid-cols-12 gap-1">
-                  {meses.map((mes, idx) => {
-                    const m = idx + 1;
-                    const future = isFutureMonthCellEntregas(anoNum, m);
-                    const metaQtd = metaAcumArr[idx] ?? 0;
-                    const realQtd = entregueAcumArr[idx] ?? 0;
-                    const realPct = realPctAcum[idx] ?? 0;
-                    const ambosZero = metaTotal < 1 && realQtd < 1;
-                    const atingiu =
-                      !future && metaTotal > 0 && (metaQtd <= 0 ? realQtd <= 0 : realQtd >= metaQtd);
-                    const folhaMetaZeroRealPos = !future && metaQtd <= 0 && realQtd > 0;
-                    const cor = future
-                      ? 'bg-muted/30 text-muted border border-border/50'
-                      : ambosZero
-                        ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                        : folhaMetaZeroRealPos || atingiu
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-red-500 text-white';
-
-                    return (
-                      <div
-                        key={mes}
-                        className={`text-center text-xs font-bold tabular-nums py-1.5 rounded ${cor}`}
-                        title={
-                          future
-                            ? `${mesesNomes[idx]}: mês ainda não iniciado`
-                            : `${mesesNomes[idx]}: ${realQtd.toLocaleString('pt-BR')} itens acum. · meta ${metaQtd.toLocaleString('pt-BR')} · cobertura ${fmtPctEntregas(realPct)}%`
-                        }
-                      >
-                        {future ? '—' : `${fmtPctEntregas(realPct)}%`}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="w-20 font-bold text-sm text-blue-600 dark:text-blue-400">EVOL.</div>
-                <div className="flex-1 grid grid-cols-12 gap-1">
-                  {meses.map((mes, idx) => {
-                    const m = idx + 1;
-                    const future = isFutureMonthCellEntregas(anoNum, m);
-                    if (future) {
-                      return (
-                        <div
-                          key={mes}
-                          className="text-center text-xs font-medium py-1.5 rounded bg-muted/20 text-muted border border-border/40"
-                        >
-                          —
-                        </div>
-                      );
-                    }
-                    const cur = realPctAcum[idx] ?? 0;
-                    const prev = idx > 0 ? realPctAcum[idx - 1] ?? 0 : 0;
-                    const evol = cur - prev;
-                    const sinal = evol > 0 ? '+' : '';
-                    const cellClass =
-                      evol > 0
-                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                        : evol === 0
-                          ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                          : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
-
-                    return (
-                      <div
-                        key={mes}
-                        className={`text-center text-[10px] font-medium py-1 rounded ${cellClass}`}
-                        title={`${mesesNomes[idx]}: ${sinal}${fmtPctEntregas(evol)}% do real no mês`}
-                      >
-                        {sinal}
-                        {fmtPctEntregas(evol)}%
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-border text-[11px] text-muted">
-              <div>
+            }
+            monthsShort={mesesNomes.map((n) => n.substring(0, 3))}
+            metaPct={meses.map((_, idx) =>
+              metaTotal > 0 ? Math.min(100, Math.round(((metaAcumArr[idx] ?? 0) / metaTotal) * 10000) / 100) : 0,
+            )}
+            realPct={meses.map((_, idx) => {
+              const future = isFutureMonthCellEntregas(anoNum, idx + 1)
+              return future ? null : Number(realPctAcum[idx] ?? 0)
+            })}
+            evolPct={meses.map((_, idx) => {
+              const future = isFutureMonthCellEntregas(anoNum, idx + 1)
+              if (future) return null
+              const cur = Number(realPctAcum[idx] ?? 0)
+              const prev = idx > 0 ? Number(realPctAcum[idx - 1] ?? 0) : 0
+              return cur - prev
+            })}
+            realClassName={(idx) => {
+              const future = isFutureMonthCellEntregas(anoNum, idx + 1)
+              if (future) return 'bg-muted/30 text-muted border border-border/50'
+              const metaQtd = metaAcumArr[idx] ?? 0
+              const realQtd = entregueAcumArr[idx] ?? 0
+              const ambosZero = metaTotal < 1 && realQtd < 1
+              const atingiu = metaTotal > 0 && (metaQtd <= 0 ? realQtd <= 0 : realQtd >= metaQtd)
+              const folhaMetaZeroRealPos = metaQtd <= 0 && realQtd > 0
+              return ambosZero
+                ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                : folhaMetaZeroRealPos || atingiu
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-red-500 text-white'
+            }}
+            metaTitle={(idx) => {
+              const head = metaAcumArr[idx] ?? 0
+              const pct =
+                metaTotal > 0 ? Math.min(100, Math.round((head / metaTotal) * 10000) / 100) : 0
+              return `${mesesNomes[idx]}: meta acumulada ${head.toLocaleString('pt-BR')} itens (${fmtPctEntregas(pct)}% da meta anual)`
+            }}
+            realTitle={(idx) => {
+              const future = isFutureMonthCellEntregas(anoNum, idx + 1)
+              if (future) return `${mesesNomes[idx]}: mês ainda não iniciado`
+              const metaQtd = metaAcumArr[idx] ?? 0
+              const realQtd = entregueAcumArr[idx] ?? 0
+              const pct = Number(realPctAcum[idx] ?? 0)
+              return `${mesesNomes[idx]}: ${realQtd.toLocaleString('pt-BR')} itens acum. · meta ${metaQtd.toLocaleString('pt-BR')} · cobertura ${fmtPctEntregas(pct)}%`
+            }}
+            evolTitle={(idx) => {
+              const future = isFutureMonthCellEntregas(anoNum, idx + 1)
+              if (future) return `${mesesNomes[idx]}: mês ainda não iniciado`
+              const cur = Number(realPctAcum[idx] ?? 0)
+              const prev = idx > 0 ? Number(realPctAcum[idx - 1] ?? 0) : 0
+              const evol = cur - prev
+              const sinal = evol > 0 ? '+' : ''
+              return `${mesesNomes[idx]}: ${sinal}${fmtPctEntregas(evol)}% do real no mês`
+            }}
+            footerLeft={
+              <>
                 Total: <span className="font-semibold text-text">{entregueAteMesCorrente.toLocaleString('pt-BR')}</span> de{' '}
                 <span className="font-semibold text-text">{metaTotal.toLocaleString('pt-BR')}</span> itens entregues
-              </div>
-              <div className="text-right">
+              </>
+            }
+            footerRight={
+              <>
                 <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                   {fmtPctEntregas(metaTotal > 0 ? (entregueAteMesCorrente / metaTotal) * 100 : 0)}%
                 </span>{' '}
                 de cobertura
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-2 border-t border-border">
-              <div className="w-20"></div>
-              <div className="flex-1 grid grid-cols-12 gap-1">
-                {mesesNomes.map((nome) => (
-                  <div key={nome} className="px-2 py-1.5 rounded-lg text-[10px] font-medium text-center text-muted bg-panel border border-border">
-                    {nome.substring(0, 3)}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+              </>
+            }
+          />
         );
       })()}
 

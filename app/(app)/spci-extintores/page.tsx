@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Flame, AlertTriangle, Clock, FileX, Search, ChevronLeft, ChevronRight, Settings, Save, X, Download, Filter, RefreshCw } from 'lucide-react';
 import { formatarNomeUnidade } from '@/lib/spci/unidadeMapper';
+import MetaVsRealCard from '@/components/shared/MetaVsRealCard';
 
 type ExtintorRow = {
   id: number;
@@ -493,13 +494,115 @@ export default function SPCIExtintoresPage() {
       ) : null}
 
       {/* Meta vs Real */}
-      <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold">
-              Meta vs Real {regional ? `- ${regional}` : '(Consolidado)'}
-            </h2>
-            </div>
+      {metaReal && stats ? (
+        (() => {
+          const mesesKeys = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
+          const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+          const anoNum = Number(anoMetaReal) || new Date().getFullYear()
+          const totalMeta = Number(metaReal.totalMeta || 0)
+          return (
+            <MetaVsRealCard
+              title={`Meta vs Real ${regional ? `- ${regional}` : '(Consolidado)'}`}
+              yearControl={
+                <div className="flex items-center gap-2">
+                  <select
+                    value={anoMetaReal}
+                    onChange={(e) => setAnoMetaReal(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg border border-border bg-bg text-xs"
+                  >
+                    {anos.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                  {metaRealLoading ? <span className="text-[11px] text-muted">Carregando...</span> : null}
+                </div>
+              }
+              monthsShort={mesesNomes}
+              metaPct={mesesKeys.map((mes) => {
+                const q = Number(metaReal.meta?.[mes] ?? 0)
+                return totalMeta > 0 ? Math.min(100, Math.round((q / totalMeta) * 10000) / 100) : 0
+              })}
+              realPct={mesesKeys.map((mes, idx) => {
+                const future = isFutureMonthCell(anoNum, idx + 1)
+                if (future) return null
+                const q = Number(metaReal.realAcumulado?.[mes] ?? 0)
+                return totalMeta > 0 ? Math.min(100, Math.round((q / totalMeta) * 10000) / 100) : 0
+              })}
+              evolPct={mesesKeys.map((mes, idx) => {
+                const future = isFutureMonthCell(anoNum, idx + 1)
+                if (future) return null
+                const cur = Number(metaReal.realAcumulado?.[mes] ?? 0)
+                const prevMes = idx > 0 ? mesesKeys[idx - 1] : null
+                const prev = prevMes ? Number(metaReal.realAcumulado?.[prevMes] ?? 0) : 0
+                const curPct = totalMeta > 0 ? Math.min(100, Math.round((cur / totalMeta) * 10000) / 100) : 0
+                const prevPct = totalMeta > 0 ? Math.min(100, Math.round((prev / totalMeta) * 10000) / 100) : 0
+                return curPct - prevPct
+              })}
+              realClassName={(idx) => {
+                const future = isFutureMonthCell(anoNum, idx + 1)
+                if (future) return 'bg-muted/30 text-muted border border-border/50'
+                const mes = mesesKeys[idx]
+                const realQtd = Number(metaReal.realAcumulado?.[mes] ?? 0)
+                const metaQtd = Number(metaReal.meta?.[mes] ?? 0)
+                const ambosZero = totalMeta < 1 && realQtd < 1
+                const atingiu = totalMeta > 0 && realQtd >= metaQtd
+                return ambosZero
+                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  : atingiu
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-red-500 text-white'
+              }}
+              metaTitle={(idx) => {
+                const mes = mesesKeys[idx]
+                const q = Number(metaReal.meta?.[mes] ?? 0)
+                const pct = totalMeta > 0 ? Math.min(100, Math.round((q / totalMeta) * 10000) / 100) : 0
+                return `${mesesNomes[idx]}: meta acumulada ${q} extintor(es) (${fmtPct(pct)}% da meta anual)`
+              }}
+              realTitle={(idx) => {
+                const future = isFutureMonthCell(anoNum, idx + 1)
+                if (future) return `${mesesNomes[idx]}: mês ainda não iniciado`
+                const mes = mesesKeys[idx]
+                const realQtd = Number(metaReal.realAcumulado?.[mes] ?? 0)
+                const metaQtd = Number(metaReal.meta?.[mes] ?? 0)
+                const pct = totalMeta > 0 ? Math.min(100, Math.round((realQtd / totalMeta) * 10000) / 100) : 0
+                return `${mesesNomes[idx]}: ${realQtd} recarregado(s) acum. de ${metaQtd} planejado(s) acum. · cobertura ${fmtPct(pct)}%`
+              }}
+              evolTitle={(idx) => {
+                const future = isFutureMonthCell(anoNum, idx + 1)
+                if (future) return `${mesesNomes[idx]}: mês ainda não iniciado`
+                const mes = mesesKeys[idx]
+                const cur = Number(metaReal.realAcumulado?.[mes] ?? 0)
+                const prevMes = idx > 0 ? mesesKeys[idx - 1] : null
+                const prev = prevMes ? Number(metaReal.realAcumulado?.[prevMes] ?? 0) : 0
+                const curPct = totalMeta > 0 ? Math.min(100, Math.round((cur / totalMeta) * 10000) / 100) : 0
+                const prevPct = totalMeta > 0 ? Math.min(100, Math.round((prev / totalMeta) * 10000) / 100) : 0
+                const evol = curPct - prevPct
+                const sinal = evol > 0 ? '+' : ''
+                return `${mesesNomes[idx]}: ${sinal}${fmtPct(evol)}% do real no mês`
+              }}
+              footerLeft={
+                <>
+                  Total: <span className="font-semibold text-text">{Number(metaReal.totalReal ?? 0).toLocaleString('pt-BR')}</span> de{' '}
+                  <span className="font-semibold text-text">{Number(metaReal.totalMeta ?? 0).toLocaleString('pt-BR')}</span> recargas executadas
+                </>
+              }
+              footerRight={
+                <>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    {fmtPct(totalMeta > 0 ? (Number(metaReal.totalReal ?? 0) / totalMeta) * 100 : 0)}%
+                  </span>{' '}
+                  de conclusão
+                </>
+              }
+            />
+          )
+        })()
+      ) : (
+        <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-sm font-semibold">Meta vs Real {regional ? `- ${regional}` : '(Consolidado)'}</h2>
             <div className="flex items-center gap-2">
               <select
                 value={anoMetaReal}
@@ -512,192 +615,12 @@ export default function SPCIExtintoresPage() {
                   </option>
                 ))}
               </select>
-              {metaRealLoading && (
-                <span className="text-[11px] text-muted">Carregando...</span>
-              )}
+              {metaRealLoading ? <span className="text-[11px] text-muted">Carregando...</span> : null}
             </div>
           </div>
-
-        {metaReal && stats && (
-          <>
-            <div className="flex items-center gap-2">
-              <div className="w-20 font-bold text-sm text-text">META</div>
-              <div className="flex-1 grid grid-cols-12 gap-1">
-                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
-                  (mes, idx) => {
-                    const quantidade = metaReal.meta[mes] || 0;
-                    const totalMeta = metaReal.totalMeta || 0;
-                    const pctMeta =
-                      totalMeta > 0 ? Math.min(100, Math.round((quantidade / totalMeta) * 10000) / 100) : 0;
-                    const mesesNomes = [
-                      'Jan',
-                      'Fev',
-                      'Mar',
-                      'Abr',
-                      'Mai',
-                      'Jun',
-                      'Jul',
-                      'Ago',
-                      'Set',
-                      'Out',
-                      'Nov',
-                      'Dez',
-                    ];
-                    return (
-                      <div
-                        key={mes}
-                        className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded"
-                        title={`${mesesNomes[idx]}: meta acumulada ${quantidade} extintor(es) (${fmtPct(pctMeta)}% da meta anual)`}
-                      >
-                        {fmtPct(pctMeta)}%
-                      </div>
-                    );
-                  },
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="w-20 font-bold text-sm text-emerald-600 dark[text-emerald-400]">
-                REAL
-              </div>
-              <div className="flex-1 grid grid-cols-12 gap-1">
-                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
-                  (mes, idx) => {
-                    const m = idx + 1;
-                    const anoNum = Number(anoMetaReal) || new Date().getFullYear();
-                    const future = isFutureMonthCell(anoNum, m);
-                    const quantidadeRealAcumulado = metaReal.realAcumulado?.[mes] || 0;
-                    const quantidadeMeta = metaReal.meta[mes] || 0;
-                    const totalMeta = metaReal.totalMeta || 0;
-                    const realPct =
-                      totalMeta > 0
-                        ? Math.min(100, Math.round((quantidadeRealAcumulado / totalMeta) * 10000) / 100)
-                        : 0;
-                    const mesesNomes = [
-                      'Jan',
-                      'Fev',
-                      'Mar',
-                      'Abr',
-                      'Mai',
-                      'Jun',
-                      'Jul',
-                      'Ago',
-                      'Set',
-                      'Out',
-                      'Nov',
-                      'Dez',
-                    ];
-                    const ambosZero = totalMeta < 1 && quantidadeRealAcumulado < 1;
-                    const atingiuMeta = !future && totalMeta > 0 && quantidadeRealAcumulado >= quantidadeMeta;
-                    return (
-                      <div
-                        key={mes}
-                        className={`text-center text-xs font-bold py-1.5 rounded ${
-                          future
-                            ? 'bg-muted/30 text-muted border border-border/50'
-                            : ambosZero
-                              ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                              : atingiuMeta
-                                ? 'bg-emerald-500 text-white'
-                                : 'bg-red-500 text-white'
-                        }`}
-                        title={
-                          future
-                            ? `${mesesNomes[idx]}: mês ainda não iniciado`
-                            : `${mesesNomes[idx]}: ${quantidadeRealAcumulado} recarregado(s) acum. de ${quantidadeMeta} planejado(s) acum. · cobertura ${fmtPct(realPct)}%`
-                        }
-                      >
-                        {future ? '—' : `${fmtPct(realPct)}%`}
-                      </div>
-                    );
-                  },
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="w-20 font-bold text-sm text-blue-600 dark:text-blue-400">EVOL.</div>
-              <div className="flex-1 grid grid-cols-12 gap-1">
-                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
-                  const m = idx + 1;
-                  const anoNum = Number(anoMetaReal) || new Date().getFullYear();
-                  const future = isFutureMonthCell(anoNum, m);
-                  if (future) {
-                    return (
-                      <div
-                        key={mes}
-                        className="text-center text-xs font-medium py-1.5 rounded bg-muted/20 text-muted border border-border/40"
-                      >
-                        —
-                      </div>
-                    );
-                  }
-
-                  const totalMeta = metaReal.totalMeta || 0;
-                  const curQtd = metaReal.realAcumulado?.[mes] || 0;
-                  const prevMes = idx > 0 ? String(idx).padStart(2, '0') : null;
-                  const prevQtd = prevMes ? metaReal.realAcumulado?.[prevMes] || 0 : 0;
-                  const curPct =
-                    totalMeta > 0 ? Math.min(100, Math.round((curQtd / totalMeta) * 10000) / 100) : 0;
-                  const prevPct =
-                    totalMeta > 0 ? Math.min(100, Math.round((prevQtd / totalMeta) * 10000) / 100) : 0;
-                  const evol = curPct - prevPct;
-                  const sinal = evol > 0 ? '+' : '';
-                  const cellClass =
-                    evol > 0
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                      : evol === 0
-                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
-
-                  return (
-                    <div
-                      key={mes}
-                      className={`text-center text-[10px] font-medium py-1 rounded ${cellClass}`}
-                      title={`${['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][idx]}: ${sinal}${fmtPct(evol)}% do real no mês`}
-                    >
-                      {sinal}{fmtPct(evol)}%
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-2 border-t border-border">
-              <div className="w-20"></div>
-              <div className="flex-1 grid grid-cols-12 gap-1">
-                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
-                  const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                  return (
-                    <div
-                      key={mes}
-                      className="px-2 py-1.5 rounded-lg text-[10px] font-medium text-center text-muted bg-panel border border-border"
-                      title={mesesNomes[idx]}
-                    >
-                      {mesesNomes[idx]}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-border text-[11px] text-muted">
-              <div>
-                Total: <span className="font-semibold text-text">{Number(metaReal.totalReal ?? 0).toLocaleString('pt-BR')}</span> de{' '}
-                <span className="font-semibold text-text">{Number(metaReal.totalMeta ?? 0).toLocaleString('pt-BR')}</span> recargas executadas
-              </div>
-              <div className="text-right">
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                  {fmtPct(metaReal.totalMeta > 0 ? (Number(metaReal.totalReal ?? 0) / Number(metaReal.totalMeta)) * 100 : 0)}%
-                </span>
-                {' '}de conclusão
-              </div>
-            </div>
-
-          </>
-        )}
-      </div>
+          <div className="text-[11px] text-muted">Carregando meta vs real…</div>
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { CheckCircle2, XCircle, Info, Search, Filter, RefreshCw, Download, FileText } from 'lucide-react';
 import { SITUACAO_ABANDONO_EMPREGO } from '@/lib/ordem-servico-sql';
+import MetaVsRealCard from '@/components/shared/MetaVsRealCard';
 
 type Toast = { id: string; message: string; type: 'success' | 'error' | 'info' };
 function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast: (id: string) => void }) {
@@ -486,142 +487,80 @@ export default function OrdemServicoPage() {
             );
 
           return (
-            <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="text-sm font-semibold">
-                  Meta vs Real - Ordem de Serviço{regional ? ` (${regional})` : ' (Consolidado)'}
-                </h2>
-                <span className="rounded-lg border border-border bg-bg px-3 py-1.5 text-xs font-semibold tabular-nums">
-                  {ANO_OS}
-                </span>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-20 font-bold text-sm text-text">META</div>
-                  <div className="flex-1 grid grid-cols-12 gap-1">
-                    {mesesKeys.map((mes, idx) => {
-                      const head = Number(metaReal.meta?.[mes] ?? 0);
-                      const pctTotal = metaPctDoTotal(head);
-                      return (
-                        <div
-                          key={mes}
-                          className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded"
-                          title={`${mesesNomes[idx]}: meta acumulada ${head.toLocaleString('pt-BR')} (${fmtPct(pctTotal)}% da coorte)`}
-                        >
-                          {fmtPct(pctTotal)}%
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
-                  <div className="flex-1 grid grid-cols-12 gap-1">
-                    {mesesKeys.map((mes, idx) => {
-                      const m = idx + 1;
-                      const future = isFutureMonthCell(anoNum, m);
-                      const realPct = future ? 0 : realPctAcum(mes);
-                      const realQtd = Number(metaReal.realAcumulado?.[mes] ?? 0);
-                      const metaQtd = Number(metaReal.meta?.[mes] ?? 0);
-                      const ambosZero = metaTotal < 1 && realQtd < 1;
-                      const atingiu =
-                        !future && metaTotal > 0 && metaQtd > 0 && realQtd >= metaQtd;
-                      const cor = future
-                        ? 'bg-muted/30 text-muted border border-border/50'
-                        : ambosZero
-                          ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                          : atingiu
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-red-500 text-white';
-
-                      return (
-                        <div
-                          key={mes}
-                          className={`text-center text-xs font-bold tabular-nums py-1.5 rounded ${cor}`}
-                          title={
-                            future
-                              ? `${mesesNomes[idx]}: mês futuro`
-                              : `${mesesNomes[idx]}: ${realQtd.toLocaleString('pt-BR')} OS acum. · meta ${metaQtd.toLocaleString('pt-BR')} · cobertura ${fmtPct(realPct)}%`
-                          }
-                        >
-                          {future ? '—' : `${fmtPct(realPct)}%`}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="w-20 font-bold text-xs text-blue-600 dark:text-blue-400">EVOL.</div>
-                  <div className="flex-1 grid grid-cols-12 gap-1">
-                    {mesesKeys.map((mes, idx) => {
-                      const m = idx + 1;
-                      const future = isFutureMonthCell(anoNum, m);
-                      if (future) {
-                        return (
-                          <div
-                            key={mes}
-                            className="text-center text-xs font-medium py-1.5 rounded bg-muted/20 text-muted border border-border/40"
-                          >
-                            —
-                          </div>
-                        );
-                      }
-                      const cur = realPctAcum(mes);
-                      const prevMes = idx > 0 ? mesesKeys[idx - 1] : null;
-                      const prev = prevMes != null ? realPctAcum(prevMes) : 0;
-                      const evol = cur - prev;
-                      const sinal = evol > 0 ? '+' : '';
-                      const cellClass =
-                        evol > 0
-                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                          : evol === 0
-                            ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
-
-                      return (
-                        <div
-                          key={mes}
-                          className={`text-center text-[10px] font-medium py-1 rounded ${cellClass}`}
-                          title={`${mesesNomes[idx]}: ${sinal}${fmtPct(evol)}% do real no mês`}
-                        >
-                          {sinal}{fmtPct(evol)}%
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-2 border-t border-border">
-                  <div className="w-20" />
-                  <div className="flex-1 grid grid-cols-12 gap-1">
-                    {mesesNomes.map((nome) => (
-                      <div
-                        key={nome}
-                        className="px-2 py-1.5 rounded-lg text-[10px] font-medium text-center text-muted bg-panel border border-border"
-                      >
-                        {nome}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-border text-[11px] text-muted">
-                  <div>
-                    Total: <span className="font-semibold text-text">{totalReal.toLocaleString('pt-BR')}</span> de{' '}
-                    <span className="font-semibold text-text">{metaTotal.toLocaleString('pt-BR')}</span> OS entregues
-                  </div>
-                  <div className="text-right">
-                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                      {fmtPct(metaTotal > 0 ? (totalReal / metaTotal) * 100 : 0)}%
-                    </span>
-                    {' '}de cobertura
-                  </div>
-                </div>
-              </div>
-            </div>
+            <MetaVsRealCard
+              title={`Meta vs Real - Ordem de Serviço${regional ? ` (${regional})` : ' (Consolidado)'}`}
+              yearControl={
+                <span className="rounded-lg border border-border bg-bg px-3 py-1.5 text-xs font-semibold tabular-nums">{ANO_OS}</span>
+              }
+              monthsShort={mesesNomes}
+              metaPct={mesesKeys.map((mes) => metaPctDoTotal(Number(metaReal.meta?.[mes] ?? 0)))}
+              realPct={mesesKeys.map((mes, idx) => {
+                const future = isFutureMonthCell(anoNum, idx + 1)
+                return future ? null : realPctAcum(mes)
+              })}
+              evolPct={mesesKeys.map((mes, idx) => {
+                const future = isFutureMonthCell(anoNum, idx + 1)
+                if (future) return null
+                const cur = realPctAcum(mes)
+                const prevMes = idx > 0 ? mesesKeys[idx - 1] : null
+                const prev = prevMes != null ? realPctAcum(prevMes) : 0
+                return cur - prev
+              })}
+              realClassName={(idx) => {
+                const future = isFutureMonthCell(anoNum, idx + 1)
+                if (future) return 'bg-muted/30 text-muted border border-border/50'
+                const mes = mesesKeys[idx]
+                const realQtd = Number(metaReal.realAcumulado?.[mes] ?? 0)
+                const metaQtd = Number(metaReal.meta?.[mes] ?? 0)
+                const ambosZero = metaTotal < 1 && realQtd < 1
+                const atingiu = metaTotal > 0 && metaQtd > 0 && realQtd >= metaQtd
+                return ambosZero
+                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  : atingiu
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-red-500 text-white'
+              }}
+              metaTitle={(idx) => {
+                const mes = mesesKeys[idx]
+                const head = Number(metaReal.meta?.[mes] ?? 0)
+                const pct = metaPctDoTotal(head)
+                return `${mesesNomes[idx]}: meta acumulada ${head.toLocaleString('pt-BR')} (${fmtPct(pct)}% da coorte)`
+              }}
+              realTitle={(idx) => {
+                const future = isFutureMonthCell(anoNum, idx + 1)
+                if (future) return `${mesesNomes[idx]}: mês futuro`
+                const mes = mesesKeys[idx]
+                const realQtd = Number(metaReal.realAcumulado?.[mes] ?? 0)
+                const metaQtd = Number(metaReal.meta?.[mes] ?? 0)
+                const pct = realPctAcum(mes)
+                return `${mesesNomes[idx]}: ${realQtd.toLocaleString('pt-BR')} OS acum. · meta ${metaQtd.toLocaleString('pt-BR')} · cobertura ${fmtPct(pct)}%`
+              }}
+              evolTitle={(idx) => {
+                const future = isFutureMonthCell(anoNum, idx + 1)
+                if (future) return `${mesesNomes[idx]}: mês futuro`
+                const mes = mesesKeys[idx]
+                const cur = realPctAcum(mes)
+                const prevMes = idx > 0 ? mesesKeys[idx - 1] : null
+                const prev = prevMes != null ? realPctAcum(prevMes) : 0
+                const evol = cur - prev
+                const sinal = evol > 0 ? '+' : ''
+                return `${mesesNomes[idx]}: ${sinal}${fmtPct(evol)}% do real no mês`
+              }}
+              footerLeft={
+                <>
+                  Total: <span className="font-semibold text-text">{totalReal.toLocaleString('pt-BR')}</span> de{' '}
+                  <span className="font-semibold text-text">{metaTotal.toLocaleString('pt-BR')}</span> OS entregues
+                </>
+              }
+              footerRight={
+                <>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    {fmtPct(metaTotal > 0 ? (totalReal / metaTotal) * 100 : 0)}%
+                  </span>{' '}
+                  de cobertura
+                </>
+              }
+            />
           );
         })()
       ) : null}
