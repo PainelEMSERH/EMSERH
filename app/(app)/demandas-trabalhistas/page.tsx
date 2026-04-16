@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { Search, RefreshCw, Download, ChevronLeft, ChevronRight, Edit2, Plus } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Search, RefreshCw, Download, ChevronLeft, ChevronRight, Edit2, Plus, Columns2 } from 'lucide-react';
 
 type Row = {
   id: number;
@@ -42,6 +42,66 @@ type OptionsData = {
 };
 
 const MONTH_LABELS = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+type ColId =
+  | 'numeroSei'
+  | 'demandante'
+  | 'tipoDemanda'
+  | 'origem'
+  | 'unidade'
+  | 'regional'
+  | 'dataChegada'
+  | 'mesChegada'
+  | 'anoChegada'
+  | 'responsavel'
+  | 'status'
+  | 'prazoDias'
+  | 'dataLimite'
+  | 'dataConclusao'
+  | 'mesConclusao'
+  | 'destino'
+  | 'statusFinal'
+  | 'tempoRespostaDias';
+
+const COLS_LS = 'emserh-demandas-cols-v1';
+const COL_DEFS: { id: ColId; label: string }[] = [
+  { id: 'numeroSei', label: 'Nº SEI' },
+  { id: 'demandante', label: 'Demandante' },
+  { id: 'tipoDemanda', label: 'Tipo de demanda' },
+  { id: 'origem', label: 'Origem' },
+  { id: 'unidade', label: 'Unidade' },
+  { id: 'regional', label: 'Regional' },
+  { id: 'dataChegada', label: 'Data chegada' },
+  { id: 'mesChegada', label: 'Mês Chegada' },
+  { id: 'anoChegada', label: 'Ano Chegada' },
+  { id: 'responsavel', label: 'Responsável' },
+  { id: 'status', label: 'Status' },
+  { id: 'prazoDias', label: 'Prazo (dias)' },
+  { id: 'dataLimite', label: 'Data limite' },
+  { id: 'dataConclusao', label: 'Data conclusão' },
+  { id: 'mesConclusao', label: 'Mês Conclusão' },
+  { id: 'destino', label: 'Destino' },
+  { id: 'statusFinal', label: 'Status Final' },
+  { id: 'tempoRespostaDias', label: 'Tempo Resp. (dias)' },
+];
+
+function defaultColVisibility(): Record<ColId, boolean> {
+  const v = {} as Record<ColId, boolean>;
+  for (const c of COL_DEFS) v[c.id] = true;
+  return v;
+}
+
+function loadColVisibility(): Record<ColId, boolean> {
+  const base = defaultColVisibility();
+  if (typeof window === 'undefined') return base;
+  try {
+    const raw = localStorage.getItem(COLS_LS);
+    if (!raw) return base;
+    const parsed = JSON.parse(raw) as Partial<Record<ColId, boolean>>;
+    return { ...base, ...parsed };
+  } catch {
+    return base;
+  }
+}
 
 function getStatusClasses(value: string) {
   if (!value) return 'bg-slate-200 text-slate-700 border-slate-300';
@@ -79,6 +139,67 @@ function formatAvgDays(value: number | null | undefined) {
   return Number(value).toFixed(1);
 }
 
+function TableHorizontalScroll({ children, depsKey }: { children: React.ReactNode; depsKey: string }) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const topRef = useRef<HTMLDivElement>(null);
+  const [innerW, setInnerW] = useState(0);
+  const [showTopBar, setShowTopBar] = useState(false);
+
+  const measure = useCallback(() => {
+    const el = bottomRef.current;
+    if (!el) return;
+    const w = el.scrollWidth;
+    setInnerW(w);
+    setShowTopBar(w > el.clientWidth + 2);
+  }, []);
+
+  useEffect(() => {
+    measure();
+    const el = bottomRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [measure, depsKey]);
+
+  const onBottomScroll = () => {
+    const b = bottomRef.current;
+    const t = topRef.current;
+    if (!b || !t || t.scrollLeft === b.scrollLeft) return;
+    t.scrollLeft = b.scrollLeft;
+  };
+
+  const onTopScroll = () => {
+    const b = bottomRef.current;
+    const t = topRef.current;
+    if (!b || !t || b.scrollLeft === t.scrollLeft) return;
+    b.scrollLeft = t.scrollLeft;
+  };
+
+  return (
+    <div className="relative">
+      {showTopBar ? (
+        <div
+          className="overflow-x-auto overflow-y-hidden border-b border-border/70 bg-bg/40"
+          onScroll={onTopScroll}
+          ref={topRef}
+          role="presentation"
+          aria-hidden
+        >
+          <div style={{ width: innerW, height: 1 }} />
+        </div>
+      ) : null}
+      <div ref={bottomRef} className="overflow-x-auto" onScroll={onBottomScroll}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function DemandasTrabalhistasPage() {
   const [regional, setRegional] = useState('');
   const [unidade, setUnidade] = useState('');
@@ -91,6 +212,8 @@ export default function DemandasTrabalhistasPage() {
   const [pageSize, setPageSize] = useState(25);
   const [sortBy, setSortBy] = useState('dataChegada');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [colVis, setColVis] = useState<Record<ColId, boolean>>(() => defaultColVisibility());
+  const [colPickerOpen, setColPickerOpen] = useState(false);
 
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
@@ -120,6 +243,18 @@ export default function DemandasTrabalhistasPage() {
     row: null,
     saving: false,
   });
+
+  useEffect(() => {
+    setColVis(loadColVisibility());
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(COLS_LS, JSON.stringify(colVis));
+    } catch {
+      // ignore
+    }
+  }, [colVis]);
 
   useEffect(() => {
     fetchJSON<OptionsData & { ok: boolean }>('/api/demandas-trabalhistas/options')
@@ -253,6 +388,15 @@ export default function DemandasTrabalhistasPage() {
   const maxMonthlyTotal = useMemo(
     () => Math.max(1, ...monthlySummary.map((item) => Number(item.total || 0))),
     [monthlySummary]
+  );
+  const tableScrollDeps = useMemo(
+    () =>
+      JSON.stringify({
+        loading,
+        rows: rows.length,
+        cols: COL_DEFS.filter((c) => colVis[c.id] !== false).map((c) => c.id),
+      }),
+    [loading, rows.length, colVis]
   );
 
   const unidadesFiltradas = useMemo(() => {
@@ -545,6 +689,17 @@ export default function DemandasTrabalhistasPage() {
         )}
       </div>
 
+      {!loading && rows.length > 0 && (
+        <div className="rounded-xl border border-border bg-panel p-3 shadow-sm">
+          <div className="flex items-center justify-between text-sm">
+            <div className="text-muted">
+              Mostrando <span className="font-semibold text-text">{rows.length}</span> de{' '}
+              <span className="font-semibold text-text">{total.toLocaleString()}</span> demandas
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="bg-gradient-to-r from-emerald-700 via-emerald-600 to-cyan-600 px-5 py-5 text-white">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -698,19 +853,65 @@ export default function DemandasTrabalhistasPage() {
         </div>
       </div>
 
-      {!loading && rows.length > 0 && (
-        <div className="rounded-xl border border-border bg-panel p-3 shadow-sm">
-          <div className="flex items-center justify-between text-sm">
-            <div className="text-muted">
-              Mostrando <span className="font-semibold text-text">{rows.length}</span> de{' '}
-              <span className="font-semibold text-text">{total.toLocaleString()}</span> demandas
-            </div>
+      <div className="rounded-xl border border-border bg-panel shadow-sm overflow-hidden">
+        <div className="flex flex-wrap items-center justify-end gap-3 border-b border-border bg-bg/40 px-4 py-3">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setColPickerOpen((v) => !v)}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-text hover:bg-bg"
+            >
+              <Columns2 className="h-4 w-4" />
+              Ocultar colunas
+            </button>
+            {colPickerOpen ? (
+              <>
+                <button
+                  type="button"
+                  className="fixed inset-0 z-30 cursor-default bg-transparent"
+                  aria-label="Fechar menu de colunas"
+                  onClick={() => setColPickerOpen(false)}
+                />
+                <div className="absolute right-0 z-40 mt-1 max-h-80 w-56 overflow-y-auto rounded-xl border border-border bg-panel py-2 shadow-lg">
+                  <p className="border-b border-border px-3 pb-2 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                    Marque para exibir
+                  </p>
+                  {COL_DEFS.map((c) => (
+                    <label key={c.id} className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted/30">
+                      <input
+                        type="checkbox"
+                        checked={colVis[c.id] !== false}
+                        onChange={() => setColVis((prev) => ({ ...prev, [c.id]: !(prev[c.id] !== false) }))}
+                      />
+                      {c.label}
+                    </label>
+                  ))}
+                  <div className="flex flex-col gap-1 border-t border-border px-3 pt-2">
+                    <button
+                      type="button"
+                      className="text-left text-xs font-medium text-emerald-600 hover:underline"
+                      onClick={() => setColVis(defaultColVisibility())}
+                    >
+                      Mostrar layout padrão
+                    </button>
+                    <button
+                      type="button"
+                      className="text-left text-xs font-medium text-muted hover:text-text"
+                      onClick={() => {
+                        const all = {} as Record<ColId, boolean>;
+                        for (const c of COL_DEFS) all[c.id] = true;
+                        setColVis(all);
+                      }}
+                    >
+                      Mostrar todas as colunas
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
-      )}
-
-      <div className="rounded-xl border border-border bg-panel shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        <TableHorizontalScroll depsKey={tableScrollDeps}>
           {loading ? (
             <div className="text-center py-8 text-muted">
               <div className="inline-block w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-2" />
@@ -719,89 +920,78 @@ export default function DemandasTrabalhistasPage() {
           ) : rows.length === 0 ? (
             <div className="text-center py-8 text-muted">Nenhum registro encontrado</div>
           ) : (
-            <table className="w-full text-[11px]">
+            <table className="w-full min-w-[1750px] text-[11px]">
               <thead className="bg-bg/50 border-b border-border">
                 <tr>
-                  {[
-                    ['numeroSei', 'Nº SEI'],
-                    ['demandante', 'Demandante'],
-                    ['tipoDemanda', 'Tipo de demanda'],
-                    ['origem', 'Origem'],
-                    ['unidade', 'Unidade'],
-                    ['regional', 'Regional'],
-                    ['dataChegada', 'Data chegada'],
-                    ['mesChegada', 'Mês Chegada'],
-                    ['anoChegada', 'Ano Chegada'],
-                    ['responsavel', 'Responsável'],
-                    ['status', 'Status'],
-                    ['prazoDias', 'Prazo (dias)'],
-                    ['dataLimite', 'Data limite'],
-                    ['dataConclusao', 'Data conclusão'],
-                    ['mesConclusao', 'Mês Conclusão'],
-                    ['destino', 'Destino'],
-                    ['statusFinal', 'Status Final'],
-                    ['tempoRespostaDias', 'Tempo Resp. (dias)'],
-                    ['acoes', 'Ações'],
-                  ].map(([key, label]) => (
+                  {COL_DEFS.filter((c) => colVis[c.id] !== false).map((col) => (
                     <th
-                      key={key}
-                      className={`px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase whitespace-nowrap ${
-                        key === 'acoes' ? 'cursor-default' : 'cursor-pointer hover:bg-bg/70'
-                      }`}
-                      onClick={() => key !== 'acoes' && handleSort(key)}
+                      key={col.id}
+                      className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase whitespace-nowrap cursor-pointer hover:bg-bg/70"
+                      onClick={() => handleSort(col.id)}
                     >
-                      {label} {key !== 'acoes' && sortBy === key && (sortDir === 'asc' ? '↑' : '↓')}
+                      {col.label} {sortBy === col.id && (sortDir === 'asc' ? '↑' : '↓')}
                     </th>
                   ))}
+                  <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase whitespace-nowrap">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {rows.map((row) => (
                   <tr key={row.id} className="hover:bg-bg/30 text-[11px] uppercase">
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
-                      {row.numeroSei || '-'}
-                    </td>
-                    <td className="px-4 py-3 text-center min-w-[220px]">{row.demandante || '-'}</td>
-                    <td className="px-4 py-3 text-center min-w-[180px]">{row.tipoDemanda || '-'}</td>
-                    <td className="px-4 py-3 text-center">{row.origem || '-'}</td>
-                    <td className="px-4 py-3 text-center min-w-[180px]">{row.unidade || '-'}</td>
-                    <td className="px-4 py-3 text-center">{row.regional || '-'}</td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap">{formatDate(row.dataChegada)}</td>
-                    <td className="px-4 py-3 text-center">{row.mesChegada || '-'}</td>
-                    <td className="px-4 py-3 text-center">{row.anoChegada ?? '-'}</td>
-                    <td className="px-4 py-3 text-center">{row.responsavel || '-'}</td>
-                    <td className="px-4 py-3 text-center">
-                      {row.status ? (
-                        <span
-                          className={`inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${getStatusClasses(
-                            row.status
-                          )}`}
-                        >
-                          {row.status}
-                        </span>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">{row.prazoDias ?? '-'}</td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap">{formatDate(row.dataLimite)}</td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap">{formatDate(row.dataConclusao)}</td>
-                    <td className="px-4 py-3 text-center">{row.mesConclusao || '-'}</td>
-                    <td className="px-4 py-3 text-center">{row.destino || '-'}</td>
-                    <td className="px-4 py-3 text-center">
-                      {row.statusFinal ? (
-                        <span
-                          className={`inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${getStatusClasses(
-                            row.statusFinal
-                          )}`}
-                        >
-                          {row.statusFinal}
-                        </span>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">{row.tempoRespostaDias ?? '-'}</td>
+                    {colVis.numeroSei !== false && <td className="px-4 py-3 text-center whitespace-nowrap">{row.numeroSei || '-'}</td>}
+                    {colVis.demandante !== false && <td className="px-4 py-3 text-center min-w-[220px]">{row.demandante || '-'}</td>}
+                    {colVis.tipoDemanda !== false && <td className="px-4 py-3 text-center min-w-[180px]">{row.tipoDemanda || '-'}</td>}
+                    {colVis.origem !== false && <td className="px-4 py-3 text-center">{row.origem || '-'}</td>}
+                    {colVis.unidade !== false && (
+                      <td className="px-4 py-3 text-center min-w-[300px] whitespace-nowrap">{row.unidade || '-'}</td>
+                    )}
+                    {colVis.regional !== false && <td className="px-4 py-3 text-center">{row.regional || '-'}</td>}
+                    {colVis.dataChegada !== false && (
+                      <td className="px-4 py-3 text-center whitespace-nowrap">{formatDate(row.dataChegada)}</td>
+                    )}
+                    {colVis.mesChegada !== false && <td className="px-4 py-3 text-center">{row.mesChegada || '-'}</td>}
+                    {colVis.anoChegada !== false && <td className="px-4 py-3 text-center">{row.anoChegada ?? '-'}</td>}
+                    {colVis.responsavel !== false && <td className="px-4 py-3 text-center">{row.responsavel || '-'}</td>}
+                    {colVis.status !== false && (
+                      <td className="px-4 py-3 text-center">
+                        {row.status ? (
+                          <span
+                            className={`inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${getStatusClasses(
+                              row.status
+                            )}`}
+                          >
+                            {row.status}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                    )}
+                    {colVis.prazoDias !== false && <td className="px-4 py-3 text-center">{row.prazoDias ?? '-'}</td>}
+                    {colVis.dataLimite !== false && (
+                      <td className="px-4 py-3 text-center whitespace-nowrap">{formatDate(row.dataLimite)}</td>
+                    )}
+                    {colVis.dataConclusao !== false && (
+                      <td className="px-4 py-3 text-center whitespace-nowrap">{formatDate(row.dataConclusao)}</td>
+                    )}
+                    {colVis.mesConclusao !== false && <td className="px-4 py-3 text-center">{row.mesConclusao || '-'}</td>}
+                    {colVis.destino !== false && <td className="px-4 py-3 text-center">{row.destino || '-'}</td>}
+                    {colVis.statusFinal !== false && (
+                      <td className="px-4 py-3 text-center">
+                        {row.statusFinal ? (
+                          <span
+                            className={`inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${getStatusClasses(
+                              row.statusFinal
+                            )}`}
+                          >
+                            {row.statusFinal}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                    )}
+                    {colVis.tempoRespostaDias !== false && <td className="px-4 py-3 text-center">{row.tempoRespostaDias ?? '-'}</td>}
                     <td className="px-4 py-3 text-center">
                       <button
                         type="button"
@@ -824,7 +1014,7 @@ export default function DemandasTrabalhistasPage() {
               </tbody>
             </table>
           )}
-        </div>
+        </TableHorizontalScroll>
 
         <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-bg/30">
           <div className="text-sm text-muted">
