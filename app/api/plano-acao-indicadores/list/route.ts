@@ -30,6 +30,37 @@ function regionalCanonicalLabel(s: string): string {
     .join(' ');
 }
 
+/** Colunas permitidas em ORDER BY (evita injeção — só nomes fixos). */
+const GST_SORT_COLS: Record<string, string> = {
+  item: 'item',
+  empresa: 'empresa',
+  unidade: 'unidade',
+  diretoria: 'diretoria',
+  gerencia: 'gerencia',
+  cod_origem: 'cod_origem',
+  data_origem: 'data_origem',
+  origem: 'origem',
+  indicador: 'indicador',
+  auxiliar: 'auxiliar',
+  acao: 'acao',
+  regional: 'regional',
+  responsavel: 'responsavel',
+  prazo: 'prazo',
+  conclusao: 'conclusao',
+  novo_prazo: 'novo_prazo',
+  status: 'status',
+  evidencia: 'evidencia',
+  comentarios: 'comentarios',
+};
+
+function buildOrderClause(sortBy: string, sortDir: 'ASC' | 'DESC'): string {
+  const col = GST_SORT_COLS[sortBy];
+  if (!col) {
+    return 'ORDER BY prazo NULLS LAST, updated_at DESC NULLS LAST';
+  }
+  return `ORDER BY ${col} ${sortDir} NULLS LAST, updated_at DESC NULLS LAST`;
+}
+
 export async function GET(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) {
@@ -46,6 +77,10 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
     const pageSize = Math.min(100, Math.max(10, parseInt(url.searchParams.get('pageSize') || '20', 10)));
     const offset = (page - 1) * pageSize;
+    const sortByParam = (url.searchParams.get('sortBy') || '').trim();
+    const sortDirParam = (url.searchParams.get('sortDir') || 'asc').toLowerCase();
+    const sortDir: 'ASC' | 'DESC' = sortDirParam === 'desc' ? 'DESC' : 'ASC';
+    const orderClause = buildOrderClause(sortByParam, sortDir);
 
     const where: string[] = ['1=1'];
     if (regional) {
@@ -101,7 +136,7 @@ export async function GET(req: NextRequest) {
         updated_at::text AS updated_at
       FROM plano_acao_indicadores
       WHERE ${whereSql}
-      ORDER BY prazo NULLS LAST, updated_at DESC NULLS LAST
+      ${orderClause}
       LIMIT ${pageSize} OFFSET ${offset}
     `);
 

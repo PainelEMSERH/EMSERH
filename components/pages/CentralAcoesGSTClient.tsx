@@ -16,6 +16,9 @@ import {
   Columns2,
   FileText,
   Link2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 
 type Row = {
@@ -85,7 +88,7 @@ const COL_DEFS: { id: ColId; label: string; className?: string }[] = [
   { id: 'prazo', label: 'Prazo', className: 'whitespace-nowrap' },
   { id: 'conclusao', label: 'Conclusão', className: 'whitespace-nowrap' },
   { id: 'novo_prazo', label: 'Novo prazo', className: 'whitespace-nowrap' },
-  { id: 'status', label: 'Status', className: 'max-w-[160px]' },
+  { id: 'status', label: 'Status', className: 'min-w-[200px] max-w-[280px]' },
   { id: 'evidencia', label: 'Evidência', className: 'max-w-[160px]' },
   { id: 'comentarios', label: 'Comentários', className: 'min-w-[180px] max-w-[280px]' },
 ];
@@ -259,7 +262,11 @@ function renderCell(r: Row, col: ColId): React.ReactNode {
   }
   if (col === 'status') {
     return (
-      <span className={`inline-flex max-w-full rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusBadgeClass(t)}`}>{t}</span>
+      <span
+        className={`inline-flex max-w-full whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${statusBadgeClass(t)}`}
+      >
+        {t}
+      </span>
     );
   }
   return t;
@@ -398,6 +405,8 @@ export default function CentralAcoesGSTClient() {
   const [regional, setRegional] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('');
   const [q, setQ] = useState('');
+  const [sortBy, setSortBy] = useState<ColId | ''>('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const [modal, setModal] = useState<Row | null>(null);
   const [formStatus, setFormStatus] = useState('');
@@ -433,6 +442,10 @@ export default function CentralAcoesGSTClient() {
       if (regional) qs.set('regional', regional);
       if (statusFiltro) qs.set('status', statusFiltro);
       if (q.trim()) qs.set('q', q.trim());
+      if (sortBy) {
+        qs.set('sortBy', sortBy);
+        qs.set('sortDir', sortDir);
+      }
 
       const [sRes, lRes] = await Promise.all([
         fetch('/api/plano-acao-indicadores/stats', { cache: 'no-store' }),
@@ -453,7 +466,19 @@ export default function CentralAcoesGSTClient() {
     } finally {
       setLoading(false);
     }
-  }, [page, regional, statusFiltro, q, pushToast]);
+  }, [page, regional, statusFiltro, q, sortBy, sortDir, pushToast]);
+
+  const toggleSort = useCallback((col: ColId) => {
+    setPage(1);
+    setSortBy((prev) => {
+      if (prev === col) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return prev;
+      }
+      setSortDir('asc');
+      return col;
+    });
+  }, []);
 
   useEffect(() => {
     load();
@@ -692,8 +717,7 @@ export default function CentralAcoesGSTClient() {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border bg-panel">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-bg/50 px-4 py-3">
-          <span className="text-sm font-semibold text-text">Linhas ({total.toLocaleString('pt-BR')})</span>
+        <div className="flex flex-wrap items-center justify-end gap-3 border-b border-border bg-bg/50 px-4 py-3">
           <div className="relative">
             <button
               type="button"
@@ -772,12 +796,34 @@ export default function CentralAcoesGSTClient() {
             <table className="w-full min-w-[720px] text-center text-[10px]">
               <thead className="border-b border-border bg-muted/30 text-[10px] font-semibold uppercase tracking-wide text-muted">
                 <tr>
-                  {COL_DEFS.filter((c) => colVis[c.id] !== false).map((c) => (
-                    <th key={c.id} className={`px-3 py-3 text-center ${c.className || ''}`}>
-                      {c.label}
-                    </th>
-                  ))}
-                  <th className="w-28 px-3 py-3 text-center">Ações</th>
+                  {COL_DEFS.filter((c) => colVis[c.id] !== false).map((c) => {
+                    const active = sortBy === c.id;
+                    return (
+                      <th key={c.id} className={`px-2 py-3 text-center ${c.className || ''}`}>
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(c.id)}
+                          className="inline-flex max-w-full items-center justify-center gap-0.5 rounded-md px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted hover:bg-muted/40 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+                          aria-label={`Ordenar por ${c.label}`}
+                          aria-sort={
+                            active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
+                          }
+                        >
+                          <span className="min-w-0 truncate">{c.label}</span>
+                          {active ? (
+                            sortDir === 'asc' ? (
+                              <ArrowUp className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                            ) : (
+                              <ArrowDown className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                            )
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 shrink-0 opacity-35" aria-hidden />
+                          )}
+                        </button>
+                      </th>
+                    );
+                  })}
+                  <th className="w-28 px-3 py-3 text-center text-muted">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
