@@ -56,18 +56,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const relPath = `${relDir.replace(/\\/g, '/')}/${fname}`;
     const nomeEsc = esc(file.name || fname);
+    const publicUrl = `/${relPath}`;
+    const urlEsc = esc(publicUrl);
 
     await prisma.$executeRawUnsafe(`
       UPDATE plano_acao_indicadores
       SET evidencia_storage_path = '${esc(relPath)}',
           evidencia_arquivo_nome = '${nomeEsc}',
+          evidencia = '${urlEsc}',
           updated_at = NOW()
       WHERE id = '${esc(id)}'
     `);
 
     return NextResponse.json({
       ok: true,
-      url: `/${relPath}`,
+      url: publicUrl,
       evidencia_arquivo_nome: file.name || fname,
       evidencia_storage_path: relPath,
     });

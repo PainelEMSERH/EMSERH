@@ -14,6 +14,8 @@ import {
   Info,
   ExternalLink,
   Columns2,
+  FileText,
+  Link2,
 } from 'lucide-react';
 
 type Row = {
@@ -62,7 +64,9 @@ type ColId =
   | 'evidencia'
   | 'comentarios';
 
-const COLS_LS = 'emserh-gst-acoes-cols-v1';
+/** v2: oculta Empresa, Cod. origem, Diretoria e Auxiliar por padrão */
+const COLS_LS = 'emserh-gst-acoes-cols-v2';
+const HIDDEN_BY_DEFAULT: ColId[] = ['empresa', 'cod_origem', 'diretoria', 'auxiliar'];
 
 const COL_DEFS: { id: ColId; label: string; className?: string }[] = [
   { id: 'item', label: 'Item', className: 'max-w-[120px]' },
@@ -88,7 +92,9 @@ const COL_DEFS: { id: ColId; label: string; className?: string }[] = [
 
 function defaultColVisibility(): Record<ColId, boolean> {
   const v = {} as Record<ColId, boolean>;
-  for (const c of COL_DEFS) v[c.id] = true;
+  for (const c of COL_DEFS) {
+    v[c.id] = !HIDDEN_BY_DEFAULT.includes(c.id);
+  }
   return v;
 }
 
@@ -99,7 +105,11 @@ function loadColVisibility(): Record<ColId, boolean> {
     const raw = localStorage.getItem(COLS_LS);
     if (!raw) return base;
     const parsed = JSON.parse(raw) as Partial<Record<ColId, boolean>>;
-    return { ...base, ...parsed };
+    const merged = { ...base, ...parsed };
+    for (const c of COL_DEFS) {
+      if (merged[c.id] === undefined) merged[c.id] = base[c.id];
+    }
+    return merged;
   } catch {
     return base;
   }
@@ -167,21 +177,85 @@ function cellText(r: Row, col: ColId): string {
   return String(v).trim();
 }
 
+function statusBadgeClass(statusRaw: string): string {
+  const s = statusRaw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  if (s.includes('cancel')) {
+    return 'bg-violet-100 text-violet-900 ring-1 ring-violet-200/80 dark:bg-violet-950/55 dark:text-violet-100 dark:ring-violet-800/60';
+  }
+  if (s.includes('conclu') || s.includes('finaliz')) {
+    return 'bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200/80 dark:bg-emerald-950/55 dark:text-emerald-50 dark:ring-emerald-800/60';
+  }
+  if (s.includes('reprogram')) {
+    return 'bg-zinc-200 text-zinc-900 ring-1 ring-zinc-300/80 dark:bg-zinc-800/70 dark:text-zinc-100 dark:ring-zinc-600/50';
+  }
+  if (s.includes('atraso')) {
+    return 'bg-red-100 text-red-900 ring-1 ring-red-200/80 dark:bg-red-950/50 dark:text-red-100 dark:ring-red-800/50';
+  }
+  if (s.includes('prazo') || s.includes('em dia') || s.includes('andamento')) {
+    return 'bg-amber-100 text-amber-950 ring-1 ring-amber-200/80 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-800/40';
+  }
+  return 'bg-muted/70 text-text ring-1 ring-border dark:bg-muted/30';
+}
+
+function evidenceHref(r: Row): string | null {
+  if (r.evidencia_storage_path) {
+    const p = String(r.evidencia_storage_path).replace(/^\/+/, '');
+    return `/${p}`;
+  }
+  const ev = cellText(r, 'evidencia');
+  if (ev && /^https?:\/\//i.test(ev)) return ev;
+  if (ev && ev.startsWith('/')) return ev;
+  return null;
+}
+
+/** No modal: inclui o que o usuário digitou no campo e ainda não salvou. */
+function evidenceUrlForModal(row: Row, formEvidenciaDraft: string): string | null {
+  const h = evidenceHref(row);
+  if (h) return h;
+  const t = formEvidenciaDraft.trim();
+  if (/^https?:\/\//i.test(t)) return t;
+  if (t.startsWith('/')) return t;
+  return null;
+}
+
 function renderCell(r: Row, col: ColId): React.ReactNode {
   const t = cellText(r, col);
+  if (col === 'evidencia') {
+    const href = evidenceHref(r);
+    const label =
+      r.evidencia_arquivo_nome?.trim() ||
+      (t && !t.startsWith('/') && !/^https?:\/\//i.test(t) ? t : '') ||
+      (href ? 'Abrir evidência' : '');
+    if (href) {
+      const isPdf = /\.pdf$/i.test(href) || /\.pdf$/i.test(label);
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex max-w-full items-center gap-1.5 font-medium text-emerald-600 hover:text-emerald-700 hover:underline dark:text-emerald-400 dark:hover:text-emerald-300"
+          title={label || href}
+        >
+          {isPdf ? <FileText className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden /> : <Link2 className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />}
+          <span className="truncate">{label || 'Abrir'}</span>
+          <ExternalLink className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+        </a>
+      );
+    }
+    if (t && !/^https?:\/\//i.test(t) && t.length > 0) {
+      return <span className="line-clamp-2 text-xs">{t}</span>;
+    }
+    return '—';
+  }
   if (!t) return '—';
   if (col === 'prazo' || col === 'conclusao' || col === 'novo_prazo' || col === 'data_origem') {
     return <span className="tabular-nums">{fmtDate(t)}</span>;
   }
-  if (col === 'evidencia' && /^https?:\/\//i.test(t)) {
-    return (
-      <a href={t} target="_blank" rel="noreferrer" className="font-medium text-emerald-600 hover:underline dark:text-emerald-400">
-        link
-      </a>
-    );
-  }
   if (col === 'status') {
-    return <span className="rounded-full bg-muted/60 px-2 py-0.5 text-xs font-medium">{t}</span>;
+    return <span className={`inline-flex max-w-full rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClass(t)}`}>{t}</span>;
   }
   return t;
 }
@@ -381,13 +455,16 @@ export default function CentralAcoesGSTClient() {
       });
       const j = await r.json();
       if (!r.ok || !j.ok) throw new Error(j?.error || 'Falha no upload');
-      pushToast('Evidência anexada.', 'success');
+      const url = typeof j.url === 'string' ? j.url : '';
+      pushToast('Evidência salva. Clique no link para abrir no navegador.', 'success');
+      setFormEvidencia(url);
       setModal((m) =>
         m && m.id === modal.id
           ? {
               ...m,
               evidencia_arquivo_nome: j.evidencia_arquivo_nome ?? m.evidencia_arquivo_nome,
               evidencia_storage_path: j.evidencia_storage_path ?? m.evidencia_storage_path,
+              evidencia: url || m.evidencia,
             }
           : m,
       );
@@ -561,13 +638,24 @@ export default function CentralAcoesGSTClient() {
                       {c.label}
                     </label>
                   ))}
-                  <div className="border-t border-border px-3 pt-2">
+                  <div className="flex flex-col gap-1 border-t border-border px-3 pt-2">
                     <button
                       type="button"
-                      className="text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+                      className="text-left text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400"
                       onClick={() => setColVis(defaultColVisibility())}
                     >
-                      Mostrar todas
+                      Layout padrão (oculta Empresa, Cod. origem, Diretoria, Auxiliar)
+                    </button>
+                    <button
+                      type="button"
+                      className="text-left text-xs font-medium text-muted hover:text-text"
+                      onClick={() => {
+                        const all = {} as Record<ColId, boolean>;
+                        for (const c of COL_DEFS) all[c.id] = true;
+                        setColVis(all);
+                      }}
+                    >
+                      Mostrar todas as colunas
                     </button>
                   </div>
                 </div>
@@ -603,7 +691,13 @@ export default function CentralAcoesGSTClient() {
                     {COL_DEFS.filter((c) => colVis[c.id] !== false).map((c) => (
                       <td
                         key={c.id}
-                        className={`truncate px-3 py-2 text-text ${c.id === 'item' ? 'font-medium' : 'text-muted'} ${c.className || ''}`}
+                        className={`truncate px-3 py-2 ${
+                          c.id === 'item'
+                            ? 'font-medium text-text'
+                            : c.id === 'status' || c.id === 'evidencia'
+                              ? 'text-text'
+                              : 'text-muted'
+                        } ${c.className || ''}`}
                         title={cellText(r, c.id)}
                       >
                         {renderCell(r, c.id)}
@@ -713,33 +807,40 @@ export default function CentralAcoesGSTClient() {
                   />
                 </div>
               </div>
-              <div>
-                <label className="mb-1 flex items-center gap-2 text-xs font-medium text-text">
-                  <Paperclip className="h-3.5 w-3.5" />
-                  Anexar arquivo (evidência)
+              <div className="rounded-xl border border-border bg-bg/40 p-3">
+                <label className="mb-2 flex items-center gap-2 text-xs font-semibold text-text">
+                  <Paperclip className="h-3.5 w-3.5" aria-hidden />
+                  Anexar evidência (PDF, imagem — até 8 MB)
                 </label>
                 <input
                   type="file"
+                  accept=".pdf,.png,.jpg,.jpeg,.webp,.heic"
                   onChange={(e) => onUploadAnexo(e.target.files?.[0] || null)}
                   disabled={uploading}
-                  className="block w-full text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-600 file:px-3 file:py-1.5 file:text-white"
+                  className="block w-full text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-600 file:px-3 file:py-1.5 file:text-white file:font-medium"
                 />
-                {modal.evidencia_arquivo_nome ? (
-                  <p className="mt-1 text-xs text-muted">
-                    Atual:{' '}
-                    {modal.evidencia_storage_path ? (
-                      <a
-                        href={`/${modal.evidencia_storage_path}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-medium text-emerald-600 hover:underline dark:text-emerald-400"
-                      >
-                        {modal.evidencia_arquivo_nome}
-                      </a>
-                    ) : (
-                      modal.evidencia_arquivo_nome
-                    )}
+                {uploading ? (
+                  <p className="mt-2 flex items-center gap-2 text-xs text-muted">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    Enviando e gravando no servidor…
                   </p>
+                ) : null}
+                {evidenceUrlForModal(modal, formEvidencia) ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <a
+                      href={evidenceUrlForModal(modal, formEvidencia)!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+                    >
+                      <FileText className="h-4 w-4" aria-hidden />
+                      Abrir evidência no navegador
+                      <ExternalLink className="h-3.5 w-3.5 opacity-90" aria-hidden />
+                    </a>
+                    <span className="max-w-[220px] truncate text-[11px] text-muted" title={modal.evidencia_arquivo_nome || modal.evidencia || ''}>
+                      {modal.evidencia_arquivo_nome || 'Link / arquivo'}
+                    </span>
+                  </div>
                 ) : null}
               </div>
             </div>
