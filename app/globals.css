@@ -51,13 +51,13 @@ html{ color-scheme: dark light; }
 body{ background: var(--bg); color: var(--text); }
 
 /**
- * Escala ~75% (efeito próximo ao zoom do navegador), só na área autenticada.
+ * Escala ~80% (efeito próximo ao zoom do navegador), só na área autenticada.
  * Classe aplicada/removida pelo AppShell no <html> para portais (Clerk, modais) herdarem a mesma escala.
  * Chromium/WebKit: `zoom`; Firefox pode ignorar — layout permanece 100%.
  * Em telas estreitas não reduzimos, para não comprometer legibilidade.
  */
 html.app-shell-zoom {
-  zoom: 0.75;
+  zoom: 0.8;
 }
 @media (max-width: 640px) {
   html.app-shell-zoom {

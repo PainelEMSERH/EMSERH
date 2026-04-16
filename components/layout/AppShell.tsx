@@ -122,7 +122,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  /** Escala ~75% no <html> só com o app logado — inclui portais (Clerk/modais). Removido ao sair. */
+  /** Escala ~80% no <html> só com o app logado — inclui portais (Clerk/modais). Removido ao sair. */
   useEffect(() => {
     const root = document.documentElement;
     root.classList.add("app-shell-zoom");
