@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Flame,
   FileText,
+  ClipboardList,
   Shield,
   Users,
   PanelLeftClose,
@@ -51,6 +52,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Entregas", href: "/entregas", icon: PackageCheck },
       { label: "Ordens de Serviço", href: "/ordens-de-servico", icon: FileText },
       { label: "CIPA", href: "/cipa", icon: Users },
+      { label: "Central de Ações GST", href: "/central-acoes-gst", icon: ClipboardList },
     ],
   },
   {
