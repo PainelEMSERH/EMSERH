@@ -64,9 +64,9 @@ type ColId =
   | 'evidencia'
   | 'comentarios';
 
-/** v2: oculta Empresa, Cod. origem, Diretoria e Auxiliar por padrão */
-const COLS_LS = 'emserh-gst-acoes-cols-v2';
-const HIDDEN_BY_DEFAULT: ColId[] = ['empresa', 'cod_origem', 'diretoria', 'auxiliar'];
+/** v3: também oculta Gerência por padrão */
+const COLS_LS = 'emserh-gst-acoes-cols-v3';
+const HIDDEN_BY_DEFAULT: ColId[] = ['empresa', 'cod_origem', 'diretoria', 'gerencia', 'auxiliar'];
 
 const COL_DEFS: { id: ColId; label: string; className?: string }[] = [
   { id: 'item', label: 'Item', className: 'max-w-[120px]' },
@@ -236,17 +236,17 @@ function renderCell(r: Row, col: ColId): React.ReactNode {
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex max-w-full items-center gap-1.5 font-medium text-emerald-600 hover:text-emerald-700 hover:underline dark:text-emerald-400 dark:hover:text-emerald-300"
+          className="inline-flex max-w-full items-center gap-1 text-[10px] font-medium text-emerald-600 hover:text-emerald-700 hover:underline dark:text-emerald-400 dark:hover:text-emerald-300"
           title={label || href}
         >
-          {isPdf ? <FileText className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden /> : <Link2 className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />}
+          {isPdf ? <FileText className="h-3 w-3 shrink-0 opacity-80" aria-hidden /> : <Link2 className="h-3 w-3 shrink-0 opacity-80" aria-hidden />}
           <span className="truncate">{label || 'Abrir'}</span>
-          <ExternalLink className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+          <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-60" aria-hidden />
         </a>
       );
     }
     if (t && !/^https?:\/\//i.test(t) && t.length > 0) {
-      return <span className="line-clamp-2 text-xs">{t}</span>;
+      return <span className="line-clamp-2 text-center text-[10px]">{t}</span>;
     }
     return '—';
   }
@@ -255,7 +255,9 @@ function renderCell(r: Row, col: ColId): React.ReactNode {
     return <span className="tabular-nums">{fmtDate(t)}</span>;
   }
   if (col === 'status') {
-    return <span className={`inline-flex max-w-full rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClass(t)}`}>{t}</span>;
+    return (
+      <span className={`inline-flex max-w-full rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusBadgeClass(t)}`}>{t}</span>
+    );
   }
   return t;
 }
@@ -651,16 +653,22 @@ export default function CentralAcoesGSTClient() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-text">Status (contém)</label>
-            <input
+            <label className="mb-1 block text-xs font-medium text-text">Status</label>
+            <select
               value={statusFiltro}
               onChange={(e) => {
                 setStatusFiltro(e.target.value);
                 setPage(1);
               }}
-              placeholder="Ex.: atraso, concluí…"
               className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm"
-            />
+            >
+              <option value="">Todos</option>
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="md:col-span-2">
             <label className="mb-1 block text-xs font-medium text-text">Busca livre</label>
@@ -728,7 +736,7 @@ export default function CentralAcoesGSTClient() {
                       className="text-left text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400"
                       onClick={() => setColVis(defaultColVisibility())}
                     >
-                      Layout padrão (oculta Empresa, Cod. origem, Diretoria, Auxiliar)
+                      Layout padrão (oculta Empresa, Cod. origem, Diretoria, Gerência, Auxiliar)
                     </button>
                     <button
                       type="button"
@@ -758,15 +766,15 @@ export default function CentralAcoesGSTClient() {
               Nenhum registro. Importe a planilha em Admin → Importar bases → Plano de ação / Indicadores.
             </div>
           ) : (
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="border-b border-border bg-muted/30 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            <table className="w-full min-w-[720px] text-center text-[10px]">
+              <thead className="border-b border-border bg-muted/30 text-[10px] font-semibold uppercase tracking-wide text-muted">
                 <tr>
                   {COL_DEFS.filter((c) => colVis[c.id] !== false).map((c) => (
-                    <th key={c.id} className={`px-3 py-2 ${c.className || ''}`}>
+                    <th key={c.id} className={`px-3 py-2 text-center ${c.className || ''}`}>
                       {c.label}
                     </th>
                   ))}
-                  <th className="w-28 px-3 py-2">Ações</th>
+                  <th className="w-28 px-3 py-2 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -775,7 +783,7 @@ export default function CentralAcoesGSTClient() {
                     {COL_DEFS.filter((c) => colVis[c.id] !== false).map((c) => (
                       <td
                         key={c.id}
-                        className={`truncate px-3 py-2 ${
+                        className={`truncate px-3 py-2 text-center align-middle ${
                           c.id === 'item'
                             ? 'font-medium text-text'
                             : c.id === 'status' || c.id === 'evidencia'
@@ -784,16 +792,16 @@ export default function CentralAcoesGSTClient() {
                         } ${c.className || ''}`}
                         title={cellText(r, c.id)}
                       >
-                        {renderCell(r, c.id)}
+                        <div className="flex w-full justify-center">{renderCell(r, c.id)}</div>
                       </td>
                     ))}
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 text-center align-middle">
                       <button
                         type="button"
                         onClick={() => openModal(r)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-xs font-medium hover:bg-bg"
+                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[10px] font-medium hover:bg-bg"
                       >
-                        <Pencil className="h-3.5 w-3.5" />
+                        <Pencil className="h-3 w-3" />
                         Editar
                       </button>
                     </td>

@@ -54,7 +54,9 @@ export async function GET(req: NextRequest) {
       );
     }
     if (status) {
-      where.push(`COALESCE(status, '') ILIKE '%${esc(status)}%'`);
+      where.push(
+        `LOWER(TRIM(COALESCE(status, ''))) = LOWER(TRIM('${esc(status)}'))`,
+      );
     }
     if (q) {
       const e = esc(q);
