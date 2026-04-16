@@ -756,14 +756,7 @@ export default function DemandasTrabalhistasPage() {
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="mb-3">
-                  <h3 className="text-sm font-semibold text-slate-900">Por regional</h3>
-                  <p className="mt-1 text-xs text-slate-600">
-                    <span className="font-medium">Quantidade de processos por regional</span> e{' '}
-                    <span className="font-medium">tempo medio de resposta dos processos por regional</span> (media dentro
-                    de cada regional). Ano {ano}, mesmos filtros do painel.
-                  </p>
-                </div>
+                <h3 className="mb-3 text-sm font-semibold text-slate-900">Por regional</h3>
                 {(summary?.perRegional || []).length === 0 ? (
                   <p className="text-sm text-slate-500">Nenhum registro para montar o resumo por regional.</p>
                 ) : (
