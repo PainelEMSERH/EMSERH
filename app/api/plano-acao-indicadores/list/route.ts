@@ -78,6 +78,7 @@ export async function GET(req: NextRequest) {
 
     const url = new URL(req.url);
     const regional = (url.searchParams.get('regional') || '').trim();
+    const responsavel = (url.searchParams.get('responsavel') || '').trim();
     const status = (url.searchParams.get('status') || '').trim();
     const q = (url.searchParams.get('q') || '').trim();
     const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
@@ -92,6 +93,11 @@ export async function GET(req: NextRequest) {
     if (regional) {
       where.push(
         `LOWER(TRIM(COALESCE(regional, ''))) = LOWER(TRIM('${esc(regional)}'))`,
+      );
+    }
+    if (responsavel) {
+      where.push(
+        `LOWER(TRIM(COALESCE(responsavel, ''))) = LOWER(TRIM('${esc(responsavel)}'))`,
       );
     }
     if (status) {
@@ -174,7 +180,22 @@ export async function GET(req: NextRequest) {
       a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }),
     );
 
-    return NextResponse.json({ ok: true, rows, total, regionais, page, pageSize });
+    let respRows: any[] = [];
+    try {
+      respRows = (await prisma.$queryRawUnsafe(`
+      SELECT DISTINCT TRIM(responsavel) AS responsavel
+      FROM plano_acao_indicadores
+      WHERE COALESCE(TRIM(responsavel), '') != ''
+      ORDER BY 1
+    `)) as any[];
+    } catch {
+      respRows = [];
+    }
+    const responsaveis = (respRows || [])
+      .map((r) => String(r?.responsavel || '').trim())
+      .filter(Boolean);
+
+    return NextResponse.json({ ok: true, rows, total, regionais, responsaveis, page, pageSize });
   } catch (e: any) {
     console.error('[plano-acao-indicadores list]', e);
     return NextResponse.json(

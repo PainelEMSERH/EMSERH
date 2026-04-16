@@ -101,6 +101,21 @@ type OsMetaReal = {
   ano: number
 }
 
+type GstCards = {
+  total: { label: string; count: number; pct: number }
+  no_prazo: { label: string; count: number; pct: number }
+  em_atraso: { label: string; count: number; pct: number }
+  concluido: { label: string; count: number; pct: number }
+  atraso_reprogramado: { label: string; count: number; pct: number }
+  cancelado: { label: string; count: number; pct: number }
+}
+
+type GstStats = {
+  ok: boolean
+  total: number
+  cards: GstCards
+}
+
 const formatThousands = (v: number) =>
   _formatThousands ? _formatThousands(v) : (v ?? 0).toLocaleString('pt-BR')
 
@@ -197,6 +212,7 @@ export default function DashboardEPI() {
   const [osMeta, setOsMeta] = useState<OsMetaReal | null>(null)
   const [spci, setSpci] = useState<SpciStats | null>(null)
   const [cipa, setCipa] = useState<CipaResumo | null>(null)
+  const [gst, setGst] = useState<GstStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [regionais, setRegionais] = useState<string[]>([])
@@ -235,13 +251,17 @@ export default function DashboardEPI() {
         const cipaUrl =
           `/api/cipa/meta-real?ano=${ano}` +
           (regionalSelecionada ? `&regional=${encodeURIComponent(regionalSelecionada)}` : '')
+        const gstUrl =
+          '/api/plano-acao-indicadores/stats' +
+          (regionalSelecionada ? `?regional=${encodeURIComponent(regionalSelecionada)}` : '')
 
-        const [epiRes, acRes, osRes, spciRes, cipaRes] = await Promise.all([
+        const [epiRes, acRes, osRes, spciRes, cipaRes, gstRes] = await Promise.all([
           fetch(epiUrl, { cache: 'no-store' }),
           fetch(acidentesUrl, { cache: 'no-store' }),
           fetch(osUrl, { cache: 'no-store' }),
           fetch(spciUrl, { cache: 'no-store' }),
           fetch(cipaUrl, { cache: 'no-store' }),
+          fetch(gstUrl, { cache: 'no-store' }),
         ])
 
         if (!epiRes.ok) throw new Error('Falha ao buscar métricas de EPI')
@@ -250,6 +270,7 @@ export default function DashboardEPI() {
         const osJson = osRes.ok ? await osRes.json() : null
         const spciJson = spciRes.ok ? await spciRes.json() : null
         const cipaJson = cipaRes.ok ? await cipaRes.json() : null
+        const gstJson = gstRes.ok ? await gstRes.json() : null
 
         if (!mounted) return
         setEpi(epiJson)
@@ -257,6 +278,7 @@ export default function DashboardEPI() {
         setOsMeta(osJson && osJson.ok !== false ? osJson : null)
         setSpci(spciJson && spciJson.ok ? spciJson : null)
         setCipa(cipaRes.ok && cipaJson ? cipaJson : null)
+        setGst(gstRes.ok && gstJson?.ok ? gstJson : null)
       } catch (e: any) {
         if (mounted) setError(e.message || 'Erro inesperado')
       } finally {
@@ -778,23 +800,28 @@ export default function DashboardEPI() {
 
       {/* Meta anual EPI */}
       <section
-        className="rounded-2xl border border-border bg-panel p-5 shadow-sm md:p-6"
+        className="relative overflow-hidden rounded-2xl border border-border bg-panel p-5 shadow-sm md:p-6"
         aria-labelledby="dash-annual-heading"
       >
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/[0.06] via-transparent to-teal-500/[0.04]" />
+        <div className="relative flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 id="dash-annual-heading" className="text-sm font-semibold text-text">
-              Meta anual de EPI (obrigatórios)
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Meta anual</p>
+            <h2 id="dash-annual-heading" className="mt-1 text-base font-semibold text-text">
+              EPI obrigatórios
             </h2>
             <p className="mt-1 text-xs text-muted">
-              Itens obrigatórios entregues no ano (até hoje) × meta da coorte (stg_alterdata v2)
+              Entregues no ano (até hoje) x meta da coorte
             </p>
           </div>
-          <p className="text-2xl font-bold tabular-nums text-text">{anualPct.toFixed(1)}%</p>
+          <div className="text-right">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Atingimento</p>
+            <p className="text-3xl font-bold tabular-nums tracking-tight text-text">{anualPct.toFixed(1)}%</p>
+          </div>
         </div>
-        <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-muted/60">
+        <div className="relative mt-5 h-4 w-full overflow-hidden rounded-full bg-muted/60 ring-1 ring-border/70">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-500"
+            className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-500 transition-all duration-500"
             style={{ width: `${anualPct}%` }}
             role="progressbar"
             aria-valuenow={Math.round(anualPct)}
@@ -802,10 +829,22 @@ export default function DashboardEPI() {
             aria-valuemax={100}
           />
         </div>
-        <p className="mt-2 text-xs text-muted">
-          {formatThousands(epi.kpis.metaAnual.realizado)} itens entregues no ano (só CPFs da coorte e EPIs obrigatórios)
-          de {formatThousands(epi.kpis.metaAnual.valorMeta)} previstos para a coorte filtrada
-        </p>
+        <div className="relative mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-border bg-card/70 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted">Realizado</p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-text">
+              {formatThousands(epi.kpis.metaAnual.realizado)}
+            </p>
+            <p className="mt-1 text-[11px] text-muted">itens obrigatórios entregues</p>
+          </div>
+          <div className="rounded-xl border border-border bg-card/70 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted">Meta</p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-text">
+              {formatThousands(epi.kpis.metaAnual.valorMeta)}
+            </p>
+            <p className="mt-1 text-[11px] text-muted">itens previstos para a coorte</p>
+          </div>
+        </div>
       </section>
 
       {/* Gráficos */}
@@ -927,32 +966,44 @@ export default function DashboardEPI() {
 
         <div className="rounded-2xl border border-border bg-panel p-5 shadow-sm md:p-6">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden />
-            <h3 className="text-sm font-semibold text-text">Prioridades operacionais</h3>
+            <ClipboardCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <h3 className="text-sm font-semibold text-text">Central de Ações GST</h3>
           </div>
-          <p className="mt-1 text-xs text-muted">O que costuma exigir decisão nesta semana</p>
-          <ul className="mt-4 space-y-3 text-sm text-text">
-            <li className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card/50 px-3 py-2.5">
-              <span className="text-muted">Pendências vencidas (cadastro)</span>
-              <span className="shrink-0 font-bold tabular-nums text-red-600 dark:text-red-400">
-                {formatThousands(epi.alertas.pendenciasVencidas || 0)}
-              </span>
-            </li>
-            <li className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card/50 px-3 py-2.5">
-              <span className="text-muted">Pendências abertas</span>
-              <span className="shrink-0 font-bold tabular-nums">{formatThousands(epi.kpis.pendenciasAbertas)}</span>
-            </li>
-            <li className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card/50 px-3 py-2.5">
-              <span className="text-muted">Acidentes registrados no ano</span>
-              <span className="shrink-0 font-bold tabular-nums">{formatThousands(acidentes?.totalAno ?? 0)}</span>
-            </li>
-            <li className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card/50 px-3 py-2.5">
-              <span className="text-muted">Alertas de estoque abaixo do mínimo</span>
-              <span className="shrink-0 font-bold tabular-nums">
-                {formatThousands(epi.alertas.estoqueAbaixoMinimo?.length || 0)}
-              </span>
-            </li>
-          </ul>
+          <p className="mt-1 text-xs text-muted">Resumo por status das ações do plano (com filtro regional)</p>
+          {gst ? (
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-border bg-card/60 px-3 py-2.5">
+                <p className="text-[11px] uppercase tracking-wide text-muted">Nº de ações</p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-text">{formatThousands(gst.cards.total.count)}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-card/60 px-3 py-2.5">
+                <p className="text-[11px] uppercase tracking-wide text-muted">No prazo</p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-amber-700 dark:text-amber-300">
+                  {formatThousands(gst.cards.no_prazo.count)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-card/60 px-3 py-2.5">
+                <p className="text-[11px] uppercase tracking-wide text-muted">Em atraso</p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-red-700 dark:text-red-300">
+                  {formatThousands(gst.cards.em_atraso.count)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-card/60 px-3 py-2.5">
+                <p className="text-[11px] uppercase tracking-wide text-muted">Concluído</p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
+                  {formatThousands(gst.cards.concluido.count)}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-xs text-muted">Sem dados da Central de Ações GST para este filtro.</p>
+          )}
+          <div className="mt-3">
+            <Link href="/central-acoes-gst" className="text-xs font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400">
+              Abrir Central de Ações GST
+              <ChevronRight className="inline h-3 w-3" />
+            </Link>
+          </div>
           {regionalSelecionada ? (
             <p className="mt-4 rounded-lg bg-bg/80 px-3 py-2 text-[11px] text-muted">
               Filtro ativo: <span className="font-semibold text-text">{regionalSelecionada}</span>
@@ -961,54 +1012,6 @@ export default function DashboardEPI() {
         </div>
       </section>
 
-      {/* Alertas estoque */}
-      <section aria-labelledby="dash-alerts-heading">
-        <div className="mb-3 flex items-center gap-2">
-          <Package className="h-4 w-4 text-muted" />
-          <h2 id="dash-alerts-heading" className="text-sm font-semibold text-text">
-            Estoque mínimo (EPI)
-          </h2>
-        </div>
-        <div className="rounded-2xl border border-border bg-panel p-5 shadow-sm md:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-muted">Unidades com saldo abaixo do mínimo configurado</p>
-            {epi.alertas.estoqueAbaixoMinimo?.length > 0 ? (
-              <span className="inline-flex items-center rounded-full bg-red-500/15 px-3 py-1 text-xs font-bold text-red-700 dark:text-red-300">
-                {epi.alertas.estoqueAbaixoMinimo.length} alerta(s)
-              </span>
-            ) : null}
-          </div>
-          <div className="mt-4 grid max-h-[320px] grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
-            {epi.alertas.estoqueAbaixoMinimo?.length ? (
-              epi.alertas.estoqueAbaixoMinimo.map((e, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-start justify-between gap-3 rounded-xl border border-red-200/80 bg-red-50/90 p-3 dark:border-red-900/40 dark:bg-red-950/25"
-                >
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-red-900 dark:text-red-100">{e.unidade}</p>
-                    <p className="mt-0.5 truncate text-xs text-red-800/90 dark:text-red-200/90">{e.item}</p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-sm font-bold tabular-nums text-red-700 dark:text-red-300">
-                      {formatThousands(e.quantidade)}
-                    </p>
-                    <p className="text-[10px] text-red-600/80 dark:text-red-400/90">mín. {formatThousands(e.minimo)}</p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="col-span-full flex flex-col items-center justify-center rounded-xl border border-emerald-200/80 bg-emerald-50/80 py-10 text-center dark:border-emerald-900/40 dark:bg-emerald-950/20">
-                <Shield className="mb-2 h-8 w-8 text-emerald-600 dark:text-emerald-400" />
-                <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">Nenhum item abaixo do mínimo</p>
-                <p className="mt-1 max-w-sm text-xs text-emerald-700/90 dark:text-emerald-300/90">
-                  Quando houver risco de ruptura, o alerta aparece aqui com unidade e quantidade.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
     </div>
   )
 }

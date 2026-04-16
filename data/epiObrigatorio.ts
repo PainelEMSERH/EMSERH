@@ -68,12 +68,28 @@ export function isEpiObrigatorio(nome: string | null | undefined): boolean {
  *   const sql = `SELECT ... FROM ... WHERE ${whereObrig}`;
  */
 export function obrigatoriosWhereSql(column: string): string {
-  // Observação: aqui ainda é match exato em UPPER/TRIM (sem normalização de acento).
-  // Para itens com acento/variação, a checagem principal deve ser feita via JS com isEpiObrigatorio.
-  const list = Array.from(
-    new Set(RAW_OBRIGATORIOS.map((s) => String(s).toUpperCase().trim())),
-  )
-    .map((v) => `'${v.replace(/'/g, "''")}'`)
+  // Normaliza no SQL de forma semelhante ao norm(): remove acentos/pontuação e compara em caixa alta.
+  // Assim evitamos "zerar" dashboards por variações de escrita do item no banco.
+  const normalizedList = Array.from(NORM_SET)
+    .map((v) => `'${String(v).replace(/'/g, "''")}'`)
     .join(', ');
-  return `UPPER(TRIM(${column})) IN (${list})`;
+
+  const sqlNorm = `UPPER(
+    REGEXP_REPLACE(
+      REGEXP_REPLACE(
+        TRANSLATE(COALESCE(${column}, ''),
+          'ÁÀÂÃÄáàâãäÉÈÊËéèêëÍÌÎÏíìîïÓÒÔÕÖóòôõöÚÙÛÜúùûüÇçÑñ',
+          'AAAAAaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuCcNn'
+        ),
+        '[^A-Z0-9 ]',
+        '',
+        'g'
+      ),
+      '\\s+',
+      ' ',
+      'g'
+    )
+  )`;
+
+  return `TRIM(${sqlNorm}) IN (${normalizedList})`;
 }

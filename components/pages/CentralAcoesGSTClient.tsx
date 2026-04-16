@@ -402,7 +402,9 @@ export default function CentralAcoesGSTClient() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [regionais, setRegionais] = useState<string[]>([]);
+  const [responsaveis, setResponsaveis] = useState<string[]>([]);
   const [regional, setRegional] = useState('');
+  const [responsavelFiltro, setResponsavelFiltro] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('');
   const [q, setQ] = useState('');
   const [sortBy, setSortBy] = useState<ColId | ''>('');
@@ -440,6 +442,7 @@ export default function CentralAcoesGSTClient() {
       qs.set('page', String(page));
       qs.set('pageSize', String(pageSize));
       if (regional) qs.set('regional', regional);
+      if (responsavelFiltro) qs.set('responsavel', responsavelFiltro);
       if (statusFiltro) qs.set('status', statusFiltro);
       if (q.trim()) qs.set('q', q.trim());
       if (sortBy) {
@@ -448,6 +451,7 @@ export default function CentralAcoesGSTClient() {
       }
       const statsQs = new URLSearchParams();
       if (regional) statsQs.set('regional', regional);
+      if (responsavelFiltro) statsQs.set('responsavel', responsavelFiltro);
       if (statusFiltro) statsQs.set('status', statusFiltro);
       if (q.trim()) statsQs.set('q', q.trim());
 
@@ -463,6 +467,7 @@ export default function CentralAcoesGSTClient() {
       setRows(lJson.rows || []);
       setTotal(Number(lJson.total || 0));
       setRegionais(Array.isArray(lJson.regionais) ? lJson.regionais : []);
+      setResponsaveis(Array.isArray(lJson.responsaveis) ? lJson.responsaveis : []);
     } catch (e: any) {
       pushToast(e?.message || 'Erro ao carregar', 'error');
       setStats(null);
@@ -470,7 +475,7 @@ export default function CentralAcoesGSTClient() {
     } finally {
       setLoading(false);
     }
-  }, [page, regional, statusFiltro, q, sortBy, sortDir, pushToast]);
+  }, [page, regional, responsavelFiltro, statusFiltro, q, sortBy, sortDir, pushToast]);
 
   const toggleSort = useCallback((col: ColId) => {
     setPage(1);
@@ -654,7 +659,7 @@ export default function CentralAcoesGSTClient() {
           <Filter className="h-4 w-4" />
           Filtros
         </div>
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
           <div>
             <label className="mb-1 block text-xs font-medium text-text">Regional</label>
             <select
@@ -691,7 +696,25 @@ export default function CentralAcoesGSTClient() {
               ))}
             </select>
           </div>
-          <div className="md:col-span-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-text">Responsável</label>
+            <select
+              value={responsavelFiltro}
+              onChange={(e) => {
+                setResponsavelFiltro(e.target.value);
+                setPage(1);
+              }}
+              className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm"
+            >
+              <option value="">Todos</option>
+              {responsaveis.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="md:col-span-2 lg:col-span-2">
             <label className="mb-1 block text-xs font-medium text-text">Busca livre</label>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />

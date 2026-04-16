@@ -180,6 +180,7 @@ export async function GET(req: NextRequest) {
       WITH base AS (
         SELECT
           e.cpf AS cpf,
+          e.item AS item,
           (elem->>'date')::date AS data,
           (elem->>'qty')::int AS quantidade
         FROM epi_entregas e
@@ -200,6 +201,7 @@ export async function GET(req: NextRequest) {
       WITH base AS (
         SELECT
           e.cpf AS cpf,
+          e.item AS item,
           (elem->>'date')::date AS data,
           (elem->>'qty')::int AS quantidade
         FROM epi_entregas e
@@ -219,8 +221,13 @@ export async function GET(req: NextRequest) {
   try {
     const p: any[] = await prisma.$queryRawUnsafe(`
       SELECT
-        SUM(CASE WHEN status = 'aberta' THEN 1 ELSE 0 END)::int AS abertas,
-        SUM(CASE WHEN status = 'aberta' AND prazo < NOW() THEN 1 ELSE 0 END)::int AS vencidas
+        SUM(CASE WHEN LOWER(TRIM(COALESCE(status, ''))) = 'aberta' THEN 1 ELSE 0 END)::int AS abertas,
+        SUM(
+          CASE
+            WHEN LOWER(TRIM(COALESCE(status, ''))) = 'aberta' AND prazo < NOW() THEN 1
+            ELSE 0
+          END
+        )::int AS vencidas
       FROM pendencia
     `)
     kpis.pendenciasAbertas = Number(p?.[0]?.abertas || 0)
@@ -301,6 +308,7 @@ export async function GET(req: NextRequest) {
           WITH base AS (
             SELECT
               e.cpf AS cpf,
+              e.item AS item,
               (elem->>'date')::date AS data,
               (elem->>'qty')::int AS quantidade
             FROM epi_entregas e

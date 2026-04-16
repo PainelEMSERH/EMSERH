@@ -22,12 +22,16 @@ export async function GET(req: NextRequest) {
 
     const url = new URL(req.url);
     const regional = (url.searchParams.get('regional') || '').trim();
+    const responsavel = (url.searchParams.get('responsavel') || '').trim();
     const status = (url.searchParams.get('status') || '').trim();
     const q = (url.searchParams.get('q') || '').trim();
 
     const where: string[] = ['1=1'];
     if (regional) {
       where.push(`LOWER(TRIM(COALESCE(regional, ''))) = LOWER(TRIM('${esc(regional)}'))`);
+    }
+    if (responsavel) {
+      where.push(`LOWER(TRIM(COALESCE(responsavel, ''))) = LOWER(TRIM('${esc(responsavel)}'))`);
     }
     if (status) {
       where.push(`LOWER(TRIM(COALESCE(status, ''))) = LOWER(TRIM('${esc(status)}'))`);
