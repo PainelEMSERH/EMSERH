@@ -49,6 +49,12 @@ type Series = {
   itens: number[]
 }
 
+type CurvaS = {
+  labels: string[]
+  mensal: number[]
+  acumulado: number[]
+}
+
 type Alertas = {
   estoqueAbaixoMinimo: { unidade: string; item: string; quantidade: number; minimo: number }[]
   pendenciasVencidas: number
@@ -57,6 +63,7 @@ type Alertas = {
 type Payload = {
   kpis: KPI
   series: Series
+  curvaS?: CurvaS
   alertas: Alertas
 }
 
@@ -381,6 +388,68 @@ export default function DashboardEPI() {
     [gridMuted, tickColor],
   )
 
+  const curvaSChartData = useMemo(() => {
+    const labels =
+      epi?.curvaS?.labels?.length === 12
+        ? epi.curvaS.labels
+        : MES_CURTO.map((_, i) => `${String(i + 1).padStart(2, '0')}/${new Date().getFullYear()}`)
+    const mensal = epi?.curvaS?.mensal ?? new Array(12).fill(0)
+    const acumulado = epi?.curvaS?.acumulado ?? new Array(12).fill(0)
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Entregue no mês',
+          data: mensal,
+          borderColor: 'rgb(59, 130, 246)',
+          backgroundColor: 'rgba(59, 130, 246, 0.08)',
+          borderWidth: 2,
+          tension: 0.35,
+          pointRadius: 2.5,
+          pointHoverRadius: 4,
+          fill: true,
+        },
+        {
+          label: 'Acumulado (Curva S)',
+          data: acumulado,
+          borderColor: 'rgb(16, 185, 129)',
+          backgroundColor: 'rgba(16, 185, 129, 0.12)',
+          borderWidth: 3,
+          tension: 0.35,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          fill: false,
+        },
+      ],
+    }
+  }, [epi])
+
+  const curvaSOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top' as const,
+          labels: { usePointStyle: true, padding: 14, font: { size: 11 }, color: tickColor },
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { callback: (v: any) => formatThousands(Number(v)), font: { size: 11 }, color: tickColor },
+          grid: { color: gridMuted },
+        },
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 10 }, color: tickColor, maxRotation: 0, autoSkip: false },
+        },
+      },
+    }),
+    [gridMuted, tickColor],
+  )
+
   const acidentesLineOptions = useMemo(
     () => ({
       responsive: true,
@@ -480,6 +549,12 @@ export default function DashboardEPI() {
     if (typeof cipa.percentTotal === 'number') return Math.min(100, Math.max(0, cipa.percentTotal))
     return Math.max(0, Math.min(100, (cipa.totalReal / cipa.totalMeta) * 100))
   }, [cipa])
+  const cipaHealth = healthLabel(cipaPct)
+  const gstPct = useMemo(() => {
+    if (!gst?.total) return 0
+    return Math.max(0, Math.min(100, (Number(gst.cards?.concluido?.count || 0) / Number(gst.total || 1)) * 100))
+  }, [gst])
+  const gstHealth = healthLabel(gstPct)
 
   if (loading) {
     return (
@@ -625,16 +700,18 @@ export default function DashboardEPI() {
         </div>
       </section>
 
-      {/* KPIs principais */}
+      {/* Indicadores principais */}
       <section aria-labelledby="dash-pillars-heading">
         <h2 id="dash-pillars-heading" className="mb-1 text-sm font-semibold text-text">
-          Quatro pilares do SST
+          Indicadores Estratégicos
         </h2>
-        <p className="mb-4 text-xs text-muted">Visão executiva com acesso rápido aos módulos operacionais.</p>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <p className="mb-4 text-xs text-muted">
+          Monitoramento executivo com leitura rápida e navegação direta para cada módulo.
+        </p>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           <KpiCard
             title="EPI obrigatório"
-            subtitle="Itens obrigatórios — mês corrente"
+            subtitle="Cumprimento mensal dos itens críticos"
             href="/entregas"
             hrefLabel="Abrir entregas de EPI"
             pct={mensPct}
@@ -659,11 +736,11 @@ export default function DashboardEPI() {
             footer={
               <>
                 <span className={`font-medium ${variacaoCor}`}>
-                  {variacaoIcon} {Math.abs(epi.kpis.variacaoMensalPerc).toFixed(1)}% vs meta
+                  {variacaoIcon} {Math.abs(epi.kpis.variacaoMensalPerc).toFixed(1)}% vs meta mensal
                 </span>
                 <span className="block text-[11px] text-muted">
                   {formatThousands(epi.kpis.metaMensal.realizado)} / {formatThousands(epi.kpis.metaMensal.valorMeta)} itens
-                  previstos no mês (média linear da coorte)
+                  previstos no mês
                 </span>
               </>
             }
@@ -671,7 +748,7 @@ export default function DashboardEPI() {
 
           <KpiCard
             title="Ordem de serviço"
-            subtitle={`Ano ${new Date().getFullYear()} • assinatura ou termo`}
+            subtitle={`Conformidade de assinatura • ${new Date().getFullYear()}`}
             href="/ordens-de-servico"
             hrefLabel="Abrir ordens de serviço"
             pct={osPct}
@@ -697,7 +774,7 @@ export default function DashboardEPI() {
               osMeta ? (
                 <>
                   {formatThousands(osMeta.totalReal)} de {formatThousands(osMeta.totalMeta)} colaboradores com registro
-                  concluído
+                  concluído no período
                 </>
               ) : (
                 'Sem dados de OS para o ano atual'
@@ -710,7 +787,7 @@ export default function DashboardEPI() {
             <div className="relative flex items-start justify-between gap-3">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Acidentes</p>
-                <p className="mt-1 text-xs text-muted">Ano {new Date().getFullYear()}</p>
+                <p className="mt-1 text-xs text-muted">Incidência anual e leitura mensal</p>
               </div>
               <span className="rounded-full bg-red-500/12 px-2.5 py-0.5 text-[10px] font-semibold text-red-700 ring-1 ring-red-500/20 dark:text-red-300">
                 Registros
@@ -746,7 +823,7 @@ export default function DashboardEPI() {
 
           <KpiCard
             title="SPCI • Extintores"
-            subtitle="Dentro do prazo vs carteira"
+            subtitle="Saúde da carteira de inspeção"
             href="/spci-extintores"
             hrefLabel="Abrir SPCI / extintores"
             pct={spciSaudavelPct}
@@ -785,6 +862,68 @@ export default function DashboardEPI() {
               )
             }
           />
+
+          <KpiCard
+            title="CIPA"
+            subtitle={`Execução do cronograma • ${cipa?.ano ?? new Date().getFullYear()}`}
+            href="/cipa"
+            hrefLabel="Abrir CIPA"
+            pct={cipaPct}
+            badge={cipaHealth}
+            accentClass="text-emerald-600 dark:text-emerald-400"
+            doughnut={
+              <DoughnutChart
+                data={{
+                  labels: ['Realizado', 'Pendente'],
+                  datasets: [
+                    {
+                      data: [cipaPct, Math.max(0, 100 - cipaPct)],
+                      borderWidth: 0,
+                      backgroundColor: ['rgb(16, 185, 129)', donutTrack],
+                    },
+                  ],
+                }}
+                width={88}
+                height={88}
+              />
+            }
+            footer={
+              cipa && cipa.totalMeta > 0
+                ? `${formatThousands(cipa.totalReal)} de ${formatThousands(cipa.totalMeta)} atividades executadas`
+                : 'Sem cronograma carregado para o filtro atual'
+            }
+          />
+
+          <KpiCard
+            title="Ações GST"
+            subtitle="Performance do plano de ação por status"
+            href="/central-acoes-gst"
+            hrefLabel="Abrir Central de Ações GST"
+            pct={gstPct}
+            badge={gstHealth}
+            accentClass="text-emerald-600 dark:text-emerald-400"
+            doughnut={
+              <DoughnutChart
+                data={{
+                  labels: ['Concluído', 'Demais'],
+                  datasets: [
+                    {
+                      data: [gstPct, Math.max(0, 100 - gstPct)],
+                      borderWidth: 0,
+                      backgroundColor: ['rgb(16, 185, 129)', donutTrack],
+                    },
+                  ],
+                }}
+                width={88}
+                height={88}
+              />
+            }
+            footer={
+              gst
+                ? `${formatThousands(gst.cards.concluido.count)} concluídas de ${formatThousands(gst.total)} ações totais`
+                : 'Sem dados da Central de Ações GST para o filtro atual'
+            }
+          />
         </div>
       </section>
 
@@ -809,15 +948,8 @@ export default function DashboardEPI() {
             <p className="text-3xl font-bold tabular-nums tracking-tight text-text">{anualPct.toFixed(1)}%</p>
           </div>
         </div>
-        <div className="relative mt-5 h-4 w-full overflow-hidden rounded-full bg-muted/60 ring-1 ring-border/70">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-500 transition-all duration-500"
-            style={{ width: `${anualPct}%` }}
-            role="progressbar"
-            aria-valuenow={Math.round(anualPct)}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          />
+        <div className="relative mt-5 h-56 rounded-xl border border-border bg-card/50 p-3">
+          <Line data={curvaSChartData} options={curvaSOptions as any} />
         </div>
         <div className="relative mt-4 grid gap-3 sm:grid-cols-2">
           <div className="rounded-xl border border-border bg-card/70 px-4 py-3">
@@ -858,147 +990,6 @@ export default function DashboardEPI() {
           <div className="mt-4 h-72">
             <Line data={acidentesLineData} options={acidentesLineOptions as any} />
           </div>
-        </div>
-      </section>
-
-      {/* Painel executivo — números que respondem “onde estamos?” */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2" aria-labelledby="dash-mgmt-heading">
-        <div className="rounded-2xl border border-border bg-panel p-5 shadow-sm md:p-6">
-          <div className="flex items-center gap-2">
-            <Target className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
-            <h2 id="dash-mgmt-heading" className="text-sm font-semibold text-text">
-              Painel de Indicadores
-            </h2>
-          </div>
-          <p className="mt-1 text-xs text-muted">
-            Consolidado do filtro atual · EPI alinhado à coorte v2 e entregas registradas
-          </p>
-          <dl className="mt-5 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
-              <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">EPI no ano</dt>
-              <dd className="mt-1 text-xl font-bold tabular-nums text-text">{epiYtdPct.toFixed(1)}%</dd>
-              <dd className="mt-1 text-xs text-muted">
-                {formatThousands(epi.kpis.metaAnual.realizado)} de {formatThousands(epi.kpis.metaAnual.valorMeta)} itens
-                obrigatórios (YTD)
-              </dd>
-              <dd className="mt-2">
-                <Link
-                  href="/entregas"
-                  className="text-xs font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400"
-                >
-                  Abrir entregas
-                  <ChevronRight className="inline h-3 w-3" />
-                </Link>
-              </dd>
-            </div>
-            <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
-              <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">CIPA (cronograma)</dt>
-              <dd className="mt-1 text-xl font-bold tabular-nums text-text">
-                {cipa && cipa.totalMeta > 0 ? `${cipaPct.toFixed(1)}%` : '—'}
-              </dd>
-              <dd className="mt-1 text-xs text-muted">
-                {cipa && cipa.totalMeta > 0 ? (
-                  <>
-                    {formatThousands(cipa.totalReal)} de {formatThousands(cipa.totalMeta)} atividades no ano{' '}
-                    {cipa.ano ?? new Date().getFullYear()}
-                  </>
-                ) : (
-                  'Sem cronograma carregado ou meta zerada para o filtro'
-                )}
-              </dd>
-              <dd className="mt-2">
-                <Link href="/cipa" className="text-xs font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400">
-                  Abrir CIPA
-                  <ChevronRight className="inline h-3 w-3" />
-                </Link>
-              </dd>
-            </div>
-            <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
-              <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">Ordem de serviço</dt>
-              <dd className="mt-1 text-xl font-bold tabular-nums text-text">{osPct.toFixed(1)}%</dd>
-              <dd className="mt-1 text-xs text-muted">
-                {osMeta
-                  ? `${formatThousands(osMeta.totalReal)} de ${formatThousands(osMeta.totalMeta)} colaboradores`
-                  : 'Sem dados de OS'}
-              </dd>
-              <dd className="mt-2">
-                <Link
-                  href="/ordens-de-servico"
-                  className="text-xs font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400"
-                >
-                  Abrir ordens de serviço
-                  <ChevronRight className="inline h-3 w-3" />
-                </Link>
-              </dd>
-            </div>
-            <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
-              <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">Extintores em risco</dt>
-              <dd className="mt-1 text-xl font-bold tabular-nums text-text">
-                {spci ? formatThousands((spci.stats.totalVencidos || 0) + (spci.stats.totalAVencer || 0)) : '—'}
-              </dd>
-              <dd className="mt-1 text-xs text-muted">
-                {spci
-                  ? `Vencidos ${formatThousands(spci.stats.totalVencidos)} · A vencer ${formatThousands(spci.stats.totalAVencer)}`
-                  : 'Sem dados SPCI'}
-              </dd>
-              <dd className="mt-2">
-                <Link
-                  href="/spci-extintores"
-                  className="text-xs font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400"
-                >
-                  Abrir SPCI
-                  <ChevronRight className="inline h-3 w-3" />
-                </Link>
-              </dd>
-            </div>
-          </dl>
-        </div>
-
-        <div className="rounded-2xl border border-border bg-panel p-5 shadow-sm md:p-6">
-          <div className="flex items-center gap-2">
-            <ClipboardCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
-            <h3 className="text-sm font-semibold text-text">Central de Ações GST</h3>
-          </div>
-          <p className="mt-1 text-xs text-muted">Resumo por status das ações do plano (com filtro regional)</p>
-          {gst ? (
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wide text-muted">Nº de ações</p>
-                <p className="mt-1 text-xl font-bold tabular-nums text-text">{formatThousands(gst.cards.total.count)}</p>
-              </div>
-              <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wide text-muted">No prazo</p>
-                <p className="mt-1 text-xl font-bold tabular-nums text-amber-700 dark:text-amber-300">
-                  {formatThousands(gst.cards.no_prazo.count)}
-                </p>
-              </div>
-              <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wide text-muted">Em atraso</p>
-                <p className="mt-1 text-xl font-bold tabular-nums text-red-700 dark:text-red-300">
-                  {formatThousands(gst.cards.em_atraso.count)}
-                </p>
-              </div>
-              <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wide text-muted">Concluído</p>
-                <p className="mt-1 text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
-                  {formatThousands(gst.cards.concluido.count)}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <p className="mt-4 text-xs text-muted">Sem dados da Central de Ações GST para este filtro.</p>
-          )}
-          <div className="mt-3">
-            <Link href="/central-acoes-gst" className="text-xs font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400">
-              Abrir Central de Ações GST
-              <ChevronRight className="inline h-3 w-3" />
-            </Link>
-          </div>
-          {regionalSelecionada ? (
-            <p className="mt-4 rounded-lg bg-bg/80 px-3 py-2 text-[11px] text-muted">
-              Filtro ativo: <span className="font-semibold text-text">{regionalSelecionada}</span>
-            </p>
-          ) : null}
         </div>
       </section>
 

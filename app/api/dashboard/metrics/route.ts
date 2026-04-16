@@ -16,6 +16,7 @@ type KPI = {
 }
 
 type Series = { labels: string[]; entregas: number[]; itens: number[] }
+type CurvaS = { labels: string[]; mensal: number[]; acumulado: number[] }
 
 type Alertas = {
   estoqueAbaixoMinimo: { unidade: string; item: string; quantidade: number; minimo: number }[]
@@ -104,6 +105,7 @@ export async function GET(req: NextRequest) {
   }
 
   let series: Series = { labels: [], entregas: [], itens: [] }
+  let curvaS: CurvaS = { labels: [], mensal: [], acumulado: [] }
   const alertas: Alertas = { estoqueAbaixoMinimo: [], pendenciasVencidas: 0 }
 
   const regionalSql = await buildRegionalFilterV2(prisma, regional)
@@ -137,6 +139,7 @@ export async function GET(req: NextRequest) {
   // 2) Itens planejados (obrigatórios) — coorte atual v2 × stg_epi_map
   let planejadosCohorte = 0
   try {
+    // Meta é global (todas as regionais), alinhada com a referência da tela de entregas.
     const elig = `
       WITH elig AS (
         SELECT DISTINCT UPPER(REGEXP_REPLACE(a.funcao, '[^A-Z0-9]+', '', 'g')) AS func_key
@@ -145,7 +148,6 @@ export async function GET(req: NextRequest) {
           AND COALESCE(a.cpf, '') != ''
           AND COALESCE(a.funcao, '') != ''
           ${exclSituacaoSql}
-          ${regionalSql}
       )
     `
     const obrigPlan = obrigatoriosWhereSql('m.epi_item')
@@ -181,7 +183,11 @@ export async function GET(req: NextRequest) {
         SELECT
           e.cpf AS cpf,
           e.item AS item,
-          (elem->>'date')::date AS data,
+          CASE
+            WHEN (elem->>'date') ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN (elem->>'date')::date
+            WHEN (elem->>'date') ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date((elem->>'date'), 'DD/MM/YYYY')
+            ELSE NULL
+          END AS data,
           (elem->>'qty')::int AS quantidade
         FROM epi_entregas e
         CROSS JOIN LATERAL jsonb_array_elements(COALESCE(e.deliveries, '[]'::jsonb)) elem
@@ -189,7 +195,8 @@ export async function GET(req: NextRequest) {
       SELECT COALESCE(SUM(b.quantidade), 0)::int AS q
       FROM base b
       INNER JOIN ${eligSql} ON elig.ncpf = LPAD(RIGHT(REGEXP_REPLACE(REPLACE(COALESCE(b.cpf::text, ''), ' ', ''), '[^0-9]', '', 'g'), 11), 11, '0')
-      WHERE b.data >= '${iniDate}'::date
+      WHERE b.data IS NOT NULL
+        AND b.data >= '${iniDate}'::date
         AND b.data <= '${fimDate}'::date
         AND ${obrig}
     `)
@@ -202,7 +209,11 @@ export async function GET(req: NextRequest) {
         SELECT
           e.cpf AS cpf,
           e.item AS item,
-          (elem->>'date')::date AS data,
+          CASE
+            WHEN (elem->>'date') ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN (elem->>'date')::date
+            WHEN (elem->>'date') ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date((elem->>'date'), 'DD/MM/YYYY')
+            ELSE NULL
+          END AS data,
           (elem->>'qty')::int AS quantidade
         FROM epi_entregas e
         CROSS JOIN LATERAL jsonb_array_elements(COALESCE(e.deliveries, '[]'::jsonb)) elem
@@ -210,7 +221,8 @@ export async function GET(req: NextRequest) {
       SELECT COALESCE(SUM(b.quantidade), 0)::int AS q
       FROM base b
       INNER JOIN ${eligSql} ON elig.ncpf = LPAD(RIGHT(REGEXP_REPLACE(REPLACE(COALESCE(b.cpf::text, ''), ' ', ''), '[^0-9]', '', 'g'), 11), 11, '0')
-      WHERE b.data >= '${anoIniDate}'::date
+      WHERE b.data IS NOT NULL
+        AND b.data >= '${anoIniDate}'::date
         AND b.data <= '${fimDate}'::date
         AND ${obrig}
     `)
@@ -271,6 +283,7 @@ export async function GET(req: NextRequest) {
       labels.push(String(m).padStart(2, '0') + '/' + y)
 
       try {
+        // Planejado mensal da série também permanece global (não filtra por regional).
         const elig = `
           WITH elig AS (
             SELECT DISTINCT UPPER(REGEXP_REPLACE(a.funcao, '[^A-Z0-9]+', '', 'g')) AS func_key
@@ -279,7 +292,6 @@ export async function GET(req: NextRequest) {
               AND COALESCE(a.cpf, '') != ''
               AND COALESCE(a.funcao, '') != ''
               ${exclSituacaoSql}
-              ${regionalSql}
           )
         `
         const r: any[] = await prisma.$queryRawUnsafe(`${elig}
@@ -309,7 +321,11 @@ export async function GET(req: NextRequest) {
             SELECT
               e.cpf AS cpf,
               e.item AS item,
-              (elem->>'date')::date AS data,
+              CASE
+                WHEN (elem->>'date') ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN (elem->>'date')::date
+                WHEN (elem->>'date') ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date((elem->>'date'), 'DD/MM/YYYY')
+                ELSE NULL
+              END AS data,
               (elem->>'qty')::int AS quantidade
             FROM epi_entregas e
             CROSS JOIN LATERAL jsonb_array_elements(COALESCE(e.deliveries, '[]'::jsonb)) elem
@@ -317,7 +333,8 @@ export async function GET(req: NextRequest) {
           SELECT COALESCE(SUM(b.quantidade), 0)::int AS q
           FROM base b
           INNER JOIN ${eligSql} ON elig.ncpf = LPAD(RIGHT(REGEXP_REPLACE(REPLACE(COALESCE(b.cpf::text, ''), ' ', ''), '[^0-9]', '', 'g'), 11), 11, '0')
-          WHERE b.data >= '${sDate}'::date
+          WHERE b.data IS NOT NULL
+            AND b.data >= '${sDate}'::date
             AND b.data <= '${eDate}'::date
             AND ${obrigEnt}
         `)
@@ -328,6 +345,65 @@ export async function GET(req: NextRequest) {
     }
 
     series = { labels, entregas: entr, itens: its }
+  } catch {}
+
+  // 6) Curva S anual (jan-dez): entregue mensal e acumulado
+  try {
+    const labels: string[] = []
+    const mensal: number[] = []
+    const acumulado: number[] = []
+    const obrigEnt = obrigatoriosWhereSql('b.item')
+    const eligSql = `
+      (SELECT DISTINCT ${sqlNormCpf('a')} AS ncpf
+       FROM stg_alterdata_v2 a
+       WHERE ${ATIVO_DEMISSAO}
+         AND COALESCE(a.cpf, '') != ''
+         AND COALESCE(a.funcao, '') != ''
+         ${exclSituacaoSql}
+         ${regionalSql}) elig
+    `
+
+    let acc = 0
+    for (let m = 1; m <= 12; m++) {
+      const sDate = startOfMonth(ano, m).toISOString().substring(0, 10)
+      const eDate = endOfMonth(ano, m).toISOString().substring(0, 10)
+      labels.push(String(m).padStart(2, '0') + '/' + ano)
+
+      const r: any[] = await prisma.$queryRawUnsafe(`
+        WITH base AS (
+          SELECT
+            e.cpf AS cpf,
+            e.item AS item,
+            CASE
+              WHEN (elem->>'date') ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN (elem->>'date')::date
+              WHEN (elem->>'date') ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date((elem->>'date'), 'DD/MM/YYYY')
+              ELSE NULL
+            END AS data,
+            (elem->>'qty')::int AS quantidade
+          FROM epi_entregas e
+          CROSS JOIN LATERAL jsonb_array_elements(COALESCE(e.deliveries, '[]'::jsonb)) elem
+        )
+        SELECT COALESCE(SUM(b.quantidade), 0)::int AS q
+        FROM base b
+        INNER JOIN ${eligSql}
+          ON elig.ncpf = LPAD(
+            RIGHT(REGEXP_REPLACE(REPLACE(COALESCE(b.cpf::text, ''), ' ', ''), '[^0-9]', '', 'g'), 11),
+            11,
+            '0'
+          )
+        WHERE b.data IS NOT NULL
+          AND b.data >= '${sDate}'::date
+          AND b.data <= '${eDate}'::date
+          AND ${obrigEnt}
+      `)
+
+      const q = Number(r?.[0]?.q || 0)
+      mensal.push(q)
+      acc += q
+      acumulado.push(acc)
+    }
+
+    curvaS = { labels, mensal, acumulado }
   } catch {}
 
   // variação mensal
@@ -342,7 +418,7 @@ export async function GET(req: NextRequest) {
     kpis.variacaoMensalPerc = 0
   }
 
-  return new Response(JSON.stringify({ kpis, series, alertas }), {
+  return new Response(JSON.stringify({ kpis, series, curvaS, alertas }), {
     headers: { 'content-type': 'application/json' },
   })
 }

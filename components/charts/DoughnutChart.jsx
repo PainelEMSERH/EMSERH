@@ -69,10 +69,13 @@ function DoughnutChart({
             const items = c.options.plugins.legend.labels.generateLabels(c);
             items.forEach((item) => {
               const li = document.createElement('li');
-              li.style.margin = '4px';
+              li.style.margin = '2px';
               // Button element
               const button = document.createElement('button');
               button.classList.add('btn-xs', 'bg-white', 'dark:bg-gray-700', 'text-gray-500', 'dark:text-gray-400', 'shadow-xs', 'shadow-black/[0.08]', 'rounded-full');
+              button.style.fontSize = '10px';
+              button.style.lineHeight = '1';
+              button.style.padding = '3px 7px';
               button.style.opacity = item.hidden ? '.3' : '';
               button.onclick = () => {
                 c.toggleDataVisibility(item.index);
@@ -91,6 +94,7 @@ function DoughnutChart({
               const label = document.createElement('span');
               label.style.display = 'flex';
               label.style.alignItems = 'center';
+              label.style.whiteSpace = 'nowrap';
               const labelText = document.createTextNode(item.text);
               label.appendChild(labelText);
               li.appendChild(button);
@@ -129,7 +133,7 @@ function DoughnutChart({
       <div>
         <canvas ref={canvas} width={width} height={height}></canvas>
       </div>
-      <div className="px-5 pt-2 pb-6">
+      <div className="px-4 pt-1 pb-4">
         <ul ref={legend} className="flex flex-wrap justify-center -m-1"></ul>
       </div>
     </div>
