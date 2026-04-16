@@ -97,9 +97,14 @@ export default function ImportarBasesPage() {
         });
       } else {
         const count = j.imported ?? j.total_rows ?? 0;
+        let successMsg =
+          j.message || `✅ Importação concluída! ${count} registro(s) importado(s). A base anterior foi apagada.`;
+        if (selectedModule === 'plano_acao_indicadores' && j.header_row_1based != null) {
+          successMsg += ` Cabeçalho detectado na linha ${j.header_row_1based} (${j.column_mapping?.length ?? 0} colunas mapeadas).`;
+        }
         setStatus({
           type: 'success',
-          message: j.message || `✅ Importação concluída! ${count} registro(s) importado(s). A base anterior foi apagada.`,
+          message: successMsg,
         });
         // Limpa o formulário
         setFile(null);
@@ -220,7 +225,9 @@ export default function ImportarBasesPage() {
                     {selectedModule === 'plano_acao_indicadores' && (
                       <>
                         <p>
-                          <strong>Neon · plano_acao_indicadores:</strong> primeira linha com os títulos abaixo (nomes podem variar levemente; acentos são aceitos).
+                          <strong>Neon · plano_acao_indicadores:</strong> o sistema procura a <strong>melhor linha de cabeçalho</strong> nas
+                          primeiras linhas do Excel (pode haver título institucional acima). Sinônimos e nomes parecidos (ex.: Macro Regional,
+                          Vencimento, Situação) são aceitos.
                         </p>
                         <p className="mt-1 font-mono text-[10px] leading-relaxed break-words">
                           Item · Empresa · Unidade · Diretoria · Gerência · Cod. Origem · Data de origem · Origem · Indicador ·
@@ -228,8 +235,10 @@ export default function ImportarBasesPage() {
                           Comentários · ORIGEM ANO · ORIGEM MES · MÊS PRAZO
                         </p>
                         <p className="mt-1">
-                          SQL de criação da tabela: <code className="rounded bg-bg px-1">scripts/sql/neon_plano_acao_indicadores.sql</code>. Por
-                          padrão a importação faz <strong>TRUNCATE</strong> e recarrega tudo.
+                          Se a base no Neon ficou com campos vazios, <strong>importe de novo</strong> o mesmo Excel (substitui tudo). A mensagem
+                          de sucesso indica qual linha foi usada como cabeçalho. SQL:{' '}
+                          <code className="rounded bg-bg px-1">scripts/sql/neon_plano_acao_indicadores.sql</code>. Por padrão:{' '}
+                          <strong>TRUNCATE</strong> e recarga completa.
                         </p>
                       </>
                     )}

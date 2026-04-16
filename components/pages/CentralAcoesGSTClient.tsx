@@ -13,6 +13,7 @@ import {
   XCircle,
   Info,
   ExternalLink,
+  Columns2,
 } from 'lucide-react';
 
 type Row = {
@@ -20,9 +21,15 @@ type Row = {
   item: string | null;
   empresa: string | null;
   unidade: string | null;
-  regional: string | null;
+  diretoria: string | null;
+  gerencia: string | null;
+  cod_origem: string | null;
+  data_origem: string | null;
+  origem: string | null;
   indicador: string | null;
+  auxiliar: string | null;
   acao: string | null;
+  regional: string | null;
   responsavel: string | null;
   prazo: string | null;
   conclusao: string | null;
@@ -33,6 +40,70 @@ type Row = {
   evidencia_arquivo_nome: string | null;
   evidencia_storage_path: string | null;
 };
+
+type ColId =
+  | 'item'
+  | 'empresa'
+  | 'unidade'
+  | 'diretoria'
+  | 'gerencia'
+  | 'cod_origem'
+  | 'data_origem'
+  | 'origem'
+  | 'indicador'
+  | 'auxiliar'
+  | 'acao'
+  | 'regional'
+  | 'responsavel'
+  | 'prazo'
+  | 'conclusao'
+  | 'novo_prazo'
+  | 'status'
+  | 'evidencia'
+  | 'comentarios';
+
+const COLS_LS = 'emserh-gst-acoes-cols-v1';
+
+const COL_DEFS: { id: ColId; label: string; className?: string }[] = [
+  { id: 'item', label: 'Item', className: 'max-w-[120px]' },
+  { id: 'empresa', label: 'Empresa', className: 'max-w-[120px]' },
+  { id: 'unidade', label: 'Unidade', className: 'max-w-[180px]' },
+  { id: 'diretoria', label: 'Diretoria', className: 'max-w-[120px]' },
+  { id: 'gerencia', label: 'Gerência', className: 'max-w-[120px]' },
+  { id: 'cod_origem', label: 'Cod. origem', className: 'max-w-[90px]' },
+  { id: 'data_origem', label: 'Data origem', className: 'whitespace-nowrap' },
+  { id: 'origem', label: 'Origem', className: 'max-w-[100px]' },
+  { id: 'indicador', label: 'Indicador', className: 'max-w-[200px]' },
+  { id: 'auxiliar', label: 'Auxiliar', className: 'max-w-[120px]' },
+  { id: 'acao', label: 'Ação', className: 'max-w-[220px]' },
+  { id: 'regional', label: 'Regional', className: 'max-w-[140px]' },
+  { id: 'responsavel', label: 'Responsável', className: 'max-w-[140px]' },
+  { id: 'prazo', label: 'Prazo', className: 'whitespace-nowrap' },
+  { id: 'conclusao', label: 'Conclusão', className: 'whitespace-nowrap' },
+  { id: 'novo_prazo', label: 'Novo prazo', className: 'whitespace-nowrap' },
+  { id: 'status', label: 'Status', className: 'max-w-[160px]' },
+  { id: 'evidencia', label: 'Evidência', className: 'max-w-[160px]' },
+  { id: 'comentarios', label: 'Comentários', className: 'max-w-[200px]' },
+];
+
+function defaultColVisibility(): Record<ColId, boolean> {
+  const v = {} as Record<ColId, boolean>;
+  for (const c of COL_DEFS) v[c.id] = true;
+  return v;
+}
+
+function loadColVisibility(): Record<ColId, boolean> {
+  const base = defaultColVisibility();
+  if (typeof window === 'undefined') return base;
+  try {
+    const raw = localStorage.getItem(COLS_LS);
+    if (!raw) return base;
+    const parsed = JSON.parse(raw) as Partial<Record<ColId, boolean>>;
+    return { ...base, ...parsed };
+  } catch {
+    return base;
+  }
+}
 
 type StatsCards = {
   total: { label: string; count: number; pct: number };
@@ -88,6 +159,31 @@ function fmtDate(s: string | null | undefined) {
     return `${d}/${m}/${y}`;
   }
   return s;
+}
+
+function cellText(r: Row, col: ColId): string {
+  const v = r[col];
+  if (v === null || v === undefined) return '';
+  return String(v).trim();
+}
+
+function renderCell(r: Row, col: ColId): React.ReactNode {
+  const t = cellText(r, col);
+  if (!t) return '—';
+  if (col === 'prazo' || col === 'conclusao' || col === 'novo_prazo' || col === 'data_origem') {
+    return <span className="tabular-nums">{fmtDate(t)}</span>;
+  }
+  if (col === 'evidencia' && /^https?:\/\//i.test(t)) {
+    return (
+      <a href={t} target="_blank" rel="noreferrer" className="font-medium text-emerald-600 hover:underline dark:text-emerald-400">
+        link
+      </a>
+    );
+  }
+  if (col === 'status') {
+    return <span className="rounded-full bg-muted/60 px-2 py-0.5 text-xs font-medium">{t}</span>;
+  }
+  return t;
 }
 
 function fmtPct(n: number) {
@@ -153,6 +249,20 @@ export default function CentralAcoesGSTClient() {
   const [formConclusao, setFormConclusao] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [colVis, setColVis] = useState<Record<ColId, boolean>>(() => defaultColVisibility());
+  const [colPickerOpen, setColPickerOpen] = useState(false);
+
+  useEffect(() => {
+    setColVis(loadColVisibility());
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(COLS_LS, JSON.stringify(colVis));
+    } catch {
+      /* ignore */
+    }
+  }, [colVis]);
 
   const pageSize = 20;
 
@@ -410,8 +520,60 @@ export default function CentralAcoesGSTClient() {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border bg-panel">
-        <div className="border-b border-border bg-bg/50 px-4 py-3 text-sm font-semibold text-text">
-          Linhas ({total.toLocaleString('pt-BR')})
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-bg/50 px-4 py-3">
+          <span className="text-sm font-semibold text-text">Linhas ({total.toLocaleString('pt-BR')})</span>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setColPickerOpen((o) => !o)}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-text hover:bg-bg"
+            >
+              <Columns2 className="h-4 w-4" aria-hidden />
+              Colunas visíveis
+            </button>
+            {colPickerOpen ? (
+              <>
+                <button
+                  type="button"
+                  className="fixed inset-0 z-30 cursor-default bg-transparent"
+                  aria-label="Fechar menu de colunas"
+                  onClick={() => setColPickerOpen(false)}
+                />
+                <div className="absolute right-0 z-40 mt-1 max-h-72 w-56 overflow-y-auto rounded-xl border border-border bg-panel py-2 shadow-lg">
+                  <p className="border-b border-border px-3 pb-2 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                    Marque para exibir
+                  </p>
+                  {COL_DEFS.map((c) => (
+                    <label
+                      key={c.id}
+                      className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted/30"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={colVis[c.id] !== false}
+                        onChange={() =>
+                          setColVis((v) => ({
+                            ...v,
+                            [c.id]: !(v[c.id] !== false),
+                          }))
+                        }
+                      />
+                      {c.label}
+                    </label>
+                  ))}
+                  <div className="border-t border-border px-3 pt-2">
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+                      onClick={() => setColVis(defaultColVisibility())}
+                    >
+                      Mostrar todas
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </div>
         </div>
         <div className="overflow-x-auto">
           {loading ? (
@@ -424,35 +586,29 @@ export default function CentralAcoesGSTClient() {
               Nenhum registro. Importe a planilha em Admin → Importar bases → Plano de ação / Indicadores.
             </div>
           ) : (
-            <table className="w-full min-w-[1000px] text-left text-sm">
+            <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="border-b border-border bg-muted/30 text-[11px] font-semibold uppercase tracking-wide text-muted">
                 <tr>
-                  <th className="px-3 py-2">Item</th>
-                  <th className="px-3 py-2">Regional</th>
-                  <th className="px-3 py-2">Prazo</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Responsável</th>
-                  <th className="px-3 py-2">Indicador</th>
+                  {COL_DEFS.filter((c) => colVis[c.id] !== false).map((c) => (
+                    <th key={c.id} className={`px-3 py-2 ${c.className || ''}`}>
+                      {c.label}
+                    </th>
+                  ))}
                   <th className="w-28 px-3 py-2">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {rows.map((r) => (
                   <tr key={r.id} className="hover:bg-muted/20">
-                    <td className="max-w-[220px] truncate px-3 py-2 font-medium text-text" title={r.item || ''}>
-                      {r.item || '—'}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-muted">{r.regional || '—'}</td>
-                    <td className="whitespace-nowrap px-3 py-2 tabular-nums">{fmtDate(r.prazo)}</td>
-                    <td className="max-w-[140px] truncate px-3 py-2" title={r.status || ''}>
-                      <span className="rounded-full bg-muted/60 px-2 py-0.5 text-xs font-medium">{r.status || '—'}</span>
-                    </td>
-                    <td className="max-w-[140px] truncate px-3 py-2 text-muted" title={r.responsavel || ''}>
-                      {r.responsavel || '—'}
-                    </td>
-                    <td className="max-w-[180px] truncate px-3 py-2 text-muted" title={r.indicador || ''}>
-                      {r.indicador || '—'}
-                    </td>
+                    {COL_DEFS.filter((c) => colVis[c.id] !== false).map((c) => (
+                      <td
+                        key={c.id}
+                        className={`truncate px-3 py-2 text-text ${c.id === 'item' ? 'font-medium' : 'text-muted'} ${c.className || ''}`}
+                        title={cellText(r, c.id)}
+                      >
+                        {renderCell(r, c.id)}
+                      </td>
+                    ))}
                     <td className="px-3 py-2">
                       <button
                         type="button"

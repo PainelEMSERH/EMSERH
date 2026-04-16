@@ -42,7 +42,16 @@ export async function GET(req: NextRequest) {
         OR COALESCE(indicador, '') ILIKE '%${e}%'
         OR COALESCE(responsavel, '') ILIKE '%${e}%'
         OR COALESCE(unidade, '') ILIKE '%${e}%'
+        OR COALESCE(empresa, '') ILIKE '%${e}%'
+        OR COALESCE(regional, '') ILIKE '%${e}%'
+        OR COALESCE(diretoria, '') ILIKE '%${e}%'
+        OR COALESCE(gerencia, '') ILIKE '%${e}%'
+        OR COALESCE(origem, '') ILIKE '%${e}%'
+        OR COALESCE(cod_origem, '') ILIKE '%${e}%'
+        OR COALESCE(auxiliar, '') ILIKE '%${e}%'
+        OR COALESCE(status, '') ILIKE '%${e}%'
         OR COALESCE(comentarios, '') ILIKE '%${e}%'
+        OR COALESCE(evidencia, '') ILIKE '%${e}%'
       )`);
     }
     const whereSql = where.join(' AND ');

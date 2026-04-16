@@ -3,6 +3,12 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { auth, currentUser } from '@clerk/nextjs/server'
 import { randomUUID } from 'crypto'
+import {
+  matrixToDataRows,
+  mappingSummary,
+  resolveFileHeaderToCol,
+  applyFuzzyColumnMappings,
+} from '@/lib/plano-acao-import-map'
 
 const ROOT_ADMIN_EMAIL = 'jonathan.alves@emserh.ma.gov.br'
 
@@ -85,52 +91,6 @@ function parseIntCell(raw: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-/** Mapeia cabeçalho da planilha (após normHeader) -> coluna SQL */
-const HEADER_TO_COL: { col: string; headerNorms: string[] }[] = [
-  { col: 'item', headerNorms: ['ITEM'] },
-  { col: 'empresa', headerNorms: ['EMPRESA'] },
-  { col: 'unidade', headerNorms: ['UNIDADE'] },
-  { col: 'diretoria', headerNorms: ['DIRETORIA'] },
-  { col: 'gerencia', headerNorms: ['GERENCIA'] },
-  { col: 'cod_origem', headerNorms: ['CODORIGEM', 'CODIGOORIGEM', 'CODORIGEMITEM'] },
-  { col: 'data_origem', headerNorms: ['DATADEORIGEM', 'DATAORIGEM', 'DATA DE ORIGEM'] },
-  { col: 'origem', headerNorms: ['ORIGEM'] },
-  { col: 'indicador', headerNorms: ['INDICADOR'] },
-  { col: 'auxiliar', headerNorms: ['AUXILIAR'] },
-  { col: 'acao', headerNorms: ['ACAO', 'AÇÃO'] },
-  { col: 'regional', headerNorms: ['REGIONAL'] },
-  { col: 'responsavel', headerNorms: ['RESPONSAVEL', 'RESPONSÁVEL'] },
-  { col: 'prazo', headerNorms: ['PRAZO'] },
-  { col: 'conclusao', headerNorms: ['CONCLUSAO', 'CONCLUSÃO'] },
-  { col: 'novo_prazo', headerNorms: ['NOVOPRAZO', 'NOVO PRAZO'] },
-  { col: 'status', headerNorms: ['STATUS'] },
-  { col: 'evidencia', headerNorms: ['EVIDENCIA', 'EVIDÊNCIA'] },
-  { col: 'comentarios', headerNorms: ['COMENTARIOS', 'COMENTÁRIOS'] },
-  { col: 'origem_ano', headerNorms: ['ORIGEMANO', 'ORIGEM ANO'] },
-  { col: 'origem_mes', headerNorms: ['ORIGEMMES', 'ORIGEM MES', 'ORIGEM MÊS'] },
-  { col: 'mes_prazo', headerNorms: ['MESPRAZO', 'MÊS PRAZO', 'MES PRAZO'] },
-]
-
-function resolveFileHeaderToCol(fileHeaders: string[]): Map<string, string> {
-  const normToRaw = new Map<string, string>()
-  for (const h of fileHeaders) {
-    const n = normHeader(h)
-    if (n && !normToRaw.has(n)) normToRaw.set(n, h)
-  }
-  const colToFile = new Map<string, string>()
-  for (const { col, headerNorms } of HEADER_TO_COL) {
-    for (const hn of headerNorms) {
-      const key = normHeader(hn)
-      const raw = normToRaw.get(key)
-      if (raw) {
-        colToFile.set(col, raw)
-        break
-      }
-    }
-  }
-  return colToFile
-}
-
 async function ensureTable() {
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS plano_acao_indicadores (
@@ -186,6 +146,7 @@ export async function POST(req: Request) {
 
   try {
     await ensureTable()
+    await ensurePlanoAcaoIndicadoresTable(prisma)
 
     const form = await req.formData()
     const file = form.get('file') as File | null
@@ -205,19 +166,19 @@ export async function POST(req: Request) {
     let rawRows: Record<string, unknown>[] = []
     let fileHeaders: string[] = []
 
+    let headerRowIndex = 0
+    let colToFile = new Map<string, string>()
+
     if (isXlsx) {
       const xlsx = await import('xlsx')
       const wb = xlsx.read(buf, { type: 'buffer' })
       const sheet = wb.Sheets[wb.SheetNames[0]]
-      const rowsRaw = xlsx.utils.sheet_to_json(sheet, { defval: '' }) as Record<string, unknown>[]
-      rawRows = rowsRaw.map((r) => {
-        const out: Record<string, unknown> = {}
-        for (const [k, v] of Object.entries(r || {})) {
-          out[String(k).trim()] = v
-        }
-        return out
-      })
-      fileHeaders = Array.from(new Set(rawRows.flatMap((r) => Object.keys(r || {})).map((h) => String(h).trim())))
+      const matrix = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][]
+      const parsed = matrixToDataRows(matrix)
+      rawRows = parsed.rawRows
+      headerRowIndex = parsed.headerRowIndex
+      colToFile = parsed.colToFile
+      fileHeaders = parsed.headerKeys.filter((k) => !k.startsWith('__col_'))
     } else {
       const text = buf.toString('utf8').replace(/^\uFEFF/, '')
       const lines = text.split(/\r?\n/).filter((l) => l.length > 0)
@@ -254,13 +215,17 @@ export async function POST(req: Request) {
       }
     }
 
-    const colToFile = resolveFileHeaderToCol(fileHeaders)
+    if (!isXlsx) {
+      colToFile = resolveFileHeaderToCol(fileHeaders)
+      applyFuzzyColumnMappings(colToFile, fileHeaders)
+    }
+
     if (colToFile.size === 0) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            'Não foi possível reconhecer colunas. Use na 1ª linha os títulos: Item, Empresa, Unidade, Diretoria, Gerência, Cod. Origem, Data de origem, Origem, Indicador, Auxiliar, Ação, Regional, Responsável, Prazo, Conclusão, Novo Prazo, Status, Evidência, Comentários, ORIGEM ANO, ORIGEM MES, MÊS PRAZO.',
+            'Não foi possível reconhecer colunas. Coloque uma linha de cabeçalho com títulos como: Item, Regional, Prazo, Status, Responsável, Indicador, Ação, Unidade, etc. (linhas de título acima do cabeçalho são detectadas automaticamente no .xlsx).',
         },
         { status: 400 },
       )
@@ -340,6 +305,8 @@ export async function POST(req: Request) {
       imported: valuesSql.length,
       import_batch_id: batchId,
       replace: replaceAll,
+      header_row_1based: isXlsx ? headerRowIndex + 1 : 1,
+      column_mapping: mappingSummary(colToFile),
       message: replaceAll
         ? `Base substituída: ${valuesSql.length} linha(s) gravadas no Neon (tabela plano_acao_indicadores).`
         : `Inseridas ${valuesSql.length} linha(s) (sem truncar a tabela).`,
