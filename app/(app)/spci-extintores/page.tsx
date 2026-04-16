@@ -540,17 +540,50 @@ export default function SPCIExtintoresPage() {
               </div>
 
               <div className="lg:col-span-5">
-                <div className="flex h-full min-h-[208px] flex-col items-center justify-center rounded-3xl border border-border bg-gradient-to-br from-emerald-600 to-emerald-500 p-5 text-white shadow-sm">
-                  <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/30 bg-white/10">
-                    <ShieldCheck className="h-5 w-5" />
+                <div className="h-full min-h-[208px] rounded-2xl border border-border bg-panel p-5 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-bg/70 text-emerald-600 dark:text-emerald-400">
+                        <ShieldCheck className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
+                          Unidades 100% regularizadas
+                        </p>
+                        <p className="mt-1 text-xs text-muted">Percentual de unidades com todos os extintores em conformidade</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-3xl font-bold tabular-nums text-text">
+                        {(stats.pctUnidadesRegularizadas || 0).toFixed(1)}%
+                      </p>
+                      <p className="text-[11px] font-semibold tabular-nums text-muted">
+                        {stats.unidadesRegularizadas}/{stats.totalUnidades}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-center text-[13px] font-semibold uppercase tracking-wide">Unidades 100% regularizadas</p>
-                  <p className="mt-3 text-4xl font-bold tabular-nums">
-                    {(stats.pctUnidadesRegularizadas || 0).toFixed(1)}%
-                  </p>
-                  <p className="mt-1 text-sm font-medium tabular-nums text-white/90">
-                    {stats.unidadesRegularizadas}/{stats.totalUnidades}
-                  </p>
+
+                  <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-border/70">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400"
+                      style={{ width: `${Math.max(0, Math.min(100, stats.pctUnidadesRegularizadas || 0))}%` }}
+                    />
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <div className="rounded-xl border border-border/70 bg-bg/40 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wide text-muted">Regularizadas</p>
+                      <p className="mt-1 text-sm font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                        {stats.unidadesRegularizadas}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/70 bg-bg/40 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wide text-muted">Pendentes</p>
+                      <p className="mt-1 text-sm font-semibold tabular-nums text-amber-600 dark:text-amber-300">
+                        {Math.max(0, (stats.totalUnidades || 0) - (stats.unidadesRegularizadas || 0))}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
