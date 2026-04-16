@@ -206,7 +206,10 @@ export async function GET(req: Request) {
     // Calcula status e data limite para cada registro
     // Converte BigInt para Number/String para evitar erro de serialização
     const rowsWithStatus = rows.map((row: any) => {
-      const calculo = calcularStatus(row['Última recarga']);
+      // Regra: status deve considerar a recarga mais recente registrada.
+      // Se houver "Data Execução Recarga", ela prevalece sobre "Última recarga".
+      const dataBaseStatus = row['Data Execução Recarga'] || row['Última recarga'];
+      const calculo = calcularStatus(dataBaseStatus);
       const rowConverted = convertBigIntToNumber(row);
       return {
         ...rowConverted,
