@@ -164,15 +164,25 @@ export function resolveFileHeaderToCol(fileHeaders: string[]): Map<string, strin
   return colToFile
 }
 
-/** Se ainda faltam muitas colunas, assume a ordem A..V do layout GST (22 colunas). */
-export function fillMissingColumnsByGstColumnOrder(colToFile: Map<string, string>, headerKeys: string[]) {
-  if (headerKeys.length < 18) return
-  if (colToFile.size >= 14) return
-  for (let j = 0; j < Math.min(GST_COLUMN_ORDER.length, headerKeys.length); j++) {
+/**
+ * Garante mapeamento A..V (22 colunas) do Excel GST.
+ * - Cabeçalhos vazios viram __col_J nas linhas de dados; aqui também ligamos essas chaves ao campo SQL certo.
+ * - Se o match por nome veio fraco (<12), assume ordem fixa A..V (planilha padrão de vocês).
+ */
+export function ensureGstColumnMapping(colToFile: Map<string, string>, headerKeys: string[]) {
+  const w = Math.min(GST_COLUMN_ORDER.length, headerKeys.length)
+  if (w < 18) return
+
+  if (colToFile.size < 12) {
+    for (let j = 0; j < w; j++) {
+      colToFile.set(GST_COLUMN_ORDER[j], headerKeys[j])
+    }
+    return
+  }
+
+  for (let j = 0; j < w; j++) {
     const sql = GST_COLUMN_ORDER[j]
-    const hk = headerKeys[j]
-    if (!hk || String(hk).startsWith('__col_')) continue
-    if (!colToFile.has(sql)) colToFile.set(sql, hk)
+    if (!colToFile.has(sql)) colToFile.set(sql, headerKeys[j])
   }
 }
 
@@ -406,7 +416,6 @@ export function matrixToDataRows(matrix: unknown[][]): {
       nonEmptyLabels.length >= 3 ? nonEmptyLabels : headerKeys.filter((k) => !k.startsWith('__col_'))
     const colToFile = resolveFileHeaderToCol(labelsForResolve)
     applyFuzzyColumnMappings(colToFile, headerKeys)
-    fillMissingColumnsByGstColumnOrder(colToFile, headerKeys)
 
     const headerLabelCount = headerKeys.filter((k) => k && !String(k).startsWith('__col_')).length
     const sc = scoreColumnMap(colToFile) + headerLabelCount * 5 + colToFile.size * 2
@@ -439,6 +448,7 @@ export function matrixToDataRows(matrix: unknown[][]): {
     if (hasData) rawRows.push(obj)
   }
 
+  ensureGstColumnMapping(bestMap, bestKeys)
   const filtered = filterMeaningfulPlanoRows(rawRows, bestMap)
 
   return { rawRows: filtered, headerRowIndex: bestIdx, headerKeys: bestKeys, colToFile: bestMap }
