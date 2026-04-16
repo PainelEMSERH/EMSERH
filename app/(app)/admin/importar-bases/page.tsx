@@ -46,6 +46,14 @@ const IMPORT_MODULES: ImportModule[] = [
     icon: '🧩',
     endpoint: '/api/import/epi-map',
   },
+  {
+    id: 'plano_acao_indicadores',
+    name: 'Plano de ação / Indicadores',
+    description:
+      'Tabela plano_acao_indicadores no Neon: planilha com Item, Empresa, Unidade, Prazo, Status, etc. Por padrão substitui toda a base.',
+    icon: '📊',
+    endpoint: '/api/import/plano-acao-indicadores',
+  },
 ];
 
 export default function ImportarBasesPage() {
@@ -207,6 +215,22 @@ export default function ImportarBasesPage() {
                       <>
                         <p><strong>Mapa EPI (stg_epi_map):</strong> Função (alterdata), Setor (unidade_hospitalar), Kit/EPI (epi_item), PCG/PGR e Qtd.</p>
                         <p className="mt-1">A importação detecta os cabeçalhos pelo nome (ex.: “SETOR”, “KIT”, “PCG/PGR”, “QTD”, “ALTERDATA/FUNÇÃO”).</p>
+                      </>
+                    )}
+                    {selectedModule === 'plano_acao_indicadores' && (
+                      <>
+                        <p>
+                          <strong>Neon · plano_acao_indicadores:</strong> primeira linha com os títulos abaixo (nomes podem variar levemente; acentos são aceitos).
+                        </p>
+                        <p className="mt-1 font-mono text-[10px] leading-relaxed break-words">
+                          Item · Empresa · Unidade · Diretoria · Gerência · Cod. Origem · Data de origem · Origem · Indicador ·
+                          Auxiliar · Ação · Regional · Responsável · Prazo · Conclusão · Novo Prazo · Status · Evidência ·
+                          Comentários · ORIGEM ANO · ORIGEM MES · MÊS PRAZO
+                        </p>
+                        <p className="mt-1">
+                          SQL de criação da tabela: <code className="rounded bg-bg px-1">scripts/sql/neon_plano_acao_indicadores.sql</code>. Por
+                          padrão a importação faz <strong>TRUNCATE</strong> e recarrega tudo.
+                        </p>
                       </>
                     )}
                   </div>
