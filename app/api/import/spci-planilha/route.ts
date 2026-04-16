@@ -163,7 +163,22 @@ export async function POST(req: Request) {
       const anoPlanejamento = r['Ano do Planejamento'] ?? r['Ano Planejamento'] ?? r['Ano'] ?? null;
       const ultimaRecarga = toDateBR(r['Última recarga'] ?? r['Ultima recarga'] ?? r['Última Recarga'] ?? r['Ultima Recarga']);
       const planejRecarga = toDateBR(r['Planej. Recarga'] ?? r['Planej Recarga'] ?? r['Planej.Recarga'] ?? r['Planejamento Recarga']);
-      const dataExec = toDateBR(r['Data Execução Recarga'] ?? r['Data Execucao Recarga'] ?? r['Exec. Recarga'] ?? r['Exec Recarga'] ?? r['Execução Recarga'] ?? r['Execucao Recarga']);
+      const dataExec = toDateBR(
+        r['Data Execução Recarga'] ??
+          r['Data Execucao Recarga'] ??
+          r['Data Exec. Recarga'] ??
+          r['Data Exec Recarga'] ??
+          r['Exec. Recarga'] ??
+          r['Exec Recarga'] ??
+          r['Execução Recarga'] ??
+          r['Execucao Recarga'] ??
+          r['Execução de Recarga'] ??
+          r['Execucao de Recarga'] ??
+          r['Execução de dados Recarga'] ??
+          r['Execucao de dados Recarga'] ??
+          r['Data de Execução Recarga'] ??
+          r['Data de Execucao Recarga'],
+      );
 
       const mesPlanej = planejRecarga ? getMesBR(parseDateBR(planejRecarga)!) : null;
       const mesExec = dataExec ? getMesBR(parseDateBR(dataExec)!) : null;
