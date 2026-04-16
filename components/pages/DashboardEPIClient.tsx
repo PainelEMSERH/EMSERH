@@ -886,58 +886,67 @@ export default function DashboardEPI() {
         </div>
       </section>
 
-      {/* Meta anual EPI */}
-      <section
-        className="relative overflow-hidden rounded-2xl border border-border bg-panel p-5 shadow-sm md:p-6"
-        aria-labelledby="dash-annual-heading"
-      >
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/[0.06] via-transparent to-teal-500/[0.04]" />
-        <div className="relative flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Meta anual</p>
-            <h2 id="dash-annual-heading" className="mt-1 text-base font-semibold text-text">
-              EPI obrigatórios
-            </h2>
-            <p className="mt-1 text-xs text-muted">
-              Entregues no ano (até hoje) x meta da coorte
-            </p>
+      {/* Meta anual + acidentes (lado a lado) */}
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-2" aria-label="Indicadores anuais">
+        <div
+          className="relative overflow-hidden rounded-2xl border border-border bg-panel p-5 shadow-sm md:p-6"
+          aria-labelledby="dash-annual-heading"
+        >
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/[0.06] via-transparent to-teal-500/[0.04]" />
+          <div className="relative flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Meta anual</p>
+              <h2 id="dash-annual-heading" className="mt-1 text-base font-semibold text-text">
+                EPI obrigatórios
+              </h2>
+              <p className="mt-1 text-xs text-muted">Entregues no ano (até hoje) x meta da coorte</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Atingimento</p>
+              <p className="text-3xl font-bold tabular-nums tracking-tight text-text">{anualPct.toFixed(1)}%</p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Atingimento</p>
-            <p className="text-3xl font-bold tabular-nums tracking-tight text-text">{anualPct.toFixed(1)}%</p>
+          <div className="relative mt-5 h-64 rounded-xl border border-border bg-card/50 p-3">
+            <Line data={curvaSChartData} options={curvaSOptions as any} />
           </div>
-        </div>
-        <div className="relative mt-5 h-56 rounded-xl border border-border bg-card/50 p-3">
-          <Line data={curvaSChartData} options={curvaSOptions as any} />
-        </div>
-        <div className="relative mt-4 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-border bg-card/70 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-wide text-muted">Realizado</p>
-            <p className="mt-1 text-xl font-bold tabular-nums text-text">
-              {formatThousands(epi.kpis.metaAnual.realizado)}
-            </p>
-            <p className="mt-1 text-[11px] text-muted">itens obrigatórios entregues</p>
-          </div>
-          <div className="rounded-xl border border-border bg-card/70 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-wide text-muted">Meta</p>
-            <p className="mt-1 text-xl font-bold tabular-nums text-text">
-              {formatThousands(epi.kpis.metaAnual.valorMeta)}
-            </p>
-            <p className="mt-1 text-[11px] text-muted">itens previstos para a coorte</p>
+          <div className="relative mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-border bg-card/70 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted">Realizado</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-text">{formatThousands(epi.kpis.metaAnual.realizado)}</p>
+              <p className="mt-1 text-[11px] text-muted">itens obrigatórios entregues</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card/70 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted">Meta</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-text">{formatThousands(epi.kpis.metaAnual.valorMeta)}</p>
+              <p className="mt-1 text-[11px] text-muted">itens previstos para a coorte</p>
+            </div>
           </div>
         </div>
-      </section>
 
-      {/* Gráficos */}
-      <section className="grid grid-cols-1 gap-6" aria-label="Gráficos de evolução">
         <div className="rounded-2xl border border-border bg-panel p-5 shadow-sm md:p-6">
           <div className="mb-1 flex items-center gap-2">
             <Activity className="h-4 w-4 text-red-500" />
             <h3 className="text-sm font-semibold text-text">Acidentes por mês</h3>
           </div>
           <p className="text-xs text-muted">Distribuição no ano {new Date().getFullYear()}</p>
-          <div className="mt-4 h-72">
+          <div className="mt-4 h-64 rounded-xl border border-border bg-card/50 p-3">
             <Line data={acidentesLineData} options={acidentesLineOptions as any} />
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="rounded-xl border border-border bg-card/60 px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-wide text-muted">Ano</p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-text">{formatThousands(acidentes?.totalAno || 0)}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card/60 px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-wide text-muted">Mês</p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-text">{formatThousands(acidentes?.totalMes || 0)}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card/60 px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-wide text-muted">Afastamento</p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-red-600 dark:text-red-400">
+                {formatThousands(acidentes?.comAfastamento || 0)}
+              </p>
+            </div>
           </div>
         </div>
       </section>
