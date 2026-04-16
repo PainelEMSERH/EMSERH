@@ -46,6 +46,7 @@ export function pickBestWorksheetForPlanoAcao(xlsx: {
 
 export function normHeader(s: unknown): string {
   return String(s ?? '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
     .replace(/\u00A0/g, ' ')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -252,6 +253,82 @@ export function scoreColumnMap(colToFile: Map<string, string>): number {
   return s
 }
 
+/** Copia valor da célula âncora para células vazias na mesma linha (mesclas horizontais do cabeçalho). */
+export function applyHorizontalMergeFill(
+  matrix: unknown[][],
+  merges: { s: { r: number; c: number }; e: { r: number; c: number } }[] | undefined,
+  maxRow: number,
+): unknown[][] {
+  const m = matrix.map((r) => [...(r || [])])
+  if (!merges?.length) return m
+  for (const { s, e } of merges) {
+    if (s.r !== e.r || s.r > maxRow) continue
+    const row = m[s.r]
+    if (!row) continue
+    const anchor = row[s.c]
+    const anchorStr = String(anchor ?? '').trim()
+    if (!anchorStr) continue
+    for (let c = s.c; c <= e.c; c++) {
+      const cur = String(row[c] ?? '').trim()
+      if (!cur) row[c] = anchor
+    }
+  }
+  return m
+}
+
+/** Corta linhas em branco no fim (faixa do Excel costuma ir além dos dados). */
+export function trimMatrixUsedRange(matrix: unknown[][]): unknown[][] {
+  let last = matrix.length - 1
+  while (last >= 0) {
+    const row = matrix[last] || []
+    const any = row.some((c) => {
+      const t = String(c ?? '').trim()
+      return t !== '' && t.toUpperCase() !== 'NULO'
+    })
+    if (any) break
+    last--
+  }
+  if (last < 0) return []
+  return matrix.slice(0, last + 1)
+}
+
+/** Remove linhas que não têm conteúdo “de negócio” (evita milhares de linhas só com 0 ou vazio). */
+export function filterMeaningfulPlanoRows(
+  rawRows: Record<string, unknown>[],
+  colToFile: Map<string, string>,
+): Record<string, unknown>[] {
+  const key = (col: string) => colToFile.get(col) || ''
+  const read = (row: Record<string, unknown>, col: string) => {
+    const k = key(col)
+    if (!k) return ''
+    return String(row[k] ?? '').trim()
+  }
+
+  return rawRows.filter((row) => {
+    const parts = [
+      read(row, 'item'),
+      read(row, 'empresa'),
+      read(row, 'unidade'),
+      read(row, 'indicador'),
+      read(row, 'acao'),
+      read(row, 'regional'),
+      read(row, 'status'),
+      read(row, 'prazo'),
+      read(row, 'responsavel'),
+      read(row, 'origem'),
+      read(row, 'cod_origem'),
+      read(row, 'evidencia'),
+      read(row, 'comentarios'),
+    ].filter((t) => t && t.toUpperCase() !== 'NULO')
+    if (parts.length === 0) return false
+    const joined = parts.join(' ')
+    const hasLetter = /[A-Za-zÀ-ÿ]/.test(joined)
+    const hasDigit = /\d/.test(joined)
+    if (!hasLetter && !hasDigit) return false
+    return true
+  })
+}
+
 /** Converte matriz da planilha (header:1) em linhas objeto + melhor linha de cabeçalho. */
 export function matrixToDataRows(matrix: unknown[][]): {
   rawRows: Record<string, unknown>[]
@@ -266,6 +343,7 @@ export function matrixToDataRows(matrix: unknown[][]): {
   const maxScan = Math.min(30, matrix.length)
   let bestIdx = 0
   let bestScore = -1
+  let bestHeaderLabelCount = -1
   let bestMap = new Map<string, string>()
   let bestKeys: string[] = []
 
@@ -281,12 +359,20 @@ export function matrixToDataRows(matrix: unknown[][]): {
       if (cell && cell.toUpperCase() !== 'NULO') nonEmptyLabels.push(cell)
     }
 
-    const colToFile = resolveFileHeaderToCol(nonEmptyLabels.length ? nonEmptyLabels : headerKeys.filter((k) => !k.startsWith('__col_')))
+    const labelsForResolve =
+      nonEmptyLabels.length >= 3 ? nonEmptyLabels : headerKeys.filter((k) => !k.startsWith('__col_'))
+    const colToFile = resolveFileHeaderToCol(labelsForResolve)
     applyFuzzyColumnMappings(colToFile, headerKeys)
 
-    const sc = scoreColumnMap(colToFile)
-    if (sc > bestScore) {
+    const headerLabelCount = headerKeys.filter((k) => k && !String(k).startsWith('__col_')).length
+    const sc = scoreColumnMap(colToFile) + headerLabelCount * 5 + colToFile.size * 2
+    const better =
+      sc > bestScore ||
+      (sc === bestScore && headerLabelCount > bestHeaderLabelCount) ||
+      (sc === bestScore && headerLabelCount === bestHeaderLabelCount && colToFile.size > bestMap.size)
+    if (better) {
       bestScore = sc
+      bestHeaderLabelCount = headerLabelCount
       bestIdx = i
       bestMap = colToFile
       bestKeys = headerKeys
@@ -309,7 +395,9 @@ export function matrixToDataRows(matrix: unknown[][]): {
     if (hasData) rawRows.push(obj)
   }
 
-  return { rawRows, headerRowIndex: bestIdx, headerKeys: bestKeys, colToFile: bestMap }
+  const filtered = filterMeaningfulPlanoRows(rawRows, bestMap)
+
+  return { rawRows: filtered, headerRowIndex: bestIdx, headerKeys: bestKeys, colToFile: bestMap }
 }
 
 export function mappingSummary(colToFile: Map<string, string>): { col: string; header: string }[] {

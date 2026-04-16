@@ -9,6 +9,8 @@ import {
   resolveFileHeaderToCol,
   applyFuzzyColumnMappings,
   pickBestWorksheetForPlanoAcao,
+  applyHorizontalMergeFill,
+  trimMatrixUsedRange,
 } from '@/lib/plano-acao-import-map'
 import { ensurePlanoAcaoIndicadoresTable } from '@/lib/plano-acao-indicadores-ensure'
 
@@ -178,7 +180,19 @@ export async function POST(req: Request) {
       const wb = xlsx.read(buf, { type: 'buffer' })
       sheetUsed = pickBestWorksheetForPlanoAcao(xlsx, wb as { SheetNames: string[]; Sheets: Record<string, unknown> })
       const sheet = wb.Sheets[sheetUsed] || wb.Sheets[wb.SheetNames[0]]
-      const matrix = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][]
+      let matrix = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][]
+      const ref = (sheet as { '!ref'?: string })['!ref']
+      if (ref) {
+        try {
+          const rng = xlsx.utils.decode_range(ref)
+          matrix = matrix.slice(0, Math.min(matrix.length, rng.e.r + 1))
+        } catch {
+          /* ignore bad ref */
+        }
+      }
+      matrix = trimMatrixUsedRange(matrix)
+      const merges = (sheet as { '!merges'?: { s: { r: number; c: number }; e: { r: number; c: number } }[] })['!merges']
+      matrix = applyHorizontalMergeFill(matrix, merges, 29)
       const parsed = matrixToDataRows(matrix)
       rawRows = parsed.rawRows
       headerRowIndex = parsed.headerRowIndex
