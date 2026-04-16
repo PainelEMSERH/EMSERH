@@ -51,7 +51,19 @@ export async function GET(req: NextRequest) {
       SELECT
         COALESCE(regional, '') AS regional,
         COUNT(*)::int AS total,
-        AVG(tempo_resposta_dias)::numeric(10,2) AS "avgTempoResposta"
+        ROUND(
+          AVG(
+            COALESCE(
+              tempo_resposta_dias,
+              CASE
+                WHEN data_chegada IS NOT NULL AND data_conclusao IS NOT NULL
+                THEN (data_conclusao - data_chegada)
+                ELSE NULL
+              END
+            )
+          )::numeric,
+          1
+        ) AS "avgTempoResposta"
       FROM demandas_trabalhistas
       ${whereSql}
       GROUP BY regional

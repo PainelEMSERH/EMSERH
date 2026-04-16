@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, RefreshCw, Download, ChevronLeft, ChevronRight, ExternalLink, Edit2, Plus } from 'lucide-react';
+import { Search, RefreshCw, Download, ChevronLeft, ChevronRight, Edit2, Plus } from 'lucide-react';
 
 type Row = {
   id: number;
@@ -77,13 +77,6 @@ function formatDate(value?: string | null) {
 function formatAvgDays(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return '-';
   return Number(value).toFixed(1);
-}
-
-function buildSeiUrl(numeroSei: string): string {
-  const clean = numeroSei.trim();
-  if (!clean) return '#';
-  if (clean.startsWith('http://') || clean.startsWith('https://')) return clean;
-  return `https://sei.ma.gov.br/sei/${encodeURIComponent(clean)}`;
 }
 
 export default function DemandasTrabalhistasPage() {
@@ -241,6 +234,25 @@ export default function DemandasTrabalhistasPage() {
         };
       }),
     [summary]
+  );
+  const totalDemandasAno = useMemo(
+    () => (summary?.perRegional || []).reduce((acc, item) => acc + Number(item.total || 0), 0),
+    [summary]
+  );
+  const tempoMedioGeral = useMemo(() => {
+    const valid = (summary?.perRegional || []).filter((item) => item.avgTempoResposta !== null);
+    if (!valid.length) return null;
+    const total = valid.reduce((acc, item) => acc + Number(item.avgTempoResposta || 0), 0);
+    return total / valid.length;
+  }, [summary]);
+  const regionalLider = useMemo(() => {
+    const list = summary?.perRegional || [];
+    if (!list.length) return null;
+    return [...list].sort((a, b) => Number(b.total || 0) - Number(a.total || 0))[0];
+  }, [summary]);
+  const maxMonthlyTotal = useMemo(
+    () => Math.max(1, ...monthlySummary.map((item) => Number(item.total || 0))),
+    [monthlySummary]
   );
 
   const unidadesFiltradas = useMemo(() => {
@@ -533,114 +545,157 @@ export default function DemandasTrabalhistasPage() {
         )}
       </div>
 
-      <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 p-4 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
-              Painel Executivo
-            </p>
-            <h2 className="text-lg font-semibold text-slate-900">Indicadores de Demandas Trabalhistas {ano}</h2>
-            <p className="text-xs text-slate-600">
-              Quantidade por regional, processos mensais de janeiro a dezembro e tempo medio de resposta no ano.
-            </p>
-          </div>
-          <div className="rounded-full border border-emerald-300 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
-            Ano em exibicao: {ano}
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="bg-gradient-to-r from-emerald-700 via-emerald-600 to-cyan-600 px-5 py-5 text-white">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-100">
+                Painel Executivo
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold">Indicadores de Demandas Trabalhistas</h2>
+              <p className="mt-1 text-sm text-emerald-50/90">
+                Visao consolidada do ano {ano}, com volume por regional, sazonalidade mensal e tempo medio de resposta.
+              </p>
+            </div>
+            <div className="rounded-2xl bg-white/12 px-4 py-3 backdrop-blur-sm">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-100">Ano em exibicao</div>
+              <div className="mt-1 text-3xl font-bold">{ano}</div>
+            </div>
           </div>
         </div>
 
-        {summaryLoading ? (
-          <div className="rounded-xl border border-dashed border-emerald-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600">
-            Carregando indicadores...
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-12">
-              {monthlySummary.map((item) => (
-                <div
-                  key={item.mes}
-                  className="rounded-xl border border-white/70 bg-white/90 px-3 py-3 text-center shadow-sm"
-                >
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{item.mes}</div>
-                  <div className="mt-1 text-2xl font-bold text-emerald-700">{item.total}</div>
-                  <div className="text-[10px] uppercase tracking-wide text-slate-500">Processos</div>
-                </div>
-              ))}
+        <div className="p-5">
+          {summaryLoading ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-600">
+              Carregando indicadores...
             </div>
-
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <div className="rounded-xl border border-white/70 bg-white/90 p-4 shadow-sm">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-slate-900">Quantidade de demandas por regional</h3>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                    {summary?.perRegional.length || 0} regionais
-                  </span>
+          ) : (
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-emerald-50 p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total de demandas</div>
+                  <div className="mt-2 text-4xl font-bold text-slate-900">{totalDemandasAno}</div>
+                  <div className="mt-2 text-xs text-slate-600">Total consolidado para o ano selecionado.</div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-[11px] uppercase">
-                    <thead>
-                      <tr className="border-b border-border text-slate-500">
-                        <th className="px-3 py-2 text-left font-semibold">Regional</th>
-                        <th className="px-3 py-2 text-right font-semibold">Demandas</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(summary?.perRegional || []).map((item) => (
-                        <tr key={item.regional || 'SEM-REGIONAL'} className="border-b border-slate-100 last:border-0">
-                          <td className="px-3 py-2 text-left">{item.regional || 'SEM REGIONAL'}</td>
-                          <td className="px-3 py-2 text-right font-semibold text-emerald-700">{item.total}</td>
-                        </tr>
-                      ))}
-                      {!(summary?.perRegional || []).length && (
-                        <tr>
-                          <td colSpan={2} className="px-3 py-4 text-center text-slate-500">
-                            Nenhum indicador encontrado para {ano}.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-cyan-50 p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Tempo medio geral</div>
+                  <div className="mt-2 text-4xl font-bold text-slate-900">{formatAvgDays(tempoMedioGeral)}</div>
+                  <div className="mt-2 text-xs text-slate-600">Dias medios de resposta considerando as regionais com conclusao.</div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-amber-50 p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Regional com maior volume</div>
+                  <div className="mt-2 text-2xl font-bold text-slate-900">{regionalLider?.regional || 'SEM DADOS'}</div>
+                  <div className="mt-2 text-sm font-semibold text-amber-700">
+                    {regionalLider ? `${regionalLider.total} demandas` : 'Sem registros no ano'}
+                  </div>
                 </div>
               </div>
 
-              <div className="rounded-xl border border-white/70 bg-white/90 p-4 shadow-sm">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-slate-900">Tempo medio de resposta por regional</h3>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                    Em dias
-                  </span>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Processos por mes</h3>
+                    <p className="text-xs text-slate-500">Leitura mensal de janeiro a dezembro.</p>
+                  </div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Base {ano}</div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-[11px] uppercase">
-                    <thead>
-                      <tr className="border-b border-border text-slate-500">
-                        <th className="px-3 py-2 text-left font-semibold">Regional</th>
-                        <th className="px-3 py-2 text-right font-semibold">Tempo medio</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(summary?.perRegional || []).map((item) => (
-                        <tr key={`${item.regional || 'SEM-REGIONAL'}-tempo`} className="border-b border-slate-100 last:border-0">
-                          <td className="px-3 py-2 text-left">{item.regional || 'SEM REGIONAL'}</td>
-                          <td className="px-3 py-2 text-right font-semibold text-cyan-700">
-                            {formatAvgDays(item.avgTempoResposta)}
-                          </td>
-                        </tr>
-                      ))}
-                      {!(summary?.perRegional || []).length && (
-                        <tr>
-                          <td colSpan={2} className="px-3 py-4 text-center text-slate-500">
-                            Nenhum indicador encontrado para {ano}.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-12">
+                  {monthlySummary.map((item) => {
+                    const height = `${Math.max(14, Math.round((item.total / maxMonthlyTotal) * 100))}%`;
+                    return (
+                      <div key={item.mes} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                        <div className="flex h-24 items-end justify-center">
+                          <div className="flex w-10 items-end justify-center rounded-t-xl bg-gradient-to-t from-emerald-600 to-cyan-500" style={{ height }} />
+                        </div>
+                        <div className="mt-3 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          {item.mes}
+                        </div>
+                        <div className="mt-1 text-center text-xl font-bold text-slate-900">{item.total}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="mb-4 flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900">Demandas por regional</h3>
+                      <p className="text-xs text-slate-500">Ranking de volume no ano selecionado.</p>
+                    </div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                      {summary?.perRegional.length || 0} regionais
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    {(summary?.perRegional || [])
+                      .slice()
+                      .sort((a, b) => Number(b.total || 0) - Number(a.total || 0))
+                      .map((item) => {
+                        const width = `${Math.max(8, Math.round((Number(item.total || 0) / Math.max(1, totalDemandasAno)) * 100))}%`;
+                        return (
+                          <div key={item.regional || 'SEM-REGIONAL'} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                            <div className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase">
+                              <span className="font-semibold text-slate-700">{item.regional || 'Sem regional'}</span>
+                              <span className="font-bold text-emerald-700">{item.total}</span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                              <div className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-cyan-500" style={{ width }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    {!(summary?.perRegional || []).length && (
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                        Nenhum indicador encontrado para {ano}.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="mb-4 flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900">Tempo medio de resposta por regional</h3>
+                      <p className="text-xs text-slate-500">Media em dias, calculada pelo campo salvo ou pela diferenca entre chegada e conclusao.</p>
+                    </div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Em dias</div>
+                  </div>
+                  <div className="space-y-3">
+                    {(summary?.perRegional || [])
+                      .slice()
+                      .sort((a, b) => Number(b.avgTempoResposta ?? -1) - Number(a.avgTempoResposta ?? -1))
+                      .map((item) => {
+                        const value = Number(item.avgTempoResposta ?? 0);
+                        const max = Math.max(
+                          1,
+                          ...(summary?.perRegional || []).map((entry) => Number(entry.avgTempoResposta ?? 0))
+                        );
+                        const width = item.avgTempoResposta === null ? '0%' : `${Math.max(8, Math.round((value / max) * 100))}%`;
+                        return (
+                          <div key={`${item.regional || 'SEM-REGIONAL'}-tempo`} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                            <div className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase">
+                              <span className="font-semibold text-slate-700">{item.regional || 'Sem regional'}</span>
+                              <span className="font-bold text-cyan-700">{formatAvgDays(item.avgTempoResposta)}</span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                              <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-sky-600" style={{ width }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    {!(summary?.perRegional || []).length && (
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                        Nenhum indicador encontrado para {ano}.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
 
       {!loading && rows.length > 0 && (

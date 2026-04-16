@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const destino = normText(body.destino);
     const observacoes = normText(body.observacoes);
     const prazoDias = toNullableInt(body.prazoDias);
-    const tempoRespostaDias = toNullableInt(body.tempoRespostaDias);
+    const tempoRespostaInformado = toNullableInt(body.tempoRespostaDias);
     const dataChegadaISO = toDateISO(body.dataChegada);
     const dataLimiteISO = toDateISO(body.dataLimite);
     const dataConclusaoISO = toDateISO(body.dataConclusao);
@@ -44,6 +44,15 @@ export async function POST(req: NextRequest) {
     const mesChegada = dataChegadaISO ? monthShortPtFromISO(dataChegadaISO) : null;
     const mesConclusao =
       normText(body.mesConclusao) || (dataConclusaoISO ? monthShortPtFromISO(dataConclusaoISO) : null);
+    const tempoRespostaDias =
+      tempoRespostaInformado ??
+      (dataChegadaISO && dataConclusaoISO
+        ? Math.round(
+            (new Date(`${dataConclusaoISO}T00:00:00`).getTime() -
+              new Date(`${dataChegadaISO}T00:00:00`).getTime()) /
+              86400000
+          )
+        : null);
 
     if (!numeroSei && !demandante) {
       return NextResponse.json(
