@@ -11,6 +11,7 @@ import {
   pickBestWorksheetForPlanoAcao,
   applyHorizontalMergeFill,
   trimMatrixUsedRange,
+  fillMissingColumnsByGstColumnOrder,
 } from '@/lib/plano-acao-import-map'
 import { ensurePlanoAcaoIndicadoresTable } from '@/lib/plano-acao-indicadores-ensure'
 
@@ -237,6 +238,7 @@ export async function POST(req: Request) {
     if (!isXlsx) {
       colToFile = resolveFileHeaderToCol(fileHeaders)
       applyFuzzyColumnMappings(colToFile, fileHeaders)
+      fillMissingColumnsByGstColumnOrder(colToFile, fileHeaders)
     }
 
     if (colToFile.size === 0) {

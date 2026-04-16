@@ -61,7 +61,7 @@ export const HEADER_TO_COL: { col: string; headerNorms: string[] }[] = [
   { col: 'item', headerNorms: ['ITEM', 'NITEM', 'NUMEROITEM', 'NUMITEM', 'CODITEM', 'CODIGODOITEM', 'CODIGOITEM', 'SEQ', 'SEQUENCIA', 'NUMERO'] },
   { col: 'empresa', headerNorms: ['EMPRESA', 'ORGAO', 'ORGAOEMPREGADOR'] },
   { col: 'unidade', headerNorms: ['UNIDADE', 'UNIDADEFUNCIONAL', 'NOMEDAUNIDADE', 'ESTABELECIMENTO', 'HOSPITAL', 'UPA', 'UNIDADESAUDE'] },
-  { col: 'diretoria', headerNorms: ['DIRETORIA', 'DIR', 'SUPERINTENDENCIA'] },
+  { col: 'diretoria', headerNorms: ['DIRETORIA', 'SUPERINTENDENCIA'] },
   {
     col: 'gerencia',
     headerNorms: ['GERENCIA', 'GERÊNCIA', 'GERENCIAS', 'COORDENACAO', 'COORDENAÇÃO', 'SETOR', 'GERSEGURANCA', 'GERSEGURANCADOTRABALHO'],
@@ -111,26 +111,69 @@ export const HEADER_TO_COL: { col: string; headerNorms: string[] }[] = [
   { col: 'mes_prazo', headerNorms: ['MESPRAZO', 'MÊS PRAZO', 'MES PRAZO', 'ANOMESPRAZO'] },
 ]
 
+/**
+ * Ordem típica da planilha GST (A..V): mescla com o Excel que vocês usam.
+ * Usado só para preencher colunas que ainda faltaram após match por nome.
+ */
+export const GST_COLUMN_ORDER: string[] = [
+  'item',
+  'empresa',
+  'unidade',
+  'diretoria',
+  'gerencia',
+  'cod_origem',
+  'data_origem',
+  'origem',
+  'indicador',
+  'auxiliar',
+  'acao',
+  'regional',
+  'responsavel',
+  'prazo',
+  'conclusao',
+  'novo_prazo',
+  'status',
+  'evidencia',
+  'comentarios',
+  'origem_ano',
+  'origem_mes',
+  'mes_prazo',
+]
+
+/** Resolve cabeçalho → coluna sem “sumir” títulos duplicados no mapa (cada célula só pode ir para uma coluna SQL). */
 export function resolveFileHeaderToCol(fileHeaders: string[]): Map<string, string> {
-  const normToRaw = new Map<string, string>()
-  for (const h of fileHeaders) {
-    const raw = String(h ?? '').trim()
-    if (!raw) continue
-    const n = normHeader(raw)
-    if (n && !normToRaw.has(n)) normToRaw.set(n, raw)
-  }
+  const entries = fileHeaders
+    .map((h) => String(h ?? '').trim())
+    .filter((h) => h && h.toUpperCase() !== 'NULO')
+    .map((raw) => ({ raw, n: normHeader(raw) }))
+
+  const used = new Set<string>()
   const colToFile = new Map<string, string>()
+
   for (const { col, headerNorms } of HEADER_TO_COL) {
-    for (const hn of headerNorms) {
-      const key = normHeader(hn)
-      const raw = normToRaw.get(key)
-      if (raw) {
+    const normKeys = new Set(headerNorms.map((hn) => normHeader(hn)))
+    for (const { raw, n } of entries) {
+      if (used.has(raw)) continue
+      if (normKeys.has(n)) {
         colToFile.set(col, raw)
+        used.add(raw)
         break
       }
     }
   }
   return colToFile
+}
+
+/** Se ainda faltam muitas colunas, assume a ordem A..V do layout GST (22 colunas). */
+export function fillMissingColumnsByGstColumnOrder(colToFile: Map<string, string>, headerKeys: string[]) {
+  if (headerKeys.length < 18) return
+  if (colToFile.size >= 14) return
+  for (let j = 0; j < Math.min(GST_COLUMN_ORDER.length, headerKeys.length); j++) {
+    const sql = GST_COLUMN_ORDER[j]
+    const hk = headerKeys[j]
+    if (!hk || String(hk).startsWith('__col_')) continue
+    if (!colToFile.has(sql)) colToFile.set(sql, hk)
+  }
 }
 
 /** Preenche colunas ainda sem mapeamento, pela forma do título da coluna. */
@@ -363,6 +406,7 @@ export function matrixToDataRows(matrix: unknown[][]): {
       nonEmptyLabels.length >= 3 ? nonEmptyLabels : headerKeys.filter((k) => !k.startsWith('__col_'))
     const colToFile = resolveFileHeaderToCol(labelsForResolve)
     applyFuzzyColumnMappings(colToFile, headerKeys)
+    fillMissingColumnsByGstColumnOrder(colToFile, headerKeys)
 
     const headerLabelCount = headerKeys.filter((k) => k && !String(k).startsWith('__col_')).length
     const sc = scoreColumnMap(colToFile) + headerLabelCount * 5 + colToFile.size * 2
