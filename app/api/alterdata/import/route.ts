@@ -1,5 +1,7 @@
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth, currentUser } from '@clerk/nextjs/server';
@@ -412,6 +414,15 @@ try {
   console.log('View materializada ainda não existe, será criada na próxima vez');
 }
 
+try {
+  await prisma.$executeRawUnsafe(`
+    REFRESH MATERIALIZED VIEW CONCURRENTLY mv_alterdata_flat;
+    ANALYZE mv_alterdata_flat;
+  `);
+} catch {
+  // mv_alterdata_flat pode não existir em todos os ambientes
+}
+
 // Audit log da importação
 try {
   await prisma.auditLog.create({
@@ -434,7 +445,10 @@ return NextResponse.json({
   ok: true,
   batchId,
   total_rows: inserted,
-  ...(clearBeforeImport && { cleared: true, message: 'Base limpa e dados da planilha importados com sucesso.' }),
+  cleared: clearBeforeImport,
+  message: clearBeforeImport
+    ? 'Base Alterdata limpa e reimportada. Ordens de Serviço (lista) refletem a planilha; lançamentos de OS já feitos foram preservados.'
+    : 'Base Alterdata atualizada (merge por CPF/matrícula).',
 });
 
   }catch(e:any){

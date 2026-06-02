@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { sqlIsAbandonoEmprego, sqlOrdemServicoJoinOn } from '@/lib/ordem-servico-sql';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const INI_EXERCICIO = '2026-01-01';
+const FIM_EXERCICIO = '2027-01-01';
 
 const demDataExpr = `(
   CASE
@@ -39,6 +43,25 @@ const coorte2026Sql = `(
     OR TRIM(a.demissao) = ''
     OR (${demDataExpr}) IS NULL
     OR (${demDataExpr}) >= DATE '${INI_EXERCICIO}'
+  )
+)`;
+
+/**
+ * Lista na tela: coorte 01/01/2026 + novos contratados no exercício (adm após 01/01/2026).
+ * Meta vs Real em meta-real/route.ts continua só com coorte2026Sql — não alterar lá.
+ */
+const listagemAlterdataSql = `(
+  ${coorte2026Sql}
+  OR (
+    (${admDataExpr}) IS NOT NULL
+    AND (${admDataExpr}) > DATE '${INI_EXERCICIO}'
+    AND (${admDataExpr}) < DATE '${FIM_EXERCICIO}'
+    AND (
+      a.demissao IS NULL
+      OR TRIM(a.demissao) = ''
+      OR (${demDataExpr}) IS NULL
+      OR (${demDataExpr}) >= DATE '${INI_EXERCICIO}'
+    )
   )
 )`;
 
@@ -136,7 +159,7 @@ export async function GET(req: NextRequest) {
     const useJoin = hasUnidReg?.[0]?.exists;
 
     const wh: string[] = [];
-    wh.push(coorte2026Sql);
+    wh.push(listagemAlterdataSql);
 
     if (regional && useJoin) {
       const escReg = regional.replace(/'/g, "''");
@@ -203,7 +226,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
         LEFT JOIN ordem_servico os ON ${joinOrdemServicoOn}
         ${whereCore}
-        ORDER BY a.cpf, a.colaborador
+        ORDER BY a.cpf, a.updated_at DESC NULLS LAST, a.colaborador
       ) sub
       ORDER BY ${orderExpr} ${sortDir.toUpperCase()}
       LIMIT ${pageSize} OFFSET ${offset}
@@ -229,7 +252,7 @@ export async function GET(req: NextRequest) {
         FROM stg_alterdata_v2 a
         LEFT JOIN ordem_servico os ON ${joinOrdemServicoOn}
         ${whereCore}
-        ORDER BY a.cpf, a.colaborador
+        ORDER BY a.cpf, a.updated_at DESC NULLS LAST, a.colaborador
       ) sub
       ORDER BY ${orderExpr} ${sortDir.toUpperCase()}
       LIMIT ${pageSize} OFFSET ${offset}

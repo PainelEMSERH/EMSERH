@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { sqlNotInMetaPorAbandono, sqlOrdemServicoJoinOn } from '@/lib/ordem-servico-sql';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * Meta vs Real — exercício 2026.
  *
