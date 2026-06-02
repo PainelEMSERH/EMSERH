@@ -4,93 +4,15 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { REPORT_MODULES, ReportFilters, ReportColumn } from '@/lib/relatorios/config';
-import { isEpiObrigatorio } from '@/data/epiObrigatorio';
+import { fetchEntregasDetalhado } from '@/lib/relatorios/entregas-export';
 
-// Função para buscar dados de Entregas
 async function fetchEntregasData(filters: ReportFilters, selectedColumns: string[]): Promise<any[]> {
-  const { regional, unidade, de, ate } = filters;
-  
-  const now = new Date();
-  const defaultAte = ate || now.toISOString().slice(0, 10);
-  const defaultDeDate = de ? new Date(de) : new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  const defaultDe = de || defaultDeDate.toISOString().slice(0, 10);
-
-  const where: string[] = [];
-  const params: any[] = [];
-
-  params.push(defaultDe);
-  where.push(`j.data >= $${params.length}`);
-  params.push(defaultAte);
-  where.push(`j.data <= $${params.length}`);
-
-  if (regional) {
-    params.push(regional.toUpperCase());
-    where.push(`upper(coalesce(j.regional, '')) = $${params.length}`);
-  }
-
-  if (unidade) {
-    params.push(unidade.toUpperCase());
-    where.push(`upper(coalesce(j.unidade, '')) = $${params.length}`);
-  }
-
-  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-
-  const sql = `
-    WITH base AS (
-      SELECT
-        e.cpf,
-        e.item,
-        (elem->>'date')::date AS data,
-        (elem->>'qty')::int AS quantidade,
-        e.qty_required,
-        e.qty_delivered
-      FROM epi_entregas e
-      CROSS JOIN LATERAL jsonb_array_elements(e.deliveries) elem
-    ),
-    joined AS (
-      SELECT
-        b.cpf,
-        b.item,
-        b.data,
-        b.quantidade,
-        b.qty_required,
-        b.qty_delivered,
-        COALESCE(f.regional, m.regional, '—') AS regional,
-        COALESCE(f.unidade, m.unidade, '—') AS unidade,
-        COALESCE(f.nome, m.nome, '—') AS nome,
-        COALESCE(f.matricula, m.matricula, '—') AS matricula,
-        COALESCE(f.funcao, m.funcao, '—') AS funcao,
-        COALESCE(f.admissao, m.admissao::text, null) AS admissao,
-        COALESCE(f.demissao, m.demissao::text, null) AS demissao
-      FROM base b
-      LEFT JOIN mv_alterdata_flat f ON f.cpf = b.cpf
-      LEFT JOIN epi_manual_colab m ON m.cpf = b.cpf
-    )
-    SELECT * FROM joined j
-    ${whereSql}
-    ORDER BY j.data DESC, j.nome, j.item
-  `;
-
-  const rows: any[] = await prisma.$queryRawUnsafe<any[]>(sql, ...params);
-
-  return rows.map((r) => {
-    const row: any = {};
-    
-    if (selectedColumns.includes('cpf')) row.cpf = String(r.cpf || '');
-    if (selectedColumns.includes('nome')) row.nome = String(r.nome || '—');
-    if (selectedColumns.includes('matricula')) row.matricula = String(r.matricula || '—');
-    if (selectedColumns.includes('funcao')) row.funcao = String(r.funcao || '—');
-    if (selectedColumns.includes('unidade')) row.unidade = String(r.unidade || '—');
-    if (selectedColumns.includes('regional')) row.regional = String(r.regional || '—');
-    if (selectedColumns.includes('item')) row.item = String(r.item || '');
-    if (selectedColumns.includes('quantidade')) row.quantidade = Number(r.quantidade || 0);
-    if (selectedColumns.includes('data_entrega')) row.data_entrega = r.data ? new Date(r.data).toISOString().slice(0, 10) : null;
-    if (selectedColumns.includes('qty_required')) row.qty_required = Number(r.qty_required || 0);
-    if (selectedColumns.includes('qty_delivered')) row.qty_delivered = Number(r.qty_delivered || 0);
-    if (selectedColumns.includes('admissao')) row.admissao = r.admissao ? String(r.admissao).slice(0, 10) : null;
-    if (selectedColumns.includes('demissao')) row.demissao = r.demissao ? String(r.demissao).slice(0, 10) : null;
-    if (selectedColumns.includes('obrigatorio')) row.obrigatorio = isEpiObrigatorio(r.item) ? 'Sim' : 'Não';
-    
+  const rows = await fetchEntregasDetalhado(filters);
+  return rows.map((full) => {
+    const row: Record<string, unknown> = {};
+    for (const col of selectedColumns) {
+      if (col in full) row[col] = (full as Record<string, unknown>)[col];
+    }
     return row;
   });
 }

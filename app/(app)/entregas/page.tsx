@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { isEpiObrigatorio } from '@/data/epiObrigatorio';
-import { Settings, Package, Info, CheckCircle2, XCircle, AlertCircle, Clock } from 'lucide-react';
+import { Settings, Package, Info, CheckCircle2, XCircle, AlertCircle, Clock, Download } from 'lucide-react';
 import { findBestUnitMatch } from '@/lib/unitMatcher';
 import MetaVsRealCard from '@/components/shared/MetaVsRealCard';
 
@@ -274,6 +274,9 @@ export default function EntregasPage() {
   }>({ open: false });
 
   const [tab, setTab] = useState<'lista' | 'diag'>('lista');
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportDe, setExportDe] = useState('2026-01-01');
+  const [exportAte, setExportAte] = useState(() => new Date().toISOString().slice(0, 10));
 
   const [modal, setModal] = useState<{ open: boolean; row?: Row | null }>({ open: false });
   const [kit, setKit] = useState<KitItem[]>([]);
@@ -322,6 +325,39 @@ export default function EntregasPage() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }
 
+  async function exportarRelatorioCompleto() {
+    setExportBusy(true);
+    try {
+      const params = new URLSearchParams();
+      if (state.regional) params.set('regional', state.regional);
+      if (state.unidade) params.set('unidade', state.unidade);
+      if (state.q?.trim()) params.set('q', state.q.trim());
+      params.set('de', exportDe);
+      params.set('ate', exportAte);
+      params.set('incluir_pendentes', 'true');
+
+      const res = await fetch(`/api/entregas/export?${params.toString()}`, { cache: 'no-store' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || 'Falha ao gerar relatório');
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Entregas_EPI_${exportAte}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showToast('Relatório Excel gerado (abas: Lançamentos, Resumo, Pendências, Info).', 'success');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Erro ao exportar';
+      showToast(msg, 'error');
+    } finally {
+      setExportBusy(false);
+    }
+  }
 
   function setFilter(patch: Partial<typeof state>) {
     setState(prev => ({
@@ -1219,6 +1255,43 @@ export default function EntregasPage() {
                     className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text placeholder:text-muted shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
                     aria-label="Buscar por nome ou CPF"
                   />
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-dashed border-border bg-card/40 p-3 space-y-2">
+                <p className="text-xs text-muted">
+                  Exportar relatório completo (o que foi entregue, para quem, quando, unidade, quem registrou).
+                  Usa os filtros de regional/unidade/busca acima. Setor do kit não fica gravado — o Excel traz referência do mapa EPI.
+                </p>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <label className="text-xs font-medium block mb-1 text-text">Data inicial</label>
+                    <input
+                      type="date"
+                      value={exportDe}
+                      onChange={(e) => setExportDe(e.target.value)}
+                      className="px-3 py-2 rounded-lg border border-border bg-card text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1 text-text">Data final</label>
+                    <input
+                      type="date"
+                      value={exportAte}
+                      max={new Date().toISOString().slice(0, 10)}
+                      onChange={(e) => setExportAte(e.target.value)}
+                      className="px-3 py-2 rounded-lg border border-border bg-card text-sm"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={exportarRelatorioCompleto}
+                    disabled={exportBusy}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-600 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 disabled:opacity-50 text-sm font-medium"
+                  >
+                    <Download className="w-4 h-4" />
+                    {exportBusy ? 'Gerando Excel…' : 'Exportar relatório completo'}
+                  </button>
                 </div>
               </div>
             </div>

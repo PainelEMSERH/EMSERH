@@ -1,0 +1,69 @@
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+import { NextRequest, NextResponse } from 'next/server';
+import { buildEntregasWorkbook, EntregasExportFilters } from '@/lib/relatorios/entregas-export';
+
+export async function GET(req: NextRequest) {
+  try {
+    const url = new URL(req.url);
+    const filters: EntregasExportFilters = {
+      regional: url.searchParams.get('regional') || undefined,
+      unidade: url.searchParams.get('unidade') || undefined,
+      de: url.searchParams.get('de') || '2026-01-01',
+      ate: url.searchParams.get('ate') || new Date().toISOString().slice(0, 10),
+      q: url.searchParams.get('q') || undefined,
+      incluir_pendentes: url.searchParams.get('incluir_pendentes') !== 'false',
+    };
+
+    const buffer = await buildEntregasWorkbook(filters);
+    const filename = `Entregas_EPI_${filters.ate || 'hoje'}.xlsx`;
+
+    return new NextResponse(buffer, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Cache-Control': 'no-store',
+      },
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error('[entregas/export]', e);
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const filters = body.filters as EntregasExportFilters | undefined;
+    if (!filters) {
+      return NextResponse.json({ ok: false, error: 'filters obrigatório' }, { status: 400 });
+    }
+
+    const buffer = await buildEntregasWorkbook({
+      de: filters.de || '2026-01-01',
+      ate: filters.ate || new Date().toISOString().slice(0, 10),
+      regional: filters.regional,
+      unidade: filters.unidade,
+      q: filters.q,
+      incluir_pendentes: filters.incluir_pendentes !== false,
+    });
+
+    const filename = `Entregas_EPI_${filters.ate || new Date().toISOString().slice(0, 10)}.xlsx`;
+    return new NextResponse(buffer, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Cache-Control': 'no-store',
+      },
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error('[entregas/export POST]', e);
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
+}

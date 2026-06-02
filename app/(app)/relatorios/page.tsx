@@ -45,9 +45,7 @@ export default function RelatoriosPage() {
   const [filters, setFilters] = useState<ReportFilters>(() => {
     const now = new Date();
     const ate = now.toISOString().slice(0, 10);
-    const deDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-    const de = deDate.toISOString().slice(0, 10);
-    return { regional: '', unidade: '', de, ate };
+    return { regional: '', unidade: '', de: '2026-01-01', ate };
   });
 
   const [selectedModules, setSelectedModules] = useState<SelectedModule[]>(() => {
@@ -56,7 +54,10 @@ export default function RelatoriosPage() {
     if (entregasModule) {
       return [{
         id: 'entregas',
-        selectedColumns: ['cpf', 'nome', 'funcao', 'unidade', 'regional', 'item', 'quantidade', 'data_entrega']
+        selectedColumns: [
+          'data_entrega', 'cpf', 'nome', 'funcao', 'unidade', 'regional', 'item',
+          'quantidade', 'entregue_por', 'qty_required', 'qty_delivered',
+        ]
       }];
     }
     return [];
