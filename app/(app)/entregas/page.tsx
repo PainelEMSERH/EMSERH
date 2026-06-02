@@ -1263,9 +1263,9 @@ export default function EntregasPage() {
 
               <div className="rounded-lg border border-dashed border-border bg-card/40 p-3 space-y-2">
                 <p className="text-xs text-muted">
-                  Exportar relatório completo (o que foi entregue, para quem, quando, unidade, quem registrou).
-                  Usa regional/unidade/busca da tela — para trazer <strong>tudo</strong>, deixe Regional em{' '}
-                  <strong>Consolidado</strong> e Unidade em (todas). Setor do kit não fica gravado no banco.
+                  Excel com aba <strong>Pendentes (tela)</strong> — quem está como Pendente na lista e quais EPIs deve
+                  entregar — mais lançamentos, resumo e pendências parciais. Use os filtros da tela; para tudo, Regional
+                  em Consolidado.
                 </p>
                 <div className="flex flex-wrap items-end gap-3">
                   <div>

@@ -1,6 +1,8 @@
 import prisma from '@/lib/prisma';
 import { ReportFilters } from '@/lib/relatorios/config';
 import { isEpiObrigatorio } from '@/data/epiObrigatorio';
+import { getKitPrevistoForFuncao, loadKitRows } from '@/lib/entregas/kit-previsto';
+import { findBestUnitMatch } from '@/lib/unitMatcher';
 
 /** Normalização de CPF (mesma regra do painel de OS). */
 export const SQL_CPF_KEY = (col: string) => {
@@ -16,8 +18,25 @@ export const SQL_CPF_KEY = (col: string) => {
 
 export type EntregasExportFilters = ReportFilters & {
   incluir_pendentes?: boolean;
+  /** Colaboradores sem nenhuma entrega + kit previsto (badge PENDENTE na tela). */
+  incluir_pendentes_painel?: boolean;
   q?: string;
 };
+
+/** Mesma regra da lista Entregas: entregue = tem ao menos 1 lançamento em deliveries. */
+const ENTREGUE_EXISTS_SQL = (cpfCol = 'a.cpf') => `EXISTS (
+  SELECT 1
+  FROM epi_entregas e
+  WHERE regexp_replace(COALESCE(TRIM(e.cpf), ''), '[^0-9]', '', 'g')
+      = regexp_replace(COALESCE(TRIM(${cpfCol}), ''), '[^0-9]', '', 'g')
+    AND e.deliveries IS NOT NULL
+    AND jsonb_typeof(e.deliveries) = 'array'
+    AND jsonb_array_length(e.deliveries) > 0
+)`;
+
+function escSql(s: string): string {
+  return (s ?? '').replace(/'/g, "''");
+}
 
 /** Converte data do JSONB (ISO, BR ou serial Excel) para date. */
 const SQL_PARSE_DELIVERY_DATE = (rawExpr: string) => `(
@@ -630,10 +649,204 @@ export const ENTREGAS_PENDENTES_HEADERS: { key: string; label: string }[] = [
   { key: 'obrigatorio', label: 'Obrigatório' },
 ];
 
+/** Igual badge PENDENTE na tela: sem nenhuma entrega + EPIs do kit previsto. */
+export const PENDENTES_PAINEL_HEADERS: { key: string; label: string }[] = [
+  { key: 'status_painel', label: 'Status na tela' },
+  { key: 'cpf', label: 'CPF' },
+  { key: 'nome', label: 'Nome' },
+  { key: 'matricula', label: 'Matrícula' },
+  { key: 'funcao', label: 'Função' },
+  { key: 'unidade', label: 'Unidade' },
+  { key: 'regional', label: 'Regional' },
+  { key: 'epi_previsto', label: 'EPI a entregar (kit previsto)' },
+  { key: 'qtd_prevista', label: 'Qtd prevista' },
+  { key: 'obrigatorio', label: 'Obrigatório' },
+  { key: 'qtd_entregue', label: 'Qtd já entregue' },
+  { key: 'observacao', label: 'Observação' },
+];
+
+/**
+ * Colaboradores ativos sem nenhum lançamento em epi_entregas (mesmo critério do filtro Pendente na lista).
+ * Uma linha por EPI do kit previsto (PCG UNIVERSAL / base meta).
+ */
+export async function fetchPendentesColaboradoresPainel(filters: EntregasExportFilters) {
+  const hasAlterdata = await tableExists('stg_alterdata_v2');
+  if (!hasAlterdata) return [];
+
+  const hasUnidReg = await tableExists('stg_unid_reg');
+  const useJoin = hasUnidReg;
+  const wh: string[] = [
+    `(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '')`,
+    `COALESCE(a.cpf, '') != ''`,
+    `COALESCE(a.funcao, '') != ''`,
+    `NOT ${ENTREGUE_EXISTS_SQL('a.cpf')}`,
+  ];
+
+  const regTrim = (filters.regional || '').trim();
+  const uniTrim = (filters.unidade || '').trim();
+  const qTrim = (filters.q || '').trim();
+
+  if (regTrim && useJoin) {
+    wh.push(`(UPPER(TRIM(COALESCE(u.regional_responsavel, ''))) = UPPER(TRIM('${escSql(regTrim)}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) IN (
+      SELECT UPPER(TRIM(nmdepartamento)) FROM stg_unid_reg WHERE UPPER(TRIM(regional_responsavel)) = UPPER(TRIM('${escSql(regTrim)}'))
+    ))`);
+  }
+
+  if (uniTrim) {
+    let matchedUnidade: string | null = null;
+    if (useJoin) {
+      try {
+        const allUnits = await prisma.$queryRawUnsafe<{ unidade: string }[]>(`
+          SELECT DISTINCT COALESCE(NULLIF(TRIM(u.nmdepartamento), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') AS unidade
+          FROM stg_alterdata_v2 a
+          LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
+          WHERE COALESCE(NULLIF(TRIM(u.nmdepartamento), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') != ''
+        `);
+        matchedUnidade = findBestUnitMatch(
+          uniTrim,
+          allUnits.map((u) => u.unidade).filter(Boolean),
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+    const unidadeParaBuscar = matchedUnidade || uniTrim;
+    const escUni = escSql(unidadeParaBuscar);
+    if (useJoin) {
+      wh.push(`(
+        UPPER(TRIM(COALESCE(u.nmdepartamento, ''))) = UPPER(TRIM('${escUni}'))
+        OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${escUni}'))
+        OR UPPER(TRIM(COALESCE(u.nmdepartamento, ''))) LIKE UPPER(TRIM('%${escUni}%'))
+        OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${escUni}%'))
+      )`);
+    } else {
+      wh.push(`(
+        UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${escUni}'))
+        OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${escUni}%'))
+      )`);
+    }
+  }
+
+  if (qTrim) {
+    const escQ = escSql(qTrim);
+    const digits = qTrim.replace(/\D/g, '');
+    const conds = [
+      `COALESCE(a.colaborador, '') ILIKE '%${escQ}%'`,
+      `COALESCE(a.matricula, '') ILIKE '%${escQ}%'`,
+    ];
+    if (digits) {
+      conds.push(
+        `regexp_replace(COALESCE(TRIM(a.cpf), ''), '[^0-9]', '', 'g') LIKE '%${escSql(digits)}%'`,
+      );
+    } else {
+      conds.push(`COALESCE(a.cpf, '') ILIKE '%${escQ}%'`);
+    }
+    wh.push(`(${conds.join(' OR ')})`);
+  }
+
+  const whereSql = `WHERE ${wh.join(' AND ')}`;
+  const cpfKey = SQL_CPF_KEY('a.cpf');
+
+  const sql = useJoin
+    ? `
+    SELECT DISTINCT ON (${cpfKey})
+      ${cpfKey} AS cpf_key,
+      COALESCE(a.cpf, '') AS cpf,
+      COALESCE(a.colaborador, '') AS nome,
+      COALESCE(a.matricula, '') AS matricula,
+      COALESCE(a.funcao, '') AS funcao,
+      COALESCE(NULLIF(TRIM(u.nmdepartamento), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') AS unidade,
+      COALESCE(NULLIF(TRIM(u.regional_responsavel), ''), '') AS regional
+    FROM stg_alterdata_v2 a
+    LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
+    ${whereSql}
+    ORDER BY ${cpfKey}, a.colaborador ASC
+  `
+    : `
+    SELECT DISTINCT ON (${cpfKey})
+      ${cpfKey} AS cpf_key,
+      COALESCE(a.cpf, '') AS cpf,
+      COALESCE(a.colaborador, '') AS nome,
+      COALESCE(a.matricula, '') AS matricula,
+      COALESCE(a.funcao, '') AS funcao,
+      COALESCE(a.unidade_hospitalar, '') AS unidade,
+      '' AS regional
+    FROM stg_alterdata_v2 a
+    ${whereSql}
+    ORDER BY ${cpfKey}, a.colaborador ASC
+  `;
+
+  let colaboradores: Record<string, unknown>[] = await prisma.$queryRawUnsafe(sql);
+
+  if (await tableExists('colaborador_situacao_meta')) {
+    try {
+      const situacoes = await prisma.$queryRawUnsafe<{ cpf: string }[]>(`
+        SELECT cpf FROM colaborador_situacao_meta
+        WHERE situacao IN ('DEMITIDO_2026_SEM_EPI', 'DEMITIDO_2025_SEM_EPI', 'EXCLUIDO_META')
+      `);
+      const fora = new Set(situacoes.map((s) => String(s.cpf || '').replace(/\D/g, '').slice(-11)));
+      colaboradores = colaboradores.filter((c) => {
+        const k = String(c.cpf || '').replace(/\D/g, '').slice(-11);
+        return !fora.has(k);
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const kitRows = await loadKitRows();
+  const out: Record<string, unknown>[] = [];
+  const obs =
+    'Kit previsto (PCG UNIVERSAL / base meta). Na entrega, o setor escolhido pode alterar a lista de EPIs.';
+
+  for (const c of colaboradores) {
+    const funcao = String(c.funcao || '');
+    const kit = getKitPrevistoForFuncao(funcao, kitRows);
+    const base = {
+      status_painel: 'Pendente',
+      cpf: formatCpfDisplay(String(c.cpf || '')),
+      nome: String(c.nome || '—'),
+      matricula: String(c.matricula || '—'),
+      funcao,
+      unidade: String(c.unidade || '—'),
+      regional: String(c.regional || '—'),
+      qtd_entregue: 0,
+      observacao: obs,
+    };
+
+    if (kit.length === 0) {
+      out.push({
+        ...base,
+        epi_previsto: '(sem kit mapeado para a função)',
+        qtd_prevista: 0,
+        obrigatorio: '—',
+      });
+      continue;
+    }
+
+    for (const k of kit) {
+      out.push({
+        ...base,
+        epi_previsto: k.item,
+        qtd_prevista: k.quantidade,
+        obrigatorio: k.obrigatorio ? 'Sim' : 'Não',
+      });
+    }
+  }
+
+  return out.sort((a, b) => {
+    const n = String(a.nome).localeCompare(String(b.nome), 'pt-BR');
+    if (n !== 0) return n;
+    return String(a.epi_previsto).localeCompare(String(b.epi_previsto), 'pt-BR');
+  });
+}
+
 export async function buildEntregasWorkbook(filters: EntregasExportFilters) {
   const XLSX = await import('xlsx');
   const workbook = XLSX.utils.book_new();
 
+  const incluirPainel = filters.incluir_pendentes_painel !== false;
+  const pendentesPainel = incluirPainel ? await fetchPendentesColaboradoresPainel(filters) : [];
   const detalhe = await fetchEntregasDetalhado(filters);
   const resumo = await fetchEntregasResumo(filters);
   const pendentes = filters.incluir_pendentes !== false ? await fetchEntregasPendentes(filters) : [];
@@ -653,10 +866,13 @@ export async function buildEntregasWorkbook(filters: EntregasExportFilters) {
     /* ignore */
   }
 
+  if (incluirPainel) {
+    appendSheet(workbook, XLSX, 'Pendentes (tela)', PENDENTES_PAINEL_HEADERS, pendentesPainel);
+  }
   appendSheet(workbook, XLSX, 'Lançamentos', ENTREGAS_DETALHE_HEADERS, detalhe);
   appendSheet(workbook, XLSX, 'Resumo colab+item', ENTREGAS_RESUMO_HEADERS, resumo);
   if (pendentes.length > 0 || filters.incluir_pendentes !== false) {
-    appendSheet(workbook, XLSX, 'Pendências', ENTREGAS_PENDENTES_HEADERS, pendentes);
+    appendSheet(workbook, XLSX, 'Pendências parciais', ENTREGAS_PENDENTES_HEADERS, pendentes);
   }
 
   const meta = [
@@ -667,9 +883,11 @@ export async function buildEntregasWorkbook(filters: EntregasExportFilters) {
     ['Unidade', filters.unidade || 'Todas'],
     ['Busca', filters.q || '—'],
     [''],
+    ['Linhas Pendentes (tela)', String(pendentesPainel.length)],
+    ['Colaboradores pendentes (únicos)', String(new Set(pendentesPainel.map((r) => r.cpf)).size)],
     ['Linhas em Lançamentos', String(detalhe.length)],
     ['Linhas em Resumo', String(resumo.length)],
-    ['Linhas em Pendências', String(pendentes.length)],
+    ['Linhas em Pendências parciais', String(pendentes.length)],
     ['Itens em epi_entregas (banco)', String(totalEpiRows)],
     ['Eventos em deliveries JSON (banco)', String(totalDeliveryEvents)],
     [''],
