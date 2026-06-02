@@ -350,7 +350,10 @@ export default function EntregasPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      showToast('Relatório Excel gerado (abas: Lançamentos, Resumo, Pendências, Info).', 'success');
+      showToast(
+        'Relatório gerado. Se vier vazio, teste sem filtro de regional ou amplie o período (data inicial).',
+        'success',
+      );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Erro ao exportar';
       showToast(msg, 'error');
@@ -1261,7 +1264,8 @@ export default function EntregasPage() {
               <div className="rounded-lg border border-dashed border-border bg-card/40 p-3 space-y-2">
                 <p className="text-xs text-muted">
                   Exportar relatório completo (o que foi entregue, para quem, quando, unidade, quem registrou).
-                  Usa os filtros de regional/unidade/busca acima. Setor do kit não fica gravado — o Excel traz referência do mapa EPI.
+                  Usa regional/unidade/busca da tela — para trazer <strong>tudo</strong>, deixe Regional em{' '}
+                  <strong>Consolidado</strong> e Unidade em (todas). Setor do kit não fica gravado no banco.
                 </p>
                 <div className="flex flex-wrap items-end gap-3">
                   <div>
