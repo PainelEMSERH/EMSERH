@@ -25,6 +25,8 @@ const DESIGNADO_UNITS_CANON = new Set([
   'CASA TEA 12+',
   'SLZ-TEA-COHAB',
   'TEA 12+ COHAB',
+  'HOSPITAL DE PAULINO NEVES',
+  'INT-HOSP-PAULINO NEVES',
 ]);
 
 export function isDesignadoUnit(unidade: string | null | undefined): boolean {
@@ -38,6 +40,7 @@ export function isDesignadoUnit(unidade: string | null | undefined): boolean {
   if (c === 'CASA TEA 12+' || c === 'SLZ-TEA-COHAB' || (c.includes('TEA') && c.includes('12') && c.includes('COHAB'))) {
     return true;
   }
+  if (c.includes('PAULINO NEVES') && c.includes('HOSPITAL')) return true;
 
   return false;
 }
