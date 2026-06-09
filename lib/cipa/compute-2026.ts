@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { DESIGNADO_ACTIVITY_NAMES, isDesignadoUnit } from '@/lib/cipa/designado';
 
 function toWeekday(d: Date): Date {
   const out = new Date(d);
@@ -108,24 +109,39 @@ export async function compute2026From2025(
 
     const treinamento = addDays(ata, 2);
     const emissao = addDays(treinamento, 7);
+    const solicitacaoDesignado = toWeekday(addDays(oficio, 5));
 
     // Na coluna DATA POSSE exibimos a referência usada: posse 2025 (data_conclusão do item 12)
     const dataPosseExibir = dateToYMD(posseAnoAnterior);
 
-    const activities: { cod: number; nome: string; inicio: Date; fim: Date }[] = [
-      { cod: 1, nome: NOMES_ATIVIDADES[1], inicio: oficio, fim: addDays(oficio, 2) },
-      { cod: 2, nome: NOMES_ATIVIDADES[2], inicio: constituicao, fim: addDays(constituicao, 2) },
-      { cod: 3, nome: NOMES_ATIVIDADES[3], inicio: convocacao, fim: addDays(convocacao, 1) },
-      { cod: 4, nome: NOMES_ATIVIDADES[4], inicio: periodoInicio, fim: periodoFim },
-      { cod: 5, nome: NOMES_ATIVIDADES[5], inicio: edital, fim: addDays(edital, 1) },
-      { cod: 6, nome: NOMES_ATIVIDADES[6], inicio: campanha, fim: addDays(campanha, 3) },
-      { cod: 7, nome: NOMES_ATIVIDADES[7], inicio: campanha, fim: addDays(campanha, 3) },
-      { cod: 8, nome: NOMES_ATIVIDADES[8], inicio: ata, fim: addDays(ata, 1) },
-      { cod: 9, nome: NOMES_ATIVIDADES[9], inicio: ata, fim: addDays(ata, 1) },
-      { cod: 10, nome: NOMES_ATIVIDADES[10], inicio: treinamento, fim: addDays(treinamento, 26) },
-      { cod: 11, nome: NOMES_ATIVIDADES[11], inicio: emissao, fim: addDays(emissao, 26) },
-      { cod: 12, nome: NOMES_ATIVIDADES[12], inicio: addDays(posse, -1), fim: posse },
-    ];
+    const designado = isDesignadoUnit(uni);
+    const activities: { cod: number; nome: string; inicio: Date; fim: Date }[] = designado
+      ? [
+          { cod: 1, nome: DESIGNADO_ACTIVITY_NAMES[1], inicio: oficio, fim: addDays(oficio, 2) },
+          {
+            cod: 9,
+            nome: DESIGNADO_ACTIVITY_NAMES[9],
+            inicio: solicitacaoDesignado,
+            fim: addDays(solicitacaoDesignado, 1),
+          },
+          { cod: 10, nome: DESIGNADO_ACTIVITY_NAMES[10], inicio: treinamento, fim: addDays(treinamento, 26) },
+          { cod: 11, nome: DESIGNADO_ACTIVITY_NAMES[11], inicio: emissao, fim: addDays(emissao, 26) },
+          { cod: 12, nome: DESIGNADO_ACTIVITY_NAMES[12], inicio: addDays(posse, -1), fim: posse },
+        ]
+      : [
+          { cod: 1, nome: NOMES_ATIVIDADES[1], inicio: oficio, fim: addDays(oficio, 2) },
+          { cod: 2, nome: NOMES_ATIVIDADES[2], inicio: constituicao, fim: addDays(constituicao, 2) },
+          { cod: 3, nome: NOMES_ATIVIDADES[3], inicio: convocacao, fim: addDays(convocacao, 1) },
+          { cod: 4, nome: NOMES_ATIVIDADES[4], inicio: periodoInicio, fim: periodoFim },
+          { cod: 5, nome: NOMES_ATIVIDADES[5], inicio: edital, fim: addDays(edital, 1) },
+          { cod: 6, nome: NOMES_ATIVIDADES[6], inicio: campanha, fim: addDays(campanha, 3) },
+          { cod: 7, nome: NOMES_ATIVIDADES[7], inicio: campanha, fim: addDays(campanha, 3) },
+          { cod: 8, nome: NOMES_ATIVIDADES[8], inicio: ata, fim: addDays(ata, 1) },
+          { cod: 9, nome: NOMES_ATIVIDADES[9], inicio: ata, fim: addDays(ata, 1) },
+          { cod: 10, nome: NOMES_ATIVIDADES[10], inicio: treinamento, fim: addDays(treinamento, 26) },
+          { cod: 11, nome: NOMES_ATIVIDADES[11], inicio: emissao, fim: addDays(emissao, 26) },
+          { cod: 12, nome: NOMES_ATIVIDADES[12], inicio: addDays(posse, -1), fim: posse },
+        ];
 
     for (const a of activities) {
       out.push({

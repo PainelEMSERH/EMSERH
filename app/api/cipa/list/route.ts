@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { compute2026From2025 } from '@/lib/cipa/compute-2026';
+import { filterDesignadoRows } from '@/lib/cipa/designado';
 
 /**
  * Lista cronograma CIPA com filtros.
@@ -48,26 +49,31 @@ export async function GET(req: NextRequest) {
           FROM cronograma_cipa
           ${where2026}
           ORDER BY regional, unidade, atividade_codigo
-          LIMIT ${pageSize} OFFSET ${offset}
         `;
         const rowsResult = await prisma.$queryRawUnsafe<any[]>(rowsSql);
         const rows = Array.isArray(rowsResult) ? rowsResult : [];
-        const normalized = rows.map((r: any) => ({
-          id: r.id,
-          regional: String(r.regional ?? ''),
-          unidade: String(r.unidade ?? ''),
-          ano_gestao: 2026,
-          atividade_codigo: Number(r.atividade_codigo) || 0,
-          atividade_nome: String(r.atividade_nome ?? ''),
-          data_inicio_prevista: r.data_inicio_prevista ? String(r.data_inicio_prevista).slice(0, 10) : null,
-          data_fim_prevista: r.data_fim_prevista ? String(r.data_fim_prevista).slice(0, 10) : null,
-          data_conclusao: r.data_conclusao ? String(r.data_conclusao).slice(0, 10) : null,
-          data_posse_gestao: r.data_posse_gestao ? String(r.data_posse_gestao).slice(0, 10) : null,
-        }));
-        return NextResponse.json({ ok: true, rows: normalized, total: total2026Db });
+        const normalized = filterDesignadoRows(
+          rows.map((r: any) => ({
+            id: r.id,
+            regional: String(r.regional ?? ''),
+            unidade: String(r.unidade ?? ''),
+            ano_gestao: 2026,
+            atividade_codigo: Number(r.atividade_codigo) || 0,
+            atividade_nome: String(r.atividade_nome ?? ''),
+            data_inicio_prevista: r.data_inicio_prevista ? String(r.data_inicio_prevista).slice(0, 10) : null,
+            data_fim_prevista: r.data_fim_prevista ? String(r.data_fim_prevista).slice(0, 10) : null,
+            data_conclusao: r.data_conclusao ? String(r.data_conclusao).slice(0, 10) : null,
+            data_posse_gestao: r.data_posse_gestao ? String(r.data_posse_gestao).slice(0, 10) : null,
+          })),
+        );
+        return NextResponse.json({
+          ok: true,
+          rows: normalized.slice(offset, offset + pageSize),
+          total: normalized.length,
+        });
       }
 
-      const rows2026 = await compute2026From2025(prisma, regional, unidade);
+      const rows2026 = filterDesignadoRows(await compute2026From2025(prisma, regional, unidade));
       const total2026 = rows2026.length;
       const paged = rows2026.slice(offset, offset + pageSize);
       return NextResponse.json({
@@ -92,35 +98,34 @@ export async function GET(req: NextRequest) {
       FROM cronograma_cipa
       ${whereSql}
       ORDER BY regional, unidade, atividade_codigo
-      LIMIT ${pageSize} OFFSET ${offset}
     `;
-    const countSql = `SELECT COUNT(*)::int AS total FROM cronograma_cipa ${whereSql}`;
 
-    const [rowsResult, countResult] = await Promise.all([
-      prisma.$queryRawUnsafe<any[]>(rowsSql),
-      prisma.$queryRawUnsafe<any[]>(countSql),
-    ]);
+    const rowsResult = await prisma.$queryRawUnsafe<any[]>(rowsSql);
     const rows = Array.isArray(rowsResult) ? rowsResult : [];
-    const total = Number((countResult as any)?.[0]?.total ?? 0);
 
-    const normalized = rows.map((r: any) => {
-      const anoGestao = Number(r.ano_gestao) || 0;
-      return {
-        id: r.id,
-        regional: String(r.regional ?? ''),
-        unidade: String(r.unidade ?? ''),
-        ano_gestao: anoGestao,
-        atividade_codigo: Number(r.atividade_codigo) || 0,
-        atividade_nome: String(r.atividade_nome ?? ''),
-        data_inicio_prevista: r.data_inicio_prevista ? String(r.data_inicio_prevista).slice(0, 10) : null,
-        data_fim_prevista: r.data_fim_prevista ? String(r.data_fim_prevista).slice(0, 10) : null,
-        // 2026 sempre deve ter conclusão em branco para preenchimento
-        data_conclusao: anoGestao === 2026 ? null : (r.data_conclusao ? String(r.data_conclusao).slice(0, 10) : null),
-        data_posse_gestao: r.data_posse_gestao ? String(r.data_posse_gestao).slice(0, 10) : null,
-      };
+    const normalized = filterDesignadoRows(
+      rows.map((r: any) => {
+        const anoGestao = Number(r.ano_gestao) || 0;
+        return {
+          id: r.id,
+          regional: String(r.regional ?? ''),
+          unidade: String(r.unidade ?? ''),
+          ano_gestao: anoGestao,
+          atividade_codigo: Number(r.atividade_codigo) || 0,
+          atividade_nome: String(r.atividade_nome ?? ''),
+          data_inicio_prevista: r.data_inicio_prevista ? String(r.data_inicio_prevista).slice(0, 10) : null,
+          data_fim_prevista: r.data_fim_prevista ? String(r.data_fim_prevista).slice(0, 10) : null,
+          data_conclusao: anoGestao === 2026 ? null : r.data_conclusao ? String(r.data_conclusao).slice(0, 10) : null,
+          data_posse_gestao: r.data_posse_gestao ? String(r.data_posse_gestao).slice(0, 10) : null,
+        };
+      }),
+    );
+
+    return NextResponse.json({
+      ok: true,
+      rows: normalized.slice(offset, offset + pageSize),
+      total: normalized.length,
     });
-
-    return NextResponse.json({ ok: true, rows: normalized, total });
   } catch (e: any) {
     console.error('[cipa/list] error', e);
     return NextResponse.json({ ok: false, error: String(e?.message ?? e) }, { status: 500 });

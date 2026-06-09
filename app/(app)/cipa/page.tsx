@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, XCircle, Info, Filter, RefreshCw, Search, CopyPlus, Edit, Calendar } from 'lucide-react';
 import MetaVsRealCard from '@/components/shared/MetaVsRealCard';
+import { isDesignadoUnit } from '@/lib/cipa/designado';
 
 type Toast = { id: string; message: string; type: 'success' | 'error' | 'info' };
 function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast: (id: string) => void }) {
@@ -329,7 +330,9 @@ export default function CipaPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold text-text">CIPA - Cronograma de Gestão</h1>
-            <p className="text-xs text-muted mt-0.5">Atividades e datas de execução por regional e unidade.</p>
+            <p className="text-xs text-muted mt-0.5">
+              Atividades e datas de execução por regional e unidade. Unidades com CIPA por designação exibem 5 itens.
+            </p>
           </div>
           <button
             onClick={() => { loadData(); loadMetaReal(); }}
@@ -579,7 +582,14 @@ export default function CipaPage() {
                     return (
                       <tr key={`${row.regional}-${row.unidade}-${row.atividade_codigo}`} className="hover:bg-bg/30">
                         <td className="px-4 py-3 text-left font-medium text-[11px]">{row.regional}</td>
-                        <td className="px-4 py-3 text-left text-[11px]">{row.unidade}</td>
+                        <td className="px-4 py-3 text-left text-[11px]">
+                          <span>{row.unidade}</span>
+                          {isDesignadoUnit(row.unidade) && (
+                            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-500/40">
+                              Designado
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-center text-[11px]">{row.atividade_codigo}</td>
                         <td className="px-4 py-3 text-left text-[11px]">{row.atividade_nome}</td>
                         <td className="px-4 py-3 text-center text-[11px]">{formatDate(row.data_inicio_prevista)}</td>

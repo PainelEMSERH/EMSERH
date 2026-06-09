@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { compute2026From2025 } from '@/lib/cipa/compute-2026';
+import { DESIGNADO_EXCLUDED_CODES, isDesignadoUnit } from '@/lib/cipa/designado';
 
 /**
  * Replica cronograma 2026 a partir das datas de posse 2025. Insere em cronograma_cipa.
@@ -50,8 +51,21 @@ export async function POST() {
       inserted++;
     }
 
+    const designadoUnits = [...new Set(rows2026.filter((r) => isDesignadoUnit(r.unidade)).map((r) => r.unidade))];
+    let purged = 0;
+    for (const uni of designadoUnits) {
+      const uniEsc = String(uni).replace(/'/g, "''");
+      const del = await prisma.$executeRawUnsafe(`
+        DELETE FROM cronograma_cipa
+        WHERE ano_gestao = 2026
+          AND UPPER(TRIM(unidade)) = UPPER(TRIM('${uniEsc}'))
+          AND atividade_codigo IN (${DESIGNADO_EXCLUDED_CODES.join(',')})
+      `);
+      purged += Number(del ?? 0);
+    }
+
     const units = new Set(rows2026.map((r) => `${r.regional}|${r.unidade}`)).size;
-    return NextResponse.json({ ok: true, inserted, units });
+    return NextResponse.json({ ok: true, inserted, units, purgedDesignado: purged });
   } catch (e: any) {
     console.error('[cipa/replicar-2026] error', e);
     return NextResponse.json({ ok: false, error: String(e?.message ?? e) }, { status: 500 });
