@@ -278,3 +278,64 @@ html.app-shell-zoom {
 .ring-ring{ --tw-ring-color: var(--ring); }
 
 .bg-panel-hover{ background: color-mix(in hsl, var(--panel), #000 5%); }
+
+/* Tela "Em atualização" */
+@keyframes em-hammer-swing {
+  0%, 100% { transform: rotate(0deg); transform-origin: 132px 76px; }
+  50% { transform: rotate(-28deg); transform-origin: 132px 76px; }
+}
+@keyframes em-hammer-swing-fast {
+  0%, 100% { transform: rotate(0deg); transform-origin: 132px 76px; }
+  25% { transform: rotate(-32deg); transform-origin: 132px 76px; }
+  50% { transform: rotate(4deg); transform-origin: 132px 76px; }
+  75% { transform: rotate(-28deg); transform-origin: 132px 76px; }
+}
+@keyframes em-gear-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes em-progress-slide {
+  0% { width: 12%; margin-left: 0; }
+  50% { width: 55%; margin-left: 22%; }
+  100% { width: 12%; margin-left: 88%; }
+}
+@keyframes em-progress-slide-fast {
+  0% { width: 20%; margin-left: 0; }
+  33% { width: 70%; margin-left: 10%; }
+  66% { width: 40%; margin-left: 50%; }
+  100% { width: 20%; margin-left: 80%; }
+}
+@keyframes em-spark-blink {
+  0%, 100% { opacity: 0.2; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+@keyframes em-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes em-spark-pop {
+  0% { opacity: 0; transform: scale(0) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.2) rotate(20deg); }
+  100% { opacity: 0.6; transform: scale(1) rotate(0deg); }
+}
+
+.em-hammer { animation: em-hammer-swing 1.2s ease-in-out infinite; }
+.em-hammer-fast { animation: em-hammer-swing-fast 0.35s ease-in-out 3; }
+.em-gear {
+  border: 3px dashed currentColor;
+  border-radius: 9999px;
+  animation: em-gear-spin 8s linear infinite;
+}
+.em-gear-b { animation-duration: 12s; animation-direction: reverse; }
+.em-gear-c { animation-duration: 6s; }
+.em-progress {
+  width: 35%;
+  animation: em-progress-slide 2.8s ease-in-out infinite;
+}
+.em-progress-fast {
+  width: 50%;
+  animation: em-progress-slide-fast 0.9s ease-in-out 1;
+}
+.em-spark { animation: em-spark-blink 1.6s ease-in-out infinite; }
+.em-fade-msg { animation: em-fade-in 0.4s ease-out; }
+.em-spark-pop { animation: em-spark-pop 0.6s ease-out forwards; }
