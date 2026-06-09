@@ -1,5 +1,3 @@
-import { filterDesignadoRows } from '@/lib/cipa/designado';
-
 export type MetaRealRow = {
   unidade: string;
   data_fim_prevista: string | null;
@@ -16,14 +14,14 @@ function monthFromDate(iso: string | null | undefined, ano: number): string | nu
   return String(m).padStart(2, '0');
 }
 
+/** Espera linhas já filtradas por `filterDesignadoRows` (quando aplicável). */
 export function computeMetaRealFromRows(rows: MetaRealRow[], ano: number) {
-  const filtered = filterDesignadoRows(rows);
   const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
   const metaMeses: Record<string, number> = Object.fromEntries(meses.map((m) => [m, 0]));
   const realMeses: Record<string, number> = Object.fromEntries(meses.map((m) => [m, 0]));
 
   let totalReal = 0;
-  for (const row of filtered) {
+  for (const row of rows) {
     const mesMeta = monthFromDate(row.data_fim_prevista, ano);
     if (mesMeta) metaMeses[mesMeta] = (metaMeses[mesMeta] ?? 0) + 1;
 
@@ -34,7 +32,7 @@ export function computeMetaRealFromRows(rows: MetaRealRow[], ano: number) {
     }
   }
 
-  const totalMeta = filtered.length;
+  const totalMeta = rows.length;
   const meta: Record<string, number> = {};
   const real: Record<string, number> = {};
   const metaPercent: Record<string, number> = {};
