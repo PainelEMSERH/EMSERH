@@ -79,6 +79,17 @@ function formatDate(iso: string | null | undefined) {
   return d.toLocaleDateString('pt-BR');
 }
 
+function toDateInputValue(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const s = String(iso).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+    const [dd, mm, yyyy] = s.split('/');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return '';
+}
+
 /** Formata percentual com 2 casas decimais para o card Meta vs Real */
 function fmtPct(n: number): string {
   return Number(n).toFixed(2);
@@ -106,6 +117,8 @@ export default function CipaPage() {
 
   const [replicando, setReplicando] = useState(false);
   const [modalEdicao, setModalEdicao] = useState<{ open: boolean; row: Row | null }>({ open: false, row: null });
+  const [dataInicioEdit, setDataInicioEdit] = useState<string>('');
+  const [dataFimEdit, setDataFimEdit] = useState<string>('');
   const [dataConclusaoEdit, setDataConclusaoEdit] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -201,29 +214,24 @@ export default function CipaPage() {
 
   const abrirModalEdicao = (row: Row) => {
     setModalEdicao({ open: true, row });
-    // Converte data de YYYY-MM-DD para formato do input date (YYYY-MM-DD)
-    if (row.data_conclusao) {
-      const dt = String(row.data_conclusao).trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dt)) {
-        setDataConclusaoEdit(dt);
-      } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(dt)) {
-        const [dd, mm, yyyy] = dt.split('/');
-        setDataConclusaoEdit(`${yyyy}-${mm}-${dd}`);
-      } else {
-        setDataConclusaoEdit('');
-      }
-    } else {
-      setDataConclusaoEdit(new Date().toISOString().slice(0, 10));
-    }
+    setDataInicioEdit(toDateInputValue(row.data_inicio_prevista));
+    setDataFimEdit(toDateInputValue(row.data_fim_prevista));
+    setDataConclusaoEdit(toDateInputValue(row.data_conclusao));
   };
 
   const fecharModalEdicao = () => {
     setModalEdicao({ open: false, row: null });
+    setDataInicioEdit('');
+    setDataFimEdit('');
     setDataConclusaoEdit('');
   };
 
-  const salvarConclusao = async () => {
+  const salvarAtividade = async () => {
     if (!modalEdicao.row) return;
+    if (!dataInicioEdit && !dataFimEdit && !dataConclusaoEdit) {
+      showToast('Informe ao menos uma data para salvar.', 'error');
+      return;
+    }
     setSaving(true);
     try {
       const data: any = await fetchJSON('/api/cipa/save', {
@@ -234,6 +242,10 @@ export default function CipaPage() {
           unidade: modalEdicao.row.unidade,
           ano_gestao: modalEdicao.row.ano_gestao,
           atividade_codigo: modalEdicao.row.atividade_codigo,
+          atividade_nome: modalEdicao.row.atividade_nome,
+          data_posse_gestao: modalEdicao.row.data_posse_gestao,
+          data_inicio_prevista: dataInicioEdit || null,
+          data_fim_prevista: dataFimEdit || null,
           data_conclusao: dataConclusaoEdit || null,
         }),
       });
@@ -241,7 +253,7 @@ export default function CipaPage() {
         fecharModalEdicao();
         loadData();
         loadMetaReal();
-        showToast('Data de conclusão atualizada com sucesso.', 'success');
+        showToast('Datas atualizadas com sucesso.', 'success');
       } else {
         showToast(data?.error || 'Erro ao salvar', 'error');
       }
@@ -264,11 +276,13 @@ export default function CipaPage() {
           unidade: modalEdicao.row.unidade,
           ano_gestao: modalEdicao.row.ano_gestao,
           atividade_codigo: modalEdicao.row.atividade_codigo,
+          atividade_nome: modalEdicao.row.atividade_nome,
+          data_posse_gestao: modalEdicao.row.data_posse_gestao,
           data_conclusao: null,
         }),
       });
       if (data?.ok) {
-        fecharModalEdicao();
+        setDataConclusaoEdit('');
         loadData();
         loadMetaReal();
         showToast('Data de conclusão removida.', 'success');
@@ -587,32 +601,12 @@ export default function CipaPage() {
                         </td>
                         <td className="px-4 py-3 text-center">
                           <button
-                            onClick={async () => {
-                              if (computed2026) {
-                                setReplicando(true);
-                                try {
-                                  const data: any = await fetchJSON('/api/cipa/replicar-2026', { method: 'POST' });
-                                  if (!data?.ok) {
-                                    showToast(data?.error || 'Erro ao replicar 2026', 'error');
-                                    return;
-                                  }
-                                  await loadData();
-                                  loadMetaReal();
-                                } catch (e: any) {
-                                  showToast(e?.message || 'Erro ao replicar 2026', 'error');
-                                  return;
-                                } finally {
-                                  setReplicando(false);
-                                }
-                              }
-                              abrirModalEdicao(row);
-                            }}
-                            disabled={replicando}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/50 hover:bg-blue-100 dark:hover:bg-blue-500/30 transition-colors disabled:opacity-60"
-                            title={concluida ? 'Editar data de conclusão' : 'Dar baixa na atividade'}
+                            onClick={() => abrirModalEdicao(row)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/50 hover:bg-blue-100 dark:hover:bg-blue-500/30 transition-colors"
+                            title="Editar datas previstas e conclusão"
                           >
                             <Edit className="w-3 h-3" />
-                            {concluida ? 'Editar' : 'Dar baixa'}
+                            Editar
                           </button>
                         </td>
                       </tr>
@@ -648,27 +642,56 @@ export default function CipaPage() {
         )}
       </div>
 
-      {/* Modal de Edição de Conclusão */}
+      {/* Modal de edição de datas */}
       {modalEdicao.open && modalEdicao.row && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={fecharModalEdicao}>
           <div className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
-              <div className="text-lg font-semibold">Dar baixa na atividade</div>
+              <div className="text-lg font-semibold">Editar atividade</div>
               <div className="text-xs opacity-70 mt-1">{modalEdicao.row.atividade_nome}</div>
             </div>
             <div className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs font-medium mb-1.5 text-text">Unidade</div>
+                  <div className="text-sm text-muted">{modalEdicao.row.unidade}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium mb-1.5 text-text">Regional</div>
+                  <div className="text-sm text-muted">{modalEdicao.row.regional}</div>
+                </div>
+              </div>
+              {computed2026 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg px-3 py-2">
+                  Ao salvar, as atividades de 2026 desta regional serão gravadas no banco automaticamente.
+                </p>
+              )}
               <div>
-                <div className="text-xs font-medium mb-1.5 text-text">Unidade</div>
-                <div className="text-sm text-muted">{modalEdicao.row.unidade}</div>
+                <label className="text-xs font-medium block mb-1.5 text-text">Início previsto</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                  <input
+                    type="date"
+                    value={dataInicioEdit}
+                    onChange={(e) => setDataInicioEdit(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text"
+                  />
+                </div>
               </div>
               <div>
-                <div className="text-xs font-medium mb-1.5 text-text">Regional</div>
-                <div className="text-sm text-muted">{modalEdicao.row.regional}</div>
+                <label className="text-xs font-medium block mb-1.5 text-text">Fim previsto</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                  <input
+                    type="date"
+                    value={dataFimEdit}
+                    onChange={(e) => setDataFimEdit(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text"
+                  />
+                </div>
               </div>
               <div>
-                <label className="text-xs font-medium block mb-1.5 text-text">
-                  Data de Conclusão <span className="text-red-500">*</span>
-                </label>
+                <label className="text-xs font-medium block mb-1.5 text-text">Data de conclusão</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
                   <input
@@ -676,11 +699,11 @@ export default function CipaPage() {
                     value={dataConclusaoEdit}
                     onChange={(e) => setDataConclusaoEdit(e.target.value)}
                     className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text"
-                    required
                   />
                 </div>
+                <p className="text-[11px] text-muted mt-1">Deixe em branco para manter a atividade como pendente.</p>
               </div>
-              {modalEdicao.row.data_conclusao && (
+              {(modalEdicao.row.data_conclusao || dataConclusaoEdit) && (
                 <div className="pt-2 border-t border-border">
                   <button
                     onClick={removerConclusao}
@@ -701,8 +724,8 @@ export default function CipaPage() {
                 Cancelar
               </button>
               <button
-                onClick={salvarConclusao}
-                disabled={saving || !dataConclusaoEdit}
+                onClick={salvarAtividade}
+                disabled={saving || (!dataInicioEdit && !dataFimEdit && !dataConclusaoEdit)}
                 className="px-4 py-2 rounded-lg border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 text-sm font-medium disabled:opacity-50 flex items-center gap-2"
               >
                 {saving ? (

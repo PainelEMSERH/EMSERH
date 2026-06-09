@@ -1,41 +1,113 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { compute2026From2025 } from '@/lib/cipa/compute-2026';
+
+function parseDateInput(value: unknown): string | null | 'invalid' {
+  if (value === null || value === undefined || !String(value).trim()) return null;
+  const dtStr = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dtStr)) return dtStr;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dtStr)) {
+    const [dd, mm, yyyy] = dtStr.split('/');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return 'invalid';
+}
+
+async function rowExists(
+  regParam: string,
+  uniParam: string,
+  anoNum: number,
+  codNum: number,
+): Promise<boolean> {
+  const found: any[] = await prisma.$queryRawUnsafe(
+    `
+      SELECT 1
+      FROM cronograma_cipa
+      WHERE UPPER(TRIM(regional)) = UPPER(TRIM($1))
+        AND UPPER(TRIM(unidade)) = UPPER(TRIM($2))
+        AND ano_gestao = $3
+        AND atividade_codigo = $4
+      LIMIT 1
+    `,
+    regParam,
+    uniParam,
+    anoNum,
+    codNum,
+  );
+  return Boolean(found?.length);
+}
+
+async function ensureRegionalRows2026(regParam: string) {
+  const computed = await compute2026From2025(prisma, regParam, '');
+  for (const a of computed) {
+    const exists = await rowExists(a.regional, a.unidade, 2026, a.atividade_codigo);
+    if (exists) continue;
+    await prisma.$executeRawUnsafe(
+      `
+        INSERT INTO cronograma_cipa (
+          regional, unidade, ano_gestao, atividade_codigo, atividade_nome,
+          data_inicio_prevista, data_fim_prevista, data_conclusao, data_posse_gestao
+        )
+        VALUES ($1, $2, 2026, $3, $4, $5::date, $6::date, NULL, $7::date)
+      `,
+      a.regional,
+      a.unidade,
+      a.atividade_codigo,
+      a.atividade_nome,
+      a.data_inicio_prevista,
+      a.data_fim_prevista,
+      a.data_posse_gestao,
+    );
+  }
+}
 
 /**
- * API para atualizar data de conclusão de uma atividade CIPA
+ * API para atualizar datas de uma atividade CIPA (previstas e/ou conclusão).
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { regional, unidade, ano_gestao, atividade_codigo, data_conclusao } = body;
+    const {
+      regional,
+      unidade,
+      ano_gestao,
+      atividade_codigo,
+      atividade_nome,
+      data_posse_gestao,
+      data_inicio_prevista,
+      data_fim_prevista,
+      data_conclusao,
+    } = body;
 
     if (!regional || !unidade || !ano_gestao || !atividade_codigo) {
       return NextResponse.json(
         { ok: false, error: 'Regional, unidade, ano e código da atividade são obrigatórios' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Converte data de DD/MM/YYYY ou YYYY-MM-DD para DATE
-    let dataConclusaoDate: string | null = null;
-    if (data_conclusao && String(data_conclusao).trim()) {
-      const dtStr = String(data_conclusao).trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dtStr)) {
-        dataConclusaoDate = dtStr;
-      } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(dtStr)) {
-        const [dd, mm, yyyy] = dtStr.split('/');
-        dataConclusaoDate = `${yyyy}-${mm}-${dd}`;
-      } else {
-        return NextResponse.json(
-          { ok: false, error: 'Formato de data inválido. Use DD/MM/YYYY ou YYYY-MM-DD' },
-          { status: 400 }
-        );
-      }
+    const hasInicio = Object.prototype.hasOwnProperty.call(body, 'data_inicio_prevista');
+    const hasFim = Object.prototype.hasOwnProperty.call(body, 'data_fim_prevista');
+    const hasConclusao = Object.prototype.hasOwnProperty.call(body, 'data_conclusao');
+
+    if (!hasInicio && !hasFim && !hasConclusao) {
+      return NextResponse.json(
+        { ok: false, error: 'Informe ao menos uma data para atualizar' },
+        { status: 400 },
+      );
     }
 
-    // IMPORTANTE:
-    // Como usamos parâmetros ($1, $2, ...), NÃO devemos "escapar" manualmente apóstrofos,
-    // senão nomes como "OLHO D'ÁGUA" viram "OLHO D''ÁGUA" e o UPDATE não encontra a linha.
+    const inicioDate = hasInicio ? parseDateInput(data_inicio_prevista) : undefined;
+    const fimDate = hasFim ? parseDateInput(data_fim_prevista) : undefined;
+    const conclusaoDate = hasConclusao ? parseDateInput(data_conclusao) : undefined;
+
+    if (inicioDate === 'invalid' || fimDate === 'invalid' || conclusaoDate === 'invalid') {
+      return NextResponse.json(
+        { ok: false, error: 'Formato de data inválido. Use DD/MM/YYYY ou YYYY-MM-DD' },
+        { status: 400 },
+      );
+    }
+
     const regParam = String(regional).trim();
     const uniParam = String(unidade).trim();
     const anoNum = parseInt(String(ano_gestao), 10);
@@ -44,46 +116,86 @@ export async function POST(req: NextRequest) {
     if (isNaN(anoNum) || isNaN(codNum)) {
       return NextResponse.json(
         { ok: false, error: 'Ano e código da atividade devem ser números' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Atualiza registro existente.
-    // Observação: a tabela `cronograma_cipa` no Neon não tem `updated_at`, então não devemos setar esse campo.
-    if (dataConclusaoDate) {
+    let exists = await rowExists(regParam, uniParam, anoNum, codNum);
+    if (!exists && anoNum === 2026) {
+      await ensureRegionalRows2026(regParam);
+      exists = await rowExists(regParam, uniParam, anoNum, codNum);
+    }
+
+    if (!exists) {
+      const nomeParam = String(atividade_nome ?? '').trim();
+      if (!nomeParam) {
+        return NextResponse.json(
+          { ok: false, error: 'Registro não encontrado. Informe o nome da atividade para criar.' },
+          { status: 404 },
+        );
+      }
+
+      const posseParsed = parseDateInput(data_posse_gestao);
+      if (posseParsed === 'invalid') {
+        return NextResponse.json(
+          { ok: false, error: 'Data de posse inválida para criar o registro' },
+          { status: 400 },
+        );
+      }
+
       await prisma.$executeRawUnsafe(
         `
-          UPDATE cronograma_cipa
-          SET data_conclusao = $1::date
-          WHERE UPPER(TRIM(regional)) = UPPER(TRIM($2))
-            AND UPPER(TRIM(unidade)) = UPPER(TRIM($3))
-            AND ano_gestao = $4
-            AND atividade_codigo = $5
+          INSERT INTO cronograma_cipa (
+            regional, unidade, ano_gestao, atividade_codigo, atividade_nome,
+            data_inicio_prevista, data_fim_prevista, data_conclusao, data_posse_gestao
+          )
+          VALUES ($1, $2, $3, $4, $5, $6::date, $7::date, $8::date, $9::date)
         `,
-        dataConclusaoDate,
         regParam,
         uniParam,
         anoNum,
         codNum,
+        nomeParam,
+        hasInicio ? inicioDate : null,
+        hasFim ? fimDate : null,
+        hasConclusao ? conclusaoDate : null,
+        posseParsed,
       );
     } else {
+      const sets: string[] = [];
+      const params: unknown[] = [];
+      let idx = 1;
+
+      if (hasInicio) {
+        sets.push(`data_inicio_prevista = $${idx}::date`);
+        params.push(inicioDate);
+        idx++;
+      }
+      if (hasFim) {
+        sets.push(`data_fim_prevista = $${idx}::date`);
+        params.push(fimDate);
+        idx++;
+      }
+      if (hasConclusao) {
+        sets.push(`data_conclusao = $${idx}::date`);
+        params.push(conclusaoDate);
+        idx++;
+      }
+
+      params.push(regParam, uniParam, anoNum, codNum);
       await prisma.$executeRawUnsafe(
         `
           UPDATE cronograma_cipa
-          SET data_conclusao = NULL
-          WHERE UPPER(TRIM(regional)) = UPPER(TRIM($1))
-            AND UPPER(TRIM(unidade)) = UPPER(TRIM($2))
-            AND ano_gestao = $3
-            AND atividade_codigo = $4
+          SET ${sets.join(', ')}
+          WHERE UPPER(TRIM(regional)) = UPPER(TRIM($${idx}))
+            AND UPPER(TRIM(unidade)) = UPPER(TRIM($${idx + 1}))
+            AND ano_gestao = $${idx + 2}
+            AND atividade_codigo = $${idx + 3}
         `,
-        regParam,
-        uniParam,
-        anoNum,
-        codNum,
+        ...params,
       );
     }
 
-    // Retorna o registro atualizado
     const result: any[] = await prisma.$queryRawUnsafe(
       `
         SELECT id, regional, unidade, ano_gestao, atividade_codigo, atividade_nome,
@@ -106,24 +218,31 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      row: result[0] ? {
-        id: result[0].id,
-        regional: String(result[0].regional ?? ''),
-        unidade: String(result[0].unidade ?? ''),
-        ano_gestao: Number(result[0].ano_gestao) || 0,
-        atividade_codigo: Number(result[0].atividade_codigo) || 0,
-        atividade_nome: String(result[0].atividade_nome ?? ''),
-        data_inicio_prevista: result[0].data_inicio_prevista ? String(result[0].data_inicio_prevista).slice(0, 10) : null,
-        data_fim_prevista: result[0].data_fim_prevista ? String(result[0].data_fim_prevista).slice(0, 10) : null,
-        data_conclusao: result[0].data_conclusao ? String(result[0].data_conclusao).slice(0, 10) : null,
-        data_posse_gestao: result[0].data_posse_gestao ? String(result[0].data_posse_gestao).slice(0, 10) : null,
-      } : null,
+      row: result[0]
+        ? {
+            id: result[0].id,
+            regional: String(result[0].regional ?? ''),
+            unidade: String(result[0].unidade ?? ''),
+            ano_gestao: Number(result[0].ano_gestao) || 0,
+            atividade_codigo: Number(result[0].atividade_codigo) || 0,
+            atividade_nome: String(result[0].atividade_nome ?? ''),
+            data_inicio_prevista: result[0].data_inicio_prevista
+              ? String(result[0].data_inicio_prevista).slice(0, 10)
+              : null,
+            data_fim_prevista: result[0].data_fim_prevista
+              ? String(result[0].data_fim_prevista).slice(0, 10)
+              : null,
+            data_conclusao: result[0].data_conclusao
+              ? String(result[0].data_conclusao).slice(0, 10)
+              : null,
+            data_posse_gestao: result[0].data_posse_gestao
+              ? String(result[0].data_posse_gestao).slice(0, 10)
+              : null,
+          }
+        : null,
     });
   } catch (e: any) {
     console.error('[cipa/save] error', e);
-    return NextResponse.json(
-      { ok: false, error: String(e?.message ?? e) },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: String(e?.message ?? e) }, { status: 500 });
   }
 }
