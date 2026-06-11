@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { DESIGNADO_ACTIVITY_NAMES, isDesignadoUnit } from '@/lib/cipa/designado';
 import { canonUnidade } from '@/lib/unidReg';
-import { cipaUnidadeMatchSql, normalizeCipaUnidade } from '@/lib/cipa/unidades';
+import { CE_CIDADE_OPERARIA, cipaUnidadeMatchSql, resolveCipaUnidade } from '@/lib/cipa/unidades';
 
 function toWeekday(d: Date): Date {
   const out = new Date(d);
@@ -91,20 +91,61 @@ export async function compute2026From2025(
   for (const row of posseRows) {
     const reg = String(row.regional ?? '').trim();
     const uniRaw = String(row.unidade ?? '').trim();
-    const uni = normalizeCipaUnidade(uniRaw);
+    const uni = resolveCipaUnidade(uniRaw, 12);
     const posse2025Str = String(row.data_conclusao ?? '').slice(0, 10);
     if (!posse2025Str || !/^\d{4}-\d{2}-\d{2}$/.test(posse2025Str)) continue;
 
     const key = `${reg}|${uni}`;
     const sourceCanon = canonUnidade(uniRaw);
     let score = 0;
-    if (sourceCanon.includes('POLICLINICA')) score += 10;
-    if (sourceCanon.includes('UPA')) score += 5;
+    if (uni === CE_CIDADE_OPERARIA) {
+      if (sourceCanon.includes('POLICLINICA')) score += 20;
+      if (sourceCanon.includes('CER') || sourceCanon.includes('REAB') || sourceCanon.includes('CENTRO ESPECIALIZADO')) {
+        score += 15;
+      }
+    } else if (sourceCanon.includes('UPA')) {
+      score += 10;
+    }
 
     const existing = posseGroups.get(key);
     if (!existing || score > existing.score) {
       posseGroups.set(key, { regional: reg, unidade: uni, posse2025Str, score });
     }
+  }
+
+  // Fallback: legado sem item 12 preenchido — usa qualquer data de posse de 2025 da unidade.
+  const whFallback: string[] = ['ano_gestao = 2025'];
+  if (filterRegional) whFallback.push(`UPPER(TRIM(regional)) = UPPER('${String(filterRegional).replace(/'/g, "''")}')`);
+  if (filterUnidade) whFallback.push(cipaUnidadeMatchSql(filterUnidade));
+  const whereFallback = `WHERE ${whFallback.join(' AND ')}`;
+
+  const fallbackRows: any[] = await p.$queryRawUnsafe(`
+    SELECT TRIM(regional) AS regional, TRIM(unidade) AS unidade,
+           COALESCE(
+             NULLIF(TRIM(MAX(data_conclusao::text) FILTER (WHERE atividade_codigo = 12)), ''),
+             NULLIF(TRIM(MAX(data_fim_prevista::text) FILTER (WHERE atividade_codigo = 12)), ''),
+             NULLIF(TRIM(MAX(data_posse_gestao::text)), ''),
+             NULLIF(TRIM(MAX(data_fim_prevista::text)), '')
+           ) AS data_conclusao
+    FROM cronograma_cipa
+    ${whereFallback}
+    GROUP BY regional, unidade
+  `);
+
+  for (const row of fallbackRows) {
+    const reg = String(row.regional ?? '').trim();
+    const uniRaw = String(row.unidade ?? '').trim();
+    const uni = resolveCipaUnidade(uniRaw, 12);
+    const posse2025Str = String(row.data_conclusao ?? '').slice(0, 10);
+    if (!posse2025Str || !/^\d{4}-\d{2}-\d{2}$/.test(posse2025Str)) continue;
+
+    const key = `${reg}|${uni}`;
+    if (posseGroups.has(key)) continue;
+
+    const sourceCanon = canonUnidade(uniRaw);
+    let score = 0;
+    if (uni === CE_CIDADE_OPERARIA && sourceCanon.includes('POLICLINICA')) score += 20;
+    posseGroups.set(key, { regional: reg, unidade: uni, posse2025Str, score });
   }
 
   const out: Row2026[] = [];

@@ -5,7 +5,7 @@ import { processCipaRows } from '@/lib/cipa/process-rows';
 import {
   CE_CIDADE_OPERARIA,
   UPA_POLI_CIDADE_OPERARIA,
-  normalizeCipaUnidade,
+  resolveCipaUnidade,
 } from '@/lib/cipa/unidades';
 
 /**
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
     const addUnit = (regional: string, rawUnidade: string) => {
       const reg = String(regional ?? '').trim().toUpperCase();
-      const uni = normalizeCipaUnidade(rawUnidade);
+      const uni = resolveCipaUnidade(rawUnidade);
       if (!reg || !uni) return;
       if (regionalFilter && reg !== regionalFilter) return;
       regionaisSet.add(reg);

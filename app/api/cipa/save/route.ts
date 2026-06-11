@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { compute2026From2025 } from '@/lib/cipa/compute-2026';
-import { cipaUnidadeMatchSql, normalizeCipaUnidade } from '@/lib/cipa/unidades';
+import { cipaUnidadeMatchSql, resolveCipaUnidade } from '@/lib/cipa/unidades';
 
 function parseDateInput(value: unknown): string | null | 'invalid' {
   if (value === null || value === undefined || !String(value).trim()) return null;
@@ -110,7 +110,6 @@ export async function POST(req: NextRequest) {
     }
 
     const regParam = String(regional).trim();
-    const uniParam = normalizeCipaUnidade(String(unidade).trim());
     const anoNum = parseInt(String(ano_gestao), 10);
     const codNum = parseInt(String(atividade_codigo), 10);
 
@@ -120,6 +119,8 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+
+    const uniParam = resolveCipaUnidade(String(unidade).trim(), codNum);
 
     let exists = await rowExists(regParam, uniParam, anoNum, codNum);
     if (!exists && anoNum === 2026) {

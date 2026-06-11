@@ -309,7 +309,7 @@ export default function CipaPage() {
   };
 
   const unidadesFiltradas = useMemo(() => {
-    if (!regional) return [];
+    if (!regional) return unidades;
     const reg = regional.toUpperCase();
     return unidades.filter((u) => u.regional.toUpperCase() === reg);
   }, [regional, unidades]);
@@ -478,19 +478,17 @@ export default function CipaPage() {
           </div>
           <div>
             <label className="text-xs font-medium block mb-1.5 text-text">Unidade</label>
-            <input
-              list="cipa-unidades-datalist"
+            <select
               value={unidade}
               onChange={(e) => { setUnidade(e.target.value); setPage(1); }}
-              placeholder={regional ? 'Digite para buscar…' : 'Selecione a regional'}
               className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text disabled:opacity-50"
               disabled={!regional}
-            />
-            <datalist id="cipa-unidades-datalist">
+            >
+              <option value="">(todas)</option>
               {unidadesFiltradas.map((u) => (
-                <option key={u.unidade} value={u.unidade} />
+                <option key={u.unidade} value={u.unidade}>{u.unidade}</option>
               ))}
-            </datalist>
+            </select>
           </div>
           <div>
             <label className="text-xs font-medium block mb-1.5 text-text">Ano</label>
@@ -511,7 +509,7 @@ export default function CipaPage() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Filtrar tabela (unidade ou atividade)"
+                placeholder="Unidade ou atividade"
                 className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text"
               />
             </div>

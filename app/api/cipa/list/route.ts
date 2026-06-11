@@ -79,11 +79,13 @@ export async function GET(req: NextRequest) {
           })),
         );
         const filtered = applySearch(normalized);
-        return NextResponse.json({
-          ok: true,
-          rows: filtered.slice(offset, offset + pageSize),
-          total: filtered.length,
-        });
+        if (filtered.length > 0 || !unidade) {
+          return NextResponse.json({
+            ok: true,
+            rows: filtered.slice(offset, offset + pageSize),
+            total: filtered.length,
+          });
+        }
       }
 
       const rows2026 = applySearch(processCipaRows(await compute2026From2025(prisma, regional, unidade)));
