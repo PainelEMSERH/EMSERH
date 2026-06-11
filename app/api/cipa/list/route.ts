@@ -19,6 +19,17 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
     const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '50', 10)));
     const offset = (page - 1) * pageSize;
+    const search = (url.searchParams.get('search') || '').trim().toLowerCase();
+
+    const applySearch = <T extends { regional: string; unidade: string; atividade_nome?: string }>(rows: T[]) => {
+      if (!search) return rows;
+      return rows.filter(
+        (r) =>
+          r.unidade.toLowerCase().includes(search) ||
+          String(r.atividade_nome ?? '').toLowerCase().includes(search) ||
+          r.regional.toLowerCase().includes(search),
+      );
+    };
 
     const hasTable: any[] = await prisma.$queryRawUnsafe(`
       SELECT EXISTS (
@@ -67,14 +78,15 @@ export async function GET(req: NextRequest) {
             data_posse_gestao: r.data_posse_gestao ? String(r.data_posse_gestao).slice(0, 10) : null,
           })),
         );
+        const filtered = applySearch(normalized);
         return NextResponse.json({
           ok: true,
-          rows: normalized.slice(offset, offset + pageSize),
-          total: normalized.length,
+          rows: filtered.slice(offset, offset + pageSize),
+          total: filtered.length,
         });
       }
 
-      const rows2026 = processCipaRows(await compute2026From2025(prisma, regional, unidade));
+      const rows2026 = applySearch(processCipaRows(await compute2026From2025(prisma, regional, unidade)));
       const total2026 = rows2026.length;
       const paged = rows2026.slice(offset, offset + pageSize);
       return NextResponse.json({
@@ -122,10 +134,11 @@ export async function GET(req: NextRequest) {
       }),
     );
 
+    const filtered = applySearch(normalized);
     return NextResponse.json({
       ok: true,
-      rows: normalized.slice(offset, offset + pageSize),
-      total: normalized.length,
+      rows: filtered.slice(offset, offset + pageSize),
+      total: filtered.length,
     });
   } catch (e: any) {
     console.error('[cipa/list] error', e);

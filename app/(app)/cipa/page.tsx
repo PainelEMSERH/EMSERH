@@ -130,8 +130,10 @@ export default function CipaPage() {
   };
   const removeToast = (id: string) => setToasts((p) => p.filter((x) => x.id !== id));
 
+  const [searchDebounced, setSearchDebounced] = useState('');
+
   useEffect(() => {
-    fetchJSON('/api/cipa/options')
+    fetchJSON(`/api/cipa/options?ano=${encodeURIComponent(ano)}`)
       .then((d: any) => {
         setRegionais(Array.isArray(d.regionais) ? d.regionais : []);
         setUnidades(Array.isArray(d.unidades) ? d.unidades : []);
@@ -140,11 +142,19 @@ export default function CipaPage() {
         setRegionais([]);
         setUnidades([]);
       });
-  }, []);
+  }, [ano]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setSearchDebounced(search.trim());
+      setPage(1);
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [search]);
 
   useEffect(() => {
     loadData();
-  }, [regional, unidade, ano, page, pageSize]);
+  }, [regional, unidade, ano, page, pageSize, searchDebounced]);
 
   useEffect(() => {
     loadMetaReal();
@@ -161,6 +171,7 @@ export default function CipaPage() {
       const params = new URLSearchParams();
       if (regional) params.set('regional', regional);
       if (unidade) params.set('unidade', unidade);
+      if (searchDebounced) params.set('search', searchDebounced);
       params.set('ano', ano);
       params.set('page', String(page));
       params.set('pageSize', String(pageSize));
@@ -298,20 +309,10 @@ export default function CipaPage() {
   };
 
   const unidadesFiltradas = useMemo(() => {
-    if (!regional) return unidades;
-    return unidades.filter((u) => u.regional === regional);
+    if (!regional) return [];
+    const reg = regional.toUpperCase();
+    return unidades.filter((u) => u.regional.toUpperCase() === reg);
   }, [regional, unidades]);
-
-  const rowsFiltered = useMemo(() => {
-    if (!search.trim()) return rows;
-    const q = search.trim().toLowerCase();
-    return rows.filter(
-      (r) =>
-        r.unidade.toLowerCase().includes(q) ||
-        r.atividade_nome.toLowerCase().includes(q) ||
-        r.regional.toLowerCase().includes(q)
-    );
-  }, [rows, search]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -477,17 +478,19 @@ export default function CipaPage() {
           </div>
           <div>
             <label className="text-xs font-medium block mb-1.5 text-text">Unidade</label>
-            <select
+            <input
+              list="cipa-unidades-datalist"
               value={unidade}
               onChange={(e) => { setUnidade(e.target.value); setPage(1); }}
+              placeholder={regional ? 'Digite para buscar…' : 'Selecione a regional'}
               className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text disabled:opacity-50"
               disabled={!regional}
-            >
-              <option value="">(todas)</option>
+            />
+            <datalist id="cipa-unidades-datalist">
               {unidadesFiltradas.map((u) => (
-                <option key={u.unidade} value={u.unidade}>{u.unidade}</option>
+                <option key={u.unidade} value={u.unidade} />
               ))}
-            </select>
+            </datalist>
           </div>
           <div>
             <label className="text-xs font-medium block mb-1.5 text-text">Ano</label>
@@ -508,7 +511,7 @@ export default function CipaPage() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Unidade ou atividade"
+                placeholder="Filtrar tabela (unidade ou atividade)"
                 className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text"
               />
             </div>
@@ -551,7 +554,7 @@ export default function CipaPage() {
             <div className="inline-block w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-2" />
             <div>Carregando cronograma...</div>
           </div>
-        ) : rowsFiltered.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="text-center py-8">
             <div className="text-muted mb-2">Nenhum registro encontrado</div>
             <div className="text-xs text-muted mt-1">
@@ -577,7 +580,7 @@ export default function CipaPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border text-[11px]">
-                  {rowsFiltered.map((row) => {
+                  {rows.map((row) => {
                     const concluida = Boolean(row.data_conclusao);
                     return (
                       <tr key={`${row.regional}-${row.unidade}-${row.atividade_codigo}`} className="hover:bg-bg/30">
