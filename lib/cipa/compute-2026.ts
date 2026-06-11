@@ -67,13 +67,21 @@ export async function compute2026From2025(
   if (filterUnidade) wh.push(cipaUnidadeMatchSql(filterUnidade));
   const whereSql = `WHERE ${wh.join(' AND ')}`;
 
-  // Data de posse por unidade: item 12 (Reunião de Posse) de 2025, coluna data_conclusão.
+  // Data de posse por unidade: item 12 de 2025 (conclusão, ou fim previsto, ou data posse gravada).
   const posseRows: any[] = await p.$queryRawUnsafe(`
     SELECT DISTINCT TRIM(regional) AS regional, TRIM(unidade) AS unidade,
-           data_conclusao::text AS data_conclusao
+           COALESCE(
+             NULLIF(TRIM(data_conclusao::text), ''),
+             NULLIF(TRIM(data_fim_prevista::text), ''),
+             NULLIF(TRIM(data_posse_gestao::text), '')
+           ) AS data_conclusao
     FROM cronograma_cipa
     ${whereSql}
-    AND data_conclusao IS NOT NULL
+    AND (
+      data_conclusao IS NOT NULL
+      OR data_fim_prevista IS NOT NULL
+      OR data_posse_gestao IS NOT NULL
+    )
     ORDER BY regional, unidade
   `);
 

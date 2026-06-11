@@ -1,16 +1,20 @@
 import { canonUnidade } from '@/lib/unidReg';
 
-/** CE (ex-CER) — CIPA por designação. */
-export const CE_CIDADE_OPERARIA = 'CE Cidade Operária';
+/** CE (ex-CER / Centro Especializado de Reab.) — CIPA por designação. */
+export const CE_CIDADE_OPERARIA = 'CE CIDADE OPERARIA';
 
 /** UPA + Policlínica unificadas — cronograma completo (12 itens). */
-export const UPA_POLI_CIDADE_OPERARIA = 'UPA e Policlínica Cidade Operária';
+export const UPA_POLI_CIDADE_OPERARIA = 'UPA E POLICLINICA CIDADE OPERARIA';
 
+/** Nomes legados no banco → CE CIDADE OPERARIA */
 const CE_ALIASES_CANON = new Set([
   'CE CIDADE OPERARIA',
-  'CENTRO ESPECIALIZADO DE REAB. CIDADE OPERARIA',
+  'CE-CIDADE OPERARIA',
+  'CER CIDADE OPERARIA',
   'CER-CIDADE OPERARIA',
   'CER - CIDADE OPERARIA',
+  'CENTRO ESPECIALIZADO DE REAB. CIDADE OPERARIA',
+  'CENTRO ESPECIALIZADO DE REABILITACAO CIDADE OPERARIA',
 ]);
 
 const UPA_POLI_ALIASES_CANON = new Set([
@@ -20,18 +24,28 @@ const UPA_POLI_ALIASES_CANON = new Set([
   'UPA E POLICLINICA CIDADE OPERARIA',
 ]);
 
+function isCerOlhoDAgua(c: string): boolean {
+  return c.includes('OLHO') && c.includes('D AGUA');
+}
+
 export function isCeCidadeOperariaCanon(c: string): boolean {
   if (!c) return false;
-  if (c === canonUnidade(CE_CIDADE_OPERARIA)) return true;
   if (CE_ALIASES_CANON.has(c)) return true;
   if (!c.includes('CIDADE OPERARIA')) return false;
   if (c.includes('POLICLINICA') || c.includes('UPA')) return false;
-  return c.includes('CER') || c.includes('REAB') || c.startsWith('CE ') || c.startsWith('CE-');
+  if (isCerOlhoDAgua(c)) return false;
+
+  if (/^CE(\s|-)+CIDADE\s+OPERARIA$/.test(c)) return true;
+  if (/^CER(\s|-)+CIDADE\s+OPERARIA$/.test(c)) return true;
+  if (c.includes('CENTRO ESPECIALIZADO') && c.includes('REAB')) return true;
+  if (c.includes('CER') && c.includes('CIDADE OPERARIA')) return true;
+
+  return false;
 }
 
 export function isUpaPoliMergeCanon(c: string): boolean {
   if (!c) return false;
-  if (c === canonUnidade(UPA_POLI_CIDADE_OPERARIA)) return true;
+  if (c === UPA_POLI_CIDADE_OPERARIA) return true;
   if (UPA_POLI_ALIASES_CANON.has(c)) return true;
   if (!c.includes('CIDADE OPERARIA')) return false;
   if (c.includes('UPA') && !c.includes('POLICLINICA')) return true;
@@ -39,14 +53,14 @@ export function isUpaPoliMergeCanon(c: string): boolean {
   return false;
 }
 
-/** Nome canônico exibido/gravado na CIPA. */
+/** Nome canônico exibido/gravado na CIPA (sempre maiúsculo). */
 export function normalizeCipaUnidade(unidade: string | null | undefined): string {
   const raw = String(unidade ?? '').trim();
   if (!raw) return '';
   const c = canonUnidade(raw);
   if (isCeCidadeOperariaCanon(c)) return CE_CIDADE_OPERARIA;
   if (isUpaPoliMergeCanon(c)) return UPA_POLI_CIDADE_OPERARIA;
-  return raw;
+  return raw.toUpperCase();
 }
 
 /** Nomes legados no banco que correspondem à unidade canônica. */
@@ -55,17 +69,14 @@ export function cipaUnidadeDbAliases(unidade: string): string[] {
   const out = new Set<string>([unidade.trim(), norm]);
 
   if (norm === CE_CIDADE_OPERARIA) {
-    out.add(CE_CIDADE_OPERARIA);
     CE_ALIASES_CANON.forEach((a) => out.add(a));
-    out.add('CENTRO ESPECIALIZADO DE REAB. CIDADE OPERARIA');
     out.add('CER - CIDADE OPERÁRIA');
+    out.add('CER - CIDADE OPERARIA');
   }
 
   if (norm === UPA_POLI_CIDADE_OPERARIA) {
-    out.add(UPA_POLI_CIDADE_OPERARIA);
     UPA_POLI_ALIASES_CANON.forEach((a) => out.add(a));
-    out.add('UPA CIDADE OPERARIA');
-    out.add('POLICLINICA CIDADE OPERARIA');
+    out.add('SLZ-POLI-CIDADE OPERÁRIA');
   }
 
   return [...out].filter(Boolean);
