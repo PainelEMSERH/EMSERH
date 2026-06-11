@@ -1,5 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { DESIGNADO_ACTIVITY_NAMES, isDesignadoUnit } from '@/lib/cipa/designado';
+import { canonUnidade } from '@/lib/unidReg';
+import { cipaUnidadeMatchSql, normalizeCipaUnidade } from '@/lib/cipa/unidades';
 
 function toWeekday(d: Date): Date {
   const out = new Date(d);
@@ -62,7 +64,7 @@ export async function compute2026From2025(
 ): Promise<Row2026[]> {
   const wh: string[] = ['ano_gestao = 2025', 'atividade_codigo = 12'];
   if (filterRegional) wh.push(`UPPER(TRIM(regional)) = UPPER('${String(filterRegional).replace(/'/g, "''")}')`);
-  if (filterUnidade) wh.push(`UPPER(TRIM(unidade)) = UPPER('${String(filterUnidade).replace(/'/g, "''")}')`);
+  if (filterUnidade) wh.push(cipaUnidadeMatchSql(filterUnidade));
   const whereSql = `WHERE ${wh.join(' AND ')}`;
 
   // Data de posse por unidade: item 12 (Reunião de Posse) de 2025, coluna data_conclusão.
@@ -75,12 +77,33 @@ export async function compute2026From2025(
     ORDER BY regional, unidade
   `);
 
-  const out: Row2026[] = [];
+  type PosseGroup = { regional: string; unidade: string; posse2025Str: string; score: number };
+  const posseGroups = new Map<string, PosseGroup>();
+
   for (const row of posseRows) {
     const reg = String(row.regional ?? '').trim();
-    const uni = String(row.unidade ?? '').trim();
+    const uniRaw = String(row.unidade ?? '').trim();
+    const uni = normalizeCipaUnidade(uniRaw);
     const posse2025Str = String(row.data_conclusao ?? '').slice(0, 10);
     if (!posse2025Str || !/^\d{4}-\d{2}-\d{2}$/.test(posse2025Str)) continue;
+
+    const key = `${reg}|${uni}`;
+    const sourceCanon = canonUnidade(uniRaw);
+    let score = 0;
+    if (sourceCanon.includes('POLICLINICA')) score += 10;
+    if (sourceCanon.includes('UPA')) score += 5;
+
+    const existing = posseGroups.get(key);
+    if (!existing || score > existing.score) {
+      posseGroups.set(key, { regional: reg, unidade: uni, posse2025Str, score });
+    }
+  }
+
+  const out: Row2026[] = [];
+  for (const group of posseGroups.values()) {
+    const reg = group.regional;
+    const uni = group.unidade;
+    const posse2025Str = group.posse2025Str;
     const [y, mo, d] = posse2025Str.split('-').map(Number);
     // data_conclusão do item 12 = data de posse 2025 dessa unidade (ex: 16/05/2025)
     const posseAnoAnterior = new Date(y, mo - 1, d);

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { compute2026From2025 } from '@/lib/cipa/compute-2026';
 import { DESIGNADO_EXCLUDED_CODES, isDesignadoUnit } from '@/lib/cipa/designado';
+import { normalizeCipaUnidade } from '@/lib/cipa/unidades';
 
 /**
  * Replica cronograma 2026 a partir das datas de posse 2025. Insere em cronograma_cipa.
@@ -21,7 +22,7 @@ export async function POST() {
     `);
     const conclusaoMap = new Map<string, string | null>();
     for (const r of existing2026 || []) {
-      const key = `${String(r.regional || '').trim()}|${String(r.unidade || '').trim()}|${Number(r.atividade_codigo) || 0}`;
+      const key = `${String(r.regional || '').trim()}|${normalizeCipaUnidade(String(r.unidade || '').trim())}|${Number(r.atividade_codigo) || 0}`;
       const dc = r?.data_conclusao ? String(r.data_conclusao).slice(0, 10) : null;
       conclusaoMap.set(key, dc);
     }

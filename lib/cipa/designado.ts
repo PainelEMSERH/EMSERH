@@ -1,4 +1,5 @@
 import { canonUnidade } from '@/lib/unidReg';
+import { isCeCidadeOperariaCanon } from '@/lib/cipa/unidades';
 
 /** Atividades do fluxo CIPA por designação (sem eleição). */
 export const DESIGNADO_ACTIVITY_CODES = [1, 9, 10, 11, 12] as const;
@@ -18,8 +19,7 @@ export const DESIGNADO_ACTIVITY_NAMES: Record<DesignadoActivityCode, string> = {
 const DESIGNADO_UNITS_CANON = new Set([
   'PROGRAMA DE ACAO INTEGRADA PARA APOSENTADOS-PAI',
   'PROGRAMA DE ATENCAO INTEGRADA AOS APOSENTADOS-PAI',
-  'CENTRO ESPECIALIZADO DE REAB. CIDADE OPERARIA',
-  'CER-CIDADE OPERARIA',
+  'CE CIDADE OPERARIA',
   'CAF-FEME',
   'CAF FEME',
   'CASA TEA 12+',
@@ -33,9 +33,9 @@ export function isDesignadoUnit(unidade: string | null | undefined): boolean {
   const c = canonUnidade(unidade);
   if (!c) return false;
   if (DESIGNADO_UNITS_CANON.has(c)) return true;
+  if (isCeCidadeOperariaCanon(c)) return true;
 
   if ((c.includes('PAI') || c.includes('APOSENTAD')) && c.includes('PROGRAMA')) return true;
-  if (c.includes('CIDADE OPERARIA') && (c.includes('CER') || c.includes('REAB'))) return true;
   if (c === 'CAF-FEME' || (c.startsWith('CAF') && c.includes('FEME') && !c.includes('SEDE'))) return true;
   if (c === 'CASA TEA 12+' || c === 'SLZ-TEA-COHAB' || (c.includes('TEA') && c.includes('12') && c.includes('COHAB'))) {
     return true;

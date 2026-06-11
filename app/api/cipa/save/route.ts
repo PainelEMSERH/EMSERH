@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { compute2026From2025 } from '@/lib/cipa/compute-2026';
+import { cipaUnidadeMatchSql, normalizeCipaUnidade } from '@/lib/cipa/unidades';
 
 function parseDateInput(value: unknown): string | null | 'invalid' {
   if (value === null || value === undefined || !String(value).trim()) return null;
@@ -19,18 +20,18 @@ async function rowExists(
   anoNum: number,
   codNum: number,
 ): Promise<boolean> {
+  const unitSql = cipaUnidadeMatchSql(uniParam);
   const found: any[] = await prisma.$queryRawUnsafe(
     `
       SELECT 1
       FROM cronograma_cipa
       WHERE UPPER(TRIM(regional)) = UPPER(TRIM($1))
-        AND UPPER(TRIM(unidade)) = UPPER(TRIM($2))
-        AND ano_gestao = $3
-        AND atividade_codigo = $4
+        AND ${unitSql}
+        AND ano_gestao = $2
+        AND atividade_codigo = $3
       LIMIT 1
     `,
     regParam,
-    uniParam,
     anoNum,
     codNum,
   );
@@ -109,7 +110,7 @@ export async function POST(req: NextRequest) {
     }
 
     const regParam = String(regional).trim();
-    const uniParam = String(unidade).trim();
+    const uniParam = normalizeCipaUnidade(String(unidade).trim());
     const anoNum = parseInt(String(ano_gestao), 10);
     const codNum = parseInt(String(atividade_codigo), 10);
 
@@ -182,20 +183,25 @@ export async function POST(req: NextRequest) {
         idx++;
       }
 
-      params.push(regParam, uniParam, anoNum, codNum);
+      const unitSql = cipaUnidadeMatchSql(uniParam);
+      sets.push(`unidade = $${idx}`);
+      params.push(uniParam);
+      idx++;
+      params.push(regParam, anoNum, codNum);
       await prisma.$executeRawUnsafe(
         `
           UPDATE cronograma_cipa
           SET ${sets.join(', ')}
           WHERE UPPER(TRIM(regional)) = UPPER(TRIM($${idx}))
-            AND UPPER(TRIM(unidade)) = UPPER(TRIM($${idx + 1}))
-            AND ano_gestao = $${idx + 2}
-            AND atividade_codigo = $${idx + 3}
+            AND ${unitSql}
+            AND ano_gestao = $${idx + 1}
+            AND atividade_codigo = $${idx + 2}
         `,
         ...params,
       );
     }
 
+    const unitSql = cipaUnidadeMatchSql(uniParam);
     const result: any[] = await prisma.$queryRawUnsafe(
       `
         SELECT id, regional, unidade, ano_gestao, atividade_codigo, atividade_nome,
@@ -205,13 +211,12 @@ export async function POST(req: NextRequest) {
                data_posse_gestao::text AS data_posse_gestao
         FROM cronograma_cipa
         WHERE UPPER(TRIM(regional)) = UPPER(TRIM($1))
-          AND UPPER(TRIM(unidade)) = UPPER(TRIM($2))
-          AND ano_gestao = $3
-          AND atividade_codigo = $4
+          AND ${unitSql}
+          AND ano_gestao = $2
+          AND atividade_codigo = $3
         LIMIT 1
       `,
       regParam,
-      uniParam,
       anoNum,
       codNum,
     );

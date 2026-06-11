@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { compute2026From2025 } from '@/lib/cipa/compute-2026';
-import { filterDesignadoRows } from '@/lib/cipa/designado';
+import { processCipaRows } from '@/lib/cipa/process-rows';
 import { computeMetaRealFromRows } from '@/lib/cipa/meta-real-compute';
 
 /**
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
     let rows: { unidade: string; data_fim_prevista: string | null; data_conclusao: string | null }[] = [];
 
     if (ano === 2026 && useComputed) {
-      const rows2026 = filterDesignadoRows(await compute2026From2025(prisma, regional, ''));
+      const rows2026 = processCipaRows(await compute2026From2025(prisma, regional, ''));
       rows = rows2026.map((r) => ({
         unidade: r.unidade,
         data_fim_prevista: r.data_fim_prevista,
@@ -72,15 +72,16 @@ export async function GET(req: NextRequest) {
         FROM cronograma_cipa
         ${whereSql}
       `);
-      const filtered = filterDesignadoRows(
+      const processed = processCipaRows(
         (dbRows || []).map((r) => ({
+          regional: '',
           unidade: String(r.unidade ?? ''),
           atividade_codigo: Number(r.atividade_codigo) || 0,
           data_fim_prevista: r.data_fim_prevista ? String(r.data_fim_prevista).slice(0, 10) : null,
           data_conclusao: r.data_conclusao ? String(r.data_conclusao).slice(0, 10) : null,
         })),
       );
-      rows = filtered.map((r) => ({
+      rows = processed.map((r) => ({
         unidade: r.unidade,
         data_fim_prevista: r.data_fim_prevista ?? null,
         data_conclusao: r.data_conclusao ?? null,

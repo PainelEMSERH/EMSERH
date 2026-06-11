@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { compute2026From2025 } from '@/lib/cipa/compute-2026';
-import { filterDesignadoRows } from '@/lib/cipa/designado';
+import { processCipaRows } from '@/lib/cipa/process-rows';
+import { cipaUnidadeMatchSql } from '@/lib/cipa/unidades';
 
 /**
  * Lista cronograma CIPA com filtros.
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
     if (anoNum === 2026) {
       const wh2026: string[] = ['ano_gestao = 2026'];
       if (regional) wh2026.push(`UPPER(TRIM(regional)) = UPPER('${String(regional).replace(/'/g, "''")}')`);
-      if (unidade) wh2026.push(`UPPER(TRIM(unidade)) = UPPER('${String(unidade).replace(/'/g, "''")}')`);
+      if (unidade) wh2026.push(cipaUnidadeMatchSql(unidade));
       const where2026 = `WHERE ${wh2026.join(' AND ')}`;
       const count2026: any[] = await prisma.$queryRawUnsafe(`SELECT COUNT(*)::int AS total FROM cronograma_cipa ${where2026}`);
       const total2026Db = Number(count2026?.[0]?.total ?? 0);
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
         `;
         const rowsResult = await prisma.$queryRawUnsafe<any[]>(rowsSql);
         const rows = Array.isArray(rowsResult) ? rowsResult : [];
-        const normalized = filterDesignadoRows(
+        const normalized = processCipaRows(
           rows.map((r: any) => ({
             id: r.id,
             regional: String(r.regional ?? ''),
@@ -73,7 +74,7 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      const rows2026 = filterDesignadoRows(await compute2026From2025(prisma, regional, unidade));
+      const rows2026 = processCipaRows(await compute2026From2025(prisma, regional, unidade));
       const total2026 = rows2026.length;
       const paged = rows2026.slice(offset, offset + pageSize);
       return NextResponse.json({
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
 
     const wh: string[] = [`ano_gestao = ${anoNum}`];
     if (regional) wh.push(`UPPER(TRIM(regional)) = UPPER('${String(regional).replace(/'/g, "''")}')`);
-    if (unidade) wh.push(`UPPER(TRIM(unidade)) = UPPER('${String(unidade).replace(/'/g, "''")}')`);
+    if (unidade) wh.push(cipaUnidadeMatchSql(unidade));
     const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
 
     const rowsSql = `
@@ -103,7 +104,7 @@ export async function GET(req: NextRequest) {
     const rowsResult = await prisma.$queryRawUnsafe<any[]>(rowsSql);
     const rows = Array.isArray(rowsResult) ? rowsResult : [];
 
-    const normalized = filterDesignadoRows(
+    const normalized = processCipaRows(
       rows.map((r: any) => {
         const anoGestao = Number(r.ano_gestao) || 0;
         return {

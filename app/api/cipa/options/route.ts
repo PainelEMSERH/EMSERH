@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { normalizeCipaUnidade } from '@/lib/cipa/unidades';
 
 /**
  * Opções para filtros da página CIPA: regionais e unidades a partir de cronograma_cipa.
@@ -31,10 +32,23 @@ export async function GET() {
       WHERE COALESCE(TRIM(unidade), '') != ''
       ORDER BY regional, unidade
     `);
-    const unidades = unidadesResult.map((r) => ({
-      regional: String(r?.regional ?? '').trim(),
-      unidade: String(r?.unidade ?? '').trim(),
-    })).filter((u) => u.unidade);
+
+    const unidadesMap = new Map<string, { regional: string; unidade: string }>();
+    for (const r of unidadesResult) {
+      const regional = String(r?.regional ?? '').trim();
+      const rawUnidade = String(r?.unidade ?? '').trim();
+      if (!rawUnidade) continue;
+      const unidade = normalizeCipaUnidade(rawUnidade);
+      const key = `${regional}|${unidade}`;
+      if (!unidadesMap.has(key)) {
+        unidadesMap.set(key, { regional, unidade });
+      }
+    }
+
+    const unidades = [...unidadesMap.values()].sort((a, b) => {
+      if (a.regional !== b.regional) return a.regional.localeCompare(b.regional);
+      return a.unidade.localeCompare(b.unidade);
+    });
 
     return NextResponse.json({ ok: true, regionais, unidades });
   } catch (e: any) {
