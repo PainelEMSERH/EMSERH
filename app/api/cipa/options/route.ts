@@ -74,6 +74,7 @@ export async function GET(req: NextRequest) {
     // Unidades fixas Cidade Operária (sempre no filtro da Norte)
     addUnit('NORTE', CE_CIDADE_OPERARIA);
     addUnit('NORTE', UPA_POLI_CIDADE_OPERARIA);
+    addUnit('NORTE', 'HOSPITAL DE PAULINO NEVES');
 
     const regionais = [...regionaisSet].sort((a, b) => a.localeCompare(b));
     const unidades = [...unidadesMap.values()].sort((a, b) => {
