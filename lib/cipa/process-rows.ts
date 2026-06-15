@@ -17,6 +17,8 @@ type CipaRowBase = {
 function rowScore(row: CipaRowBase, sourceCanon: string, normUnit: string): number {
   let score = 0;
   if (row.data_conclusao) score += 100;
+  // Preferir registro já gravado com nome canônico (evita legado “ganhar” após edição).
+  if (String(row.unidade).trim().toUpperCase() === normUnit.toUpperCase()) score += 30;
   if (normUnit === CE_CIDADE_OPERARIA && sourceCanon.includes('POLICLINICA')) score += 20;
   if (normUnit === CE_CIDADE_OPERARIA && (sourceCanon.includes('CER') || sourceCanon.includes('REAB'))) score += 15;
   if (row.data_fim_prevista) score += 1;

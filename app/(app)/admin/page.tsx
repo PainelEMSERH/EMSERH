@@ -3,6 +3,7 @@ import { auth, currentUser } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
 import AdminUsersClient from '@/components/admin/AdminUsersClient';
 import AdminLogsClient from '@/components/admin/AdminLogsClient';
+import AdminCipaReplicarClient from '@/components/admin/AdminCipaReplicarClient';
 import ImportarAlterdataClient from '@/components/admin/ImportarAlterdataClient';
 
 export const dynamic = 'force-dynamic';
@@ -113,6 +114,8 @@ export default async function Page() {
           </div>
         </div>
       )}
+
+      <AdminCipaReplicarClient />
 
       <AdminUsersClient />
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, XCircle, Info, Filter, RefreshCw, Search, CopyPlus, Edit, Calendar } from 'lucide-react';
+import { CheckCircle2, XCircle, Info, Filter, RefreshCw, Search, Edit, Calendar } from 'lucide-react';
 import MetaVsRealCard from '@/components/shared/MetaVsRealCard';
 import { isDesignadoUnit } from '@/lib/cipa/designado';
 
@@ -59,14 +59,28 @@ type MetaRealData = {
   ano: number;
 };
 
-type UnidadeRanking = {
+type DiagnosticoPorUnidade = {
   unidade: string;
-  totalMeta: number;
-  totalReal: number;
+  executadas: number;
   pendentes: number;
-  atrasadas: number;
-  percentTotal: number;
-  impactoRegionalPct: number;
+  itens: Array<{
+    unidade: string;
+    atividade_codigo: number;
+    atividade_nome: string;
+    data_fim_prevista: string;
+    data_conclusao: string | null;
+    status: 'executada' | 'pendente';
+  }>;
+};
+
+type DiagnosticoData = {
+  mes: string;
+  mesLabel: string;
+  total: number;
+  executadas: number;
+  pendentes: number;
+  porUnidade: DiagnosticoPorUnidade[];
+  computed?: boolean;
 };
 
 async function fetchJSON(url: string, init?: RequestInit) {
@@ -121,14 +135,17 @@ export default function CipaPage() {
 
   const [metaReal, setMetaReal] = useState<MetaRealData | null>(null);
   const [metaRealLoading, setMetaRealLoading] = useState(false);
-  const [rankingUnidades, setRankingUnidades] = useState<UnidadeRanking[]>([]);
-  const [rankingLoading, setRankingLoading] = useState(false);
   const [anoMetaReal, setAnoMetaReal] = useState<string>('2025');
+  const [abaAtiva, setAbaAtiva] = useState<'indicador' | 'diagnostico'>('indicador');
+  const [mesDiagnostico, setMesDiagnostico] = useState<string>(
+    String(new Date().getMonth() + 1).padStart(2, '0'),
+  );
+  const [diagnostico, setDiagnostico] = useState<DiagnosticoData | null>(null);
+  const [diagnosticoLoading, setDiagnosticoLoading] = useState(false);
 
   const [regionais, setRegionais] = useState<string[]>([]);
   const [unidades, setUnidades] = useState<Array<{ unidade: string; regional: string }>>([]);
 
-  const [replicando, setReplicando] = useState(false);
   const [modalEdicao, setModalEdicao] = useState<{ open: boolean; row: Row | null }>({ open: false, row: null });
   const [dataInicioEdit, setDataInicioEdit] = useState<string>('');
   const [dataFimEdit, setDataFimEdit] = useState<string>('');
@@ -172,6 +189,11 @@ export default function CipaPage() {
     loadMetaReal();
   }, [regional, anoMetaReal]);
 
+  useEffect(() => {
+    if (abaAtiva === 'diagnostico' && regional) loadDiagnostico();
+    else setDiagnostico(null);
+  }, [abaAtiva, regional, anoMetaReal, mesDiagnostico]);
+
   // Sincroniza anoMetaReal com o filtro de ano quando mudar
   useEffect(() => {
     setAnoMetaReal(ano);
@@ -203,56 +225,45 @@ export default function CipaPage() {
 
   const loadMetaReal = async () => {
     setMetaRealLoading(true);
-    if (!regional) {
-      setRankingUnidades([]);
-      setRankingLoading(false);
-    } else {
-      setRankingLoading(true);
-    }
     try {
       const params = new URLSearchParams();
       if (regional) params.set('regional', regional);
       params.set('ano', anoMetaReal);
-
-      const requests: Promise<any>[] = [fetchJSON(`/api/cipa/meta-real?${params.toString()}`)];
-      if (regional) {
-        requests.push(fetchJSON(`/api/cipa/meta-real/por-unidade?${params.toString()}`));
-      }
-
-      const results = await Promise.all(requests);
-      setMetaReal(results[0]);
-
-      if (regional && results[1]?.ok) {
-        setRankingUnidades(Array.isArray(results[1].unidades) ? results[1].unidades : []);
-      } else {
-        setRankingUnidades([]);
-      }
+      const data: any = await fetchJSON(`/api/cipa/meta-real?${params.toString()}`);
+      setMetaReal(data);
     } catch {
       setMetaReal(null);
-      setRankingUnidades([]);
     } finally {
       setMetaRealLoading(false);
-      setRankingLoading(false);
     }
   };
 
-  const handleReplicar2026 = async () => {
-    setReplicando(true);
+  const loadDiagnostico = async () => {
+    if (!regional) return;
+    setDiagnosticoLoading(true);
     try {
-      const data: any = await fetchJSON('/api/cipa/replicar-2026', { method: 'POST' });
+      const params = new URLSearchParams();
+      params.set('regional', regional);
+      params.set('ano', anoMetaReal);
+      params.set('mes', mesDiagnostico);
+      const data: any = await fetchJSON(`/api/cipa/diagnostico?${params.toString()}`);
       if (data?.ok) {
-        showToast(`${data.inserted ?? 0} atividades de 2026 geradas para ${data.units ?? 0} unidade(s).`, 'success');
-        setAno('2026');
-        setAnoMetaReal('2026');
-        loadData();
-        loadMetaReal();
+        setDiagnostico({
+          mes: data.mes,
+          mesLabel: data.mesLabel,
+          total: data.total,
+          executadas: data.executadas,
+          pendentes: data.pendentes,
+          porUnidade: data.porUnidade ?? [],
+          computed: data.computed,
+        });
       } else {
-        showToast(data?.error || 'Erro ao replicar 2026', 'error');
+        setDiagnostico(null);
       }
-    } catch (e: any) {
-      showToast(e?.message || 'Erro ao replicar 2026', 'error');
+    } catch {
+      setDiagnostico(null);
     } finally {
-      setReplicando(false);
+      setDiagnosticoLoading(false);
     }
   };
 
@@ -272,31 +283,45 @@ export default function CipaPage() {
 
   const salvarAtividade = async () => {
     if (!modalEdicao.row) return;
-    if (!dataInicioEdit && !dataFimEdit && !dataConclusaoEdit) {
-      showToast('Informe ao menos uma data para salvar.', 'error');
+
+    const origInicio = toDateInputValue(modalEdicao.row.data_inicio_prevista);
+    const origFim = toDateInputValue(modalEdicao.row.data_fim_prevista);
+    const origConc = toDateInputValue(modalEdicao.row.data_conclusao);
+
+    const body: Record<string, unknown> = {
+      regional: modalEdicao.row.regional,
+      unidade: modalEdicao.row.unidade,
+      ano_gestao: modalEdicao.row.ano_gestao,
+      atividade_codigo: modalEdicao.row.atividade_codigo,
+      atividade_nome: modalEdicao.row.atividade_nome,
+      data_posse_gestao: modalEdicao.row.data_posse_gestao,
+    };
+
+    if (dataInicioEdit !== origInicio) body.data_inicio_prevista = dataInicioEdit || null;
+    if (dataFimEdit !== origFim) body.data_fim_prevista = dataFimEdit || null;
+    if (dataConclusaoEdit !== origConc) body.data_conclusao = dataConclusaoEdit || null;
+
+    if (
+      !Object.prototype.hasOwnProperty.call(body, 'data_inicio_prevista') &&
+      !Object.prototype.hasOwnProperty.call(body, 'data_fim_prevista') &&
+      !Object.prototype.hasOwnProperty.call(body, 'data_conclusao')
+    ) {
+      showToast('Nenhuma data foi alterada.', 'info');
       return;
     }
+
     setSaving(true);
     try {
       const data: any = await fetchJSON('/api/cipa/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          regional: modalEdicao.row.regional,
-          unidade: modalEdicao.row.unidade,
-          ano_gestao: modalEdicao.row.ano_gestao,
-          atividade_codigo: modalEdicao.row.atividade_codigo,
-          atividade_nome: modalEdicao.row.atividade_nome,
-          data_posse_gestao: modalEdicao.row.data_posse_gestao,
-          data_inicio_prevista: dataInicioEdit || null,
-          data_fim_prevista: dataFimEdit || null,
-          data_conclusao: dataConclusaoEdit || null,
-        }),
+        body: JSON.stringify(body),
       });
       if (data?.ok) {
         fecharModalEdicao();
         loadData();
         loadMetaReal();
+        if (abaAtiva === 'diagnostico') loadDiagnostico();
         showToast('Datas atualizadas com sucesso.', 'success');
       } else {
         showToast(data?.error || 'Erro ao salvar', 'error');
@@ -329,6 +354,7 @@ export default function CipaPage() {
         setDataConclusaoEdit('');
         loadData();
         loadMetaReal();
+        if (abaAtiva === 'diagnostico') loadDiagnostico();
         showToast('Data de conclusão removida.', 'success');
       } else {
         showToast(data?.error || 'Erro ao remover', 'error');
@@ -368,7 +394,7 @@ export default function CipaPage() {
             </p>
           </div>
           <button
-            onClick={() => { loadData(); loadMetaReal(); }}
+            onClick={() => { loadData(); loadMetaReal(); if (abaAtiva === 'diagnostico') loadDiagnostico(); }}
             className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-panel hover:bg-bg text-sm font-medium transition-colors"
             aria-label="Atualizar dados"
           >
@@ -378,195 +404,285 @@ export default function CipaPage() {
         </div>
       </div>
 
-      {/* Meta vs Real */}
-      {metaRealLoading ? (
-        <div className="rounded-xl border border-border bg-panel p-4 text-center">
-          <div className="flex items-center justify-center gap-2">
-            <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs text-muted">Carregando meta e progresso...</span>
-          </div>
+      {/* Abas Indicador / Diagnóstico */}
+      <div className="rounded-xl border border-border bg-panel shadow-sm overflow-hidden">
+        <div className="flex border-b border-border">
+          <button
+            type="button"
+            onClick={() => setAbaAtiva('indicador')}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              abaAtiva === 'indicador'
+                ? 'text-emerald-700 dark:text-emerald-300 border-b-2 border-emerald-500 bg-emerald-50/50 dark:bg-emerald-500/10'
+                : 'text-muted hover:text-text hover:bg-bg/50'
+            }`}
+          >
+            Indicador
+          </button>
+          <button
+            type="button"
+            onClick={() => setAbaAtiva('diagnostico')}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              abaAtiva === 'diagnostico'
+                ? 'text-emerald-700 dark:text-emerald-300 border-b-2 border-emerald-500 bg-emerald-50/50 dark:bg-emerald-500/10'
+                : 'text-muted hover:text-text hover:bg-bg/50'
+            }`}
+          >
+            Diagnóstico
+          </button>
         </div>
-      ) : metaReal ? (
-        <MetaVsRealCard
-          title={`Meta vs Real - CIPA ${regional ? `(${regional})` : '(Consolidado)'}`}
-          yearControl={
-            <select
-              value={anoMetaReal}
-              onChange={(e) => setAnoMetaReal(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-border bg-bg text-xs"
-            >
-              {[2025, 2026].map((a) => (
-                <option key={a} value={String(a)}>
-                  {a}
-                </option>
-              ))}
-            </select>
-          }
-          monthsShort={mesesNomes}
-          metaPct={mesesKeys.map((mes) => {
-            const q = Number(metaReal.meta?.[mes] ?? 0)
-            const percent =
-              metaReal.metaPercentAcumulado?.[mes] ??
-              metaReal.metaPercent?.[mes] ??
-              (metaReal.totalMeta > 0 ? Math.round((q / metaReal.totalMeta) * 10000) / 100 : 0)
-            return Number(percent)
-          })}
-          realPct={mesesKeys.map((mes) => {
-            const realQtd = Number(metaReal.real?.[mes] ?? metaReal.realAcumulado?.[mes] ?? 0)
-            const realAcumRaw =
-              metaReal.realPercentAcumulado?.[mes] ??
-              metaReal.realPercent?.[mes] ??
-              (metaReal.totalMeta > 0 ? Math.round((realQtd / metaReal.totalMeta) * 10000) / 100 : 0)
-            return Math.min(100, Number(realAcumRaw))
-          })}
-          evolPct={mesesKeys.map((mes) => Number(metaReal.evolucaoMensal?.[mes] ?? 0))}
-          realClassName={(idx) => {
-            const mes = mesesKeys[idx]
-            const metaAcum = Number(metaReal.metaPercentAcumulado?.[mes] ?? metaReal.metaPercent?.[mes] ?? 0)
-            const realQtd = Number(metaReal.real?.[mes] ?? metaReal.realAcumulado?.[mes] ?? 0)
-            const realAcumRaw =
-              metaReal.realPercentAcumulado?.[mes] ??
-              metaReal.realPercent?.[mes] ??
-              (metaReal.totalMeta > 0 ? Math.round((realQtd / metaReal.totalMeta) * 10000) / 100 : 0)
-            const realAcum = Math.min(100, Number(realAcumRaw))
-            const ambosZero = metaAcum === 0 && realAcum === 0
-            const atingiu = realAcum >= metaAcum - 0.01
-            return ambosZero
-              ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-              : atingiu
-                ? 'bg-emerald-500 text-white'
-                : 'bg-red-500 text-white'
-          }}
-          metaTitle={(idx) => {
-            const mes = mesesKeys[idx]
-            const q = Number(metaReal.meta?.[mes] ?? 0)
-            const percent =
-              metaReal.metaPercentAcumulado?.[mes] ??
-              metaReal.metaPercent?.[mes] ??
-              (metaReal.totalMeta > 0 ? Math.round((q / metaReal.totalMeta) * 10000) / 100 : 0)
-            return `${mesesNomes[idx]}: ${q} atividades no mês | acumulado ${fmtPct(Number(percent))}%`
-          }}
-          realTitle={(idx) => {
-            const mes = mesesKeys[idx]
-            const realQtd = Number(metaReal.real?.[mes] ?? metaReal.realAcumulado?.[mes] ?? 0)
-            const metaQtd = Number(metaReal.meta?.[mes] ?? 0)
-            const realAcum = Math.min(
-              100,
-              Number(
-                metaReal.realPercentAcumulado?.[mes] ??
-                  metaReal.realPercent?.[mes] ??
-                  (metaReal.totalMeta > 0 ? Math.round((realQtd / metaReal.totalMeta) * 10000) / 100 : 0),
-              ),
-            )
-            return `${mesesNomes[idx]}: ${realQtd} realizadas no mês (meta ${metaQtd}) | acumulado ${fmtPct(realAcum)}%`
-          }}
-          evolTitle={(idx) => {
-            const mes = mesesKeys[idx]
-            const evol = Number(metaReal.evolucaoMensal?.[mes] ?? 0)
-            const sinal = evol > 0 ? '+' : ''
-            return `${mesesNomes[idx]}: ${sinal}${fmtPct(evol)}% do real no mês`
-          }}
-          footerLeft={
-            <>
-              Total: <span className="font-semibold text-text">{Number(metaReal.totalReal ?? 0)}</span> de{' '}
-              <span className="font-semibold text-text">{Number(metaReal.totalMeta ?? 0)}</span> atividades concluídas
-            </>
-          }
-          footerRight={
-            <>
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                {fmtPct(
-                  metaReal.percentTotal ??
-                    (metaReal.totalMeta > 0 ? (Number(metaReal.totalReal ?? 0) / metaReal.totalMeta) * 100 : 0),
-                )}
-                %
-              </span>{' '}
-              de conclusão
-            </>
-          }
-        />
-      ) : null}
 
-      {!regional && (
-        <div className="rounded-xl border border-dashed border-border bg-bg/40 px-4 py-3 text-xs text-muted">
-          Selecione a regional <strong className="text-text">NORTE</strong> nos filtros abaixo para ver quais unidades
-          mais puxam o indicador para baixo (ranking por pendências).
-        </div>
-      )}
-
-      {regional && (
-        <div className="rounded-xl border border-border bg-panel shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-semibold text-text">
-                Unidades que mais impactam o indicador — {regional} ({anoMetaReal})
-              </h2>
-              <p className="text-[11px] text-muted mt-0.5">
-                Ordenadas por atividades pendentes. Impacto = peso das pendências no total da regional.
-                Clique na unidade para filtrar o cronograma.
-              </p>
-            </div>
-          </div>
-          {rankingLoading ? (
-            <div className="py-6 text-center text-xs text-muted">Carregando ranking...</div>
-          ) : rankingUnidades.length === 0 ? (
-            <div className="py-6 text-center text-xs text-muted">
-              Nenhuma pendência encontrada para esta regional no ano selecionado.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-[11px]">
-                <thead className="bg-bg/50 border-b border-border">
-                  <tr>
-                    <th className="px-4 py-2.5 text-left font-semibold text-muted uppercase">Unidade</th>
-                    <th className="px-3 py-2.5 text-center font-semibold text-muted uppercase">Meta</th>
-                    <th className="px-3 py-2.5 text-center font-semibold text-muted uppercase">Real</th>
-                    <th className="px-3 py-2.5 text-center font-semibold text-muted uppercase">%</th>
-                    <th className="px-3 py-2.5 text-center font-semibold text-muted uppercase">Pendentes</th>
-                    <th className="px-3 py-2.5 text-center font-semibold text-muted uppercase">Atrasadas</th>
-                    <th className="px-3 py-2.5 text-center font-semibold text-muted uppercase">Impacto</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {rankingUnidades.map((u) => {
-                    const critico = u.percentTotal < 60 || u.atrasadas >= 3;
-                    return (
-                      <tr
-                        key={u.unidade}
-                        className={`hover:bg-bg/30 cursor-pointer ${critico ? 'bg-red-50/50 dark:bg-red-500/5' : ''}`}
-                        onClick={() => {
-                          setUnidade(u.unidade);
-                          setAno(anoMetaReal);
-                          setPage(1);
-                        }}
-                        title="Clique para ver o cronograma desta unidade"
-                      >
-                        <td className="px-4 py-2.5 text-left font-medium">{u.unidade}</td>
-                        <td className="px-3 py-2.5 text-center">{u.totalMeta}</td>
-                        <td className="px-3 py-2.5 text-center">{u.totalReal}</td>
-                        <td className="px-3 py-2.5 text-center">
-                          <span className={u.percentTotal >= 80 ? 'text-emerald-600' : u.percentTotal >= 50 ? 'text-amber-600' : 'text-red-600'}>
-                            {u.percentTotal}%
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5 text-center font-semibold">{u.pendentes}</td>
-                        <td className="px-3 py-2.5 text-center">
-                          {u.atrasadas > 0 ? (
-                            <span className="text-red-600 font-semibold">{u.atrasadas}</span>
-                          ) : (
-                            '0'
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 text-center">{fmtPct(u.impactoRegionalPct)}%</td>
-                      </tr>
-                    );
+        <div className="p-4">
+          {abaAtiva === 'indicador' && (
+            <>
+              {metaRealLoading ? (
+                <div className="py-6 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-xs text-muted">Carregando meta e progresso...</span>
+                  </div>
+                </div>
+              ) : metaReal ? (
+                <MetaVsRealCard
+                  title={`Meta vs Real - CIPA ${regional ? `(${regional})` : '(Consolidado)'}`}
+                  yearControl={
+                    <select
+                      value={anoMetaReal}
+                      onChange={(e) => setAnoMetaReal(e.target.value)}
+                      className="px-3 py-1.5 rounded-lg border border-border bg-bg text-xs"
+                    >
+                      {[2025, 2026].map((a) => (
+                        <option key={a} value={String(a)}>
+                          {a}
+                        </option>
+                      ))}
+                    </select>
+                  }
+                  monthsShort={mesesNomes}
+                  metaPct={mesesKeys.map((mes) => {
+                    const q = Number(metaReal.meta?.[mes] ?? 0)
+                    const percent =
+                      metaReal.metaPercentAcumulado?.[mes] ??
+                      metaReal.metaPercent?.[mes] ??
+                      (metaReal.totalMeta > 0 ? Math.round((q / metaReal.totalMeta) * 10000) / 100 : 0)
+                    return Number(percent)
                   })}
-                </tbody>
-              </table>
+                  realPct={mesesKeys.map((mes) => {
+                    const realQtd = Number(metaReal.real?.[mes] ?? metaReal.realAcumulado?.[mes] ?? 0)
+                    const realAcumRaw =
+                      metaReal.realPercentAcumulado?.[mes] ??
+                      metaReal.realPercent?.[mes] ??
+                      (metaReal.totalMeta > 0 ? Math.round((realQtd / metaReal.totalMeta) * 10000) / 100 : 0)
+                    return Math.min(100, Number(realAcumRaw))
+                  })}
+                  evolPct={mesesKeys.map((mes) => Number(metaReal.evolucaoMensal?.[mes] ?? 0))}
+                  realClassName={(idx) => {
+                    const mes = mesesKeys[idx]
+                    const metaAcum = Number(metaReal.metaPercentAcumulado?.[mes] ?? metaReal.metaPercent?.[mes] ?? 0)
+                    const realQtd = Number(metaReal.real?.[mes] ?? metaReal.realAcumulado?.[mes] ?? 0)
+                    const realAcumRaw =
+                      metaReal.realPercentAcumulado?.[mes] ??
+                      metaReal.realPercent?.[mes] ??
+                      (metaReal.totalMeta > 0 ? Math.round((realQtd / metaReal.totalMeta) * 10000) / 100 : 0)
+                    const realAcum = Math.min(100, Number(realAcumRaw))
+                    const ambosZero = metaAcum === 0 && realAcum === 0
+                    const atingiu = realAcum >= metaAcum - 0.01
+                    return ambosZero
+                      ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                      : atingiu
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-red-500 text-white'
+                  }}
+                  metaTitle={(idx) => {
+                    const mes = mesesKeys[idx]
+                    const q = Number(metaReal.meta?.[mes] ?? 0)
+                    const percent =
+                      metaReal.metaPercentAcumulado?.[mes] ??
+                      metaReal.metaPercent?.[mes] ??
+                      (metaReal.totalMeta > 0 ? Math.round((q / metaReal.totalMeta) * 10000) / 100 : 0)
+                    return `${mesesNomes[idx]}: ${q} atividades no mês | acumulado ${fmtPct(Number(percent))}%`
+                  }}
+                  realTitle={(idx) => {
+                    const mes = mesesKeys[idx]
+                    const realQtd = Number(metaReal.real?.[mes] ?? metaReal.realAcumulado?.[mes] ?? 0)
+                    const metaQtd = Number(metaReal.meta?.[mes] ?? 0)
+                    const realAcum = Math.min(
+                      100,
+                      Number(
+                        metaReal.realPercentAcumulado?.[mes] ??
+                          metaReal.realPercent?.[mes] ??
+                          (metaReal.totalMeta > 0 ? Math.round((realQtd / metaReal.totalMeta) * 10000) / 100 : 0),
+                      ),
+                    )
+                    return `${mesesNomes[idx]}: ${realQtd} realizadas no mês (meta ${metaQtd}) | acumulado ${fmtPct(realAcum)}%`
+                  }}
+                  evolTitle={(idx) => {
+                    const mes = mesesKeys[idx]
+                    const evol = Number(metaReal.evolucaoMensal?.[mes] ?? 0)
+                    const sinal = evol > 0 ? '+' : ''
+                    return `${mesesNomes[idx]}: ${sinal}${fmtPct(evol)}% do real no mês`
+                  }}
+                  footerLeft={
+                    <>
+                      Total: <span className="font-semibold text-text">{Number(metaReal.totalReal ?? 0)}</span> de{' '}
+                      <span className="font-semibold text-text">{Number(metaReal.totalMeta ?? 0)}</span> atividades concluídas
+                    </>
+                  }
+                  footerRight={
+                    <>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                        {fmtPct(
+                          metaReal.percentTotal ??
+                            (metaReal.totalMeta > 0 ? (Number(metaReal.totalReal ?? 0) / metaReal.totalMeta) * 100 : 0),
+                        )}
+                        %
+                      </span>{' '}
+                      de conclusão
+                    </>
+                  }
+                />
+              ) : (
+                <p className="text-xs text-muted text-center py-4">Sem dados de indicador para os filtros atuais.</p>
+              )}
+            </>
+          )}
+
+          {abaAtiva === 'diagnostico' && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-text">
+                    Diagnóstico mensual{regional ? ` — ${regional}` : ''}
+                  </h2>
+                  <p className="text-[11px] text-muted mt-0.5">
+                    Atividades com fim previsto no mês selecionado. Somente leitura — para editar, use o cronograma abaixo.
+                  </p>
+                </div>
+                <select
+                  value={anoMetaReal}
+                  onChange={(e) => setAnoMetaReal(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg border border-border bg-bg text-xs"
+                >
+                  {[2025, 2026].map((a) => (
+                    <option key={a} value={String(a)}>{a}</option>
+                  ))}
+                </select>
+              </div>
+
+              {!regional ? (
+                <div className="rounded-lg border border-dashed border-border bg-bg/40 px-4 py-6 text-center text-xs text-muted">
+                  Selecione uma regional nos filtros abaixo para analisar o mês.
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-1.5">
+                    {mesesKeys.map((mes, idx) => (
+                      <button
+                        key={mes}
+                        type="button"
+                        onClick={() => setMesDiagnostico(mes)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          mesDiagnostico === mes
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-bg border border-border text-muted hover:text-text'
+                        }`}
+                      >
+                        {mesesNomes[idx]}
+                      </button>
+                    ))}
+                  </div>
+
+                  {diagnosticoLoading ? (
+                    <div className="py-8 text-center text-xs text-muted">Carregando diagnóstico...</div>
+                  ) : diagnostico ? (
+                    <>
+                      {diagnostico.computed && (
+                        <p className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg px-3 py-2">
+                          Cronograma calculado a partir de 2025. Edite e salve no cronograma abaixo para gravar no banco.
+                        </p>
+                      )}
+
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="rounded-lg border border-border bg-bg/50 px-3 py-2.5 text-center">
+                          <p className="text-[10px] uppercase text-muted font-semibold">No mês</p>
+                          <p className="text-lg font-bold text-text">{diagnostico.total}</p>
+                          <p className="text-[10px] text-muted">{diagnostico.mesLabel}/{anoMetaReal}</p>
+                        </div>
+                        <div className="rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-500/10 px-3 py-2.5 text-center">
+                          <p className="text-[10px] uppercase text-emerald-700 dark:text-emerald-300 font-semibold">Executadas</p>
+                          <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{diagnostico.executadas}</p>
+                        </div>
+                        <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-500/10 px-3 py-2.5 text-center">
+                          <p className="text-[10px] uppercase text-amber-700 dark:text-amber-300 font-semibold">Pendentes</p>
+                          <p className="text-lg font-bold text-amber-700 dark:text-amber-300">{diagnostico.pendentes}</p>
+                        </div>
+                      </div>
+
+                      {diagnostico.total === 0 ? (
+                        <p className="text-xs text-muted text-center py-6">
+                          Nenhuma atividade com fim previsto em {diagnostico.mesLabel}/{anoMetaReal} para {regional}.
+                        </p>
+                      ) : (
+                        <div className="space-y-4">
+                          {diagnostico.porUnidade.map((bloco) => (
+                            <div key={bloco.unidade} className="rounded-lg border border-border overflow-hidden">
+                              <div className="px-3 py-2 bg-bg/50 border-b border-border flex flex-wrap items-center justify-between gap-2">
+                                <span className="text-xs font-semibold text-text">{bloco.unidade}</span>
+                                <span className="text-[11px] text-muted">
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-medium">{bloco.executadas} executada(s)</span>
+                                  {' · '}
+                                  <span className="text-amber-600 dark:text-amber-400 font-medium">{bloco.pendentes} pendente(s)</span>
+                                </span>
+                              </div>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-[11px]">
+                                  <thead>
+                                    <tr className="border-b border-border text-muted">
+                                      <th className="px-3 py-2 text-left font-semibold">Nº</th>
+                                      <th className="px-3 py-2 text-left font-semibold">Atividade</th>
+                                      <th className="px-3 py-2 text-center font-semibold">Fim previsto</th>
+                                      <th className="px-3 py-2 text-center font-semibold">Conclusão</th>
+                                      <th className="px-3 py-2 text-center font-semibold">Status</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-border">
+                                    {bloco.itens.map((item) => (
+                                      <tr key={`${item.unidade}-${item.atividade_codigo}`} className="hover:bg-bg/30">
+                                        <td className="px-3 py-2 text-center">{item.atividade_codigo}</td>
+                                        <td className="px-3 py-2">{item.atividade_nome}</td>
+                                        <td className="px-3 py-2 text-center">{formatDate(item.data_fim_prevista)}</td>
+                                        <td className="px-3 py-2 text-center">{formatDate(item.data_conclusao)}</td>
+                                        <td className="px-3 py-2 text-center">
+                                          {item.status === 'executada' ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/40">
+                                              <CheckCircle2 className="w-3 h-3" />
+                                              Executada
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/40">
+                                              <XCircle className="w-3 h-3" />
+                                              Pendente
+                                            </span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted text-center py-6">Não foi possível carregar o diagnóstico.</p>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* Filtros */}
       <div className="rounded-xl border border-border bg-panel p-4 space-y-4">
@@ -635,25 +751,11 @@ export default function CipaPage() {
               <Filter className="w-4 h-4" />
               Limpar
             </button>
-            {ano === '2026' && (
-              <button
-                onClick={handleReplicar2026}
-                disabled={replicando}
-                className="px-4 py-2.5 rounded-xl border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 text-sm font-medium flex items-center gap-2 disabled:opacity-50"
-              >
-                {replicando ? (
-                  <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <CopyPlus className="w-4 h-4" />
-                )}
-                Replicar 2026
-              </button>
-            )}
           </div>
         </div>
         {computed2026 && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            Dados de 2026 exibidos são calculados a partir da data de posse 2025 (não salvos no banco). Use &quot;Replicar 2026&quot; para gravar.
+            Cronograma 2026 calculado a partir da posse de 2025. Use <strong>Editar</strong> em cada linha e salve — a data fica gravada no banco.
           </p>
         )}
       </div>
@@ -669,7 +771,7 @@ export default function CipaPage() {
           <div className="text-center py-8">
             <div className="text-muted mb-2">Nenhum registro encontrado</div>
             <div className="text-xs text-muted mt-1">
-              {total === 0 && ano === '2026' ? 'Replique 2026 a partir dos dados de 2025 ou selecione outra regional/unidade.' : 'Ajuste os filtros.'}
+              {total === 0 && ano === '2026' ? 'Selecione regional/unidade ou edite uma linha para gravar o cronograma 2026 no banco.' : 'Ajuste os filtros.'}
             </div>
           </div>
         ) : (
@@ -787,7 +889,7 @@ export default function CipaPage() {
               </div>
               {computed2026 && (
                 <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg px-3 py-2">
-                  Ao salvar, as atividades de 2026 desta regional serão gravadas no banco automaticamente.
+                  Ao salvar, esta atividade será gravada no banco. As demais linhas da regional permanecem calculadas até serem editadas.
                 </p>
               )}
               <div>
