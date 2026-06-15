@@ -33,10 +33,16 @@ export async function POST() {
     >();
     for (const r of existing2026 || []) {
       const key = `${String(r.regional || '').trim()}|${resolveCipaUnidade(String(r.unidade || '').trim(), Number(r.atividade_codigo) || 0)}|${Number(r.atividade_codigo) || 0}`;
-      savedDatesMap.set(key, {
+      const next = {
         inicio: r?.data_inicio_prevista ? String(r.data_inicio_prevista).slice(0, 10) : null,
         fim: r?.data_fim_prevista ? String(r.data_fim_prevista).slice(0, 10) : null,
         conclusao: r?.data_conclusao ? String(r.data_conclusao).slice(0, 10) : null,
+      };
+      const prev = savedDatesMap.get(key);
+      savedDatesMap.set(key, {
+        inicio: next.inicio ?? prev?.inicio ?? null,
+        fim: next.fim ?? prev?.fim ?? null,
+        conclusao: next.conclusao ?? prev?.conclusao ?? null,
       });
     }
 

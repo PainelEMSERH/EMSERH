@@ -182,8 +182,9 @@ export default function CipaPage() {
   }, [search]);
 
   useEffect(() => {
+    if (abaAtiva === 'diagnostico') return;
     loadData();
-  }, [regional, unidade, ano, page, pageSize, searchDebounced]);
+  }, [regional, unidade, ano, page, pageSize, searchDebounced, abaAtiva]);
 
   useEffect(() => {
     loadMetaReal();
@@ -394,7 +395,11 @@ export default function CipaPage() {
             </p>
           </div>
           <button
-            onClick={() => { loadData(); loadMetaReal(); if (abaAtiva === 'diagnostico') loadDiagnostico(); }}
+            onClick={() => {
+              loadMetaReal();
+              if (abaAtiva === 'diagnostico') loadDiagnostico();
+              else loadData();
+            }}
             className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-panel hover:bg-bg text-sm font-medium transition-colors"
             aria-label="Atualizar dados"
           >
@@ -547,143 +552,192 @@ export default function CipaPage() {
           )}
 
           {abaAtiva === 'diagnostico' && (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-5">
+              <div className="rounded-xl border border-border bg-bg/40 p-4 space-y-4">
                 <div>
-                  <h2 className="text-sm font-semibold text-text">
-                    Diagnóstico mensual{regional ? ` — ${regional}` : ''}
-                  </h2>
-                  <p className="text-[11px] text-muted mt-0.5">
-                    Atividades com fim previsto no mês selecionado. Somente leitura — para editar, use o cronograma abaixo.
+                  <h2 className="text-sm font-semibold text-text">Diagnóstico mensual</h2>
+                  <p className="text-xs text-muted mt-1">
+                    Atividades com fim previsto no mês. Somente leitura — use a aba Indicador e o cronograma para editar.
                   </p>
                 </div>
-                <select
-                  value={anoMetaReal}
-                  onChange={(e) => setAnoMetaReal(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg border border-border bg-bg text-xs"
-                >
-                  {[2025, 2026].map((a) => (
-                    <option key={a} value={String(a)}>{a}</option>
-                  ))}
-                </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
+                  <div>
+                    <label className="text-xs font-medium block mb-1.5 text-text">Regional</label>
+                    <select
+                      value={regional}
+                      onChange={(e) => {
+                        setRegional(e.target.value);
+                        setUnidade('');
+                      }}
+                      className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm text-text"
+                    >
+                      <option value="">Selecione a regional…</option>
+                      {regionais.map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1.5 text-text">Ano</label>
+                    <select
+                      value={anoMetaReal}
+                      onChange={(e) => {
+                        setAnoMetaReal(e.target.value);
+                        setAno(e.target.value);
+                      }}
+                      className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm text-text"
+                    >
+                      {[2025, 2026].map((a) => (
+                        <option key={a} value={String(a)}>{a}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                {regional && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-2">Mês</p>
+                    <div className="flex flex-wrap gap-1">
+                      {mesesKeys.map((mes, idx) => (
+                        <button
+                          key={mes}
+                          type="button"
+                          onClick={() => setMesDiagnostico(mes)}
+                          className={`min-w-[2.75rem] px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            mesDiagnostico === mes
+                              ? 'bg-emerald-600 text-white shadow-sm'
+                              : 'bg-card border border-border text-muted hover:text-text hover:border-emerald-300'
+                          }`}
+                        >
+                          {mesesNomes[idx]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {!regional ? (
-                <div className="rounded-lg border border-dashed border-border bg-bg/40 px-4 py-6 text-center text-xs text-muted">
-                  Selecione uma regional nos filtros abaixo para analisar o mês.
+                <div className="rounded-xl border border-dashed border-border bg-bg/30 px-6 py-12 text-center">
+                  <p className="text-sm text-muted">Selecione a regional acima para ver o diagnóstico do mês.</p>
                 </div>
-              ) : (
+              ) : diagnosticoLoading ? (
+                <div className="py-16 text-center">
+                  <div className="inline-block w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-2" />
+                  <p className="text-xs text-muted">Carregando diagnóstico…</p>
+                </div>
+              ) : diagnostico ? (
                 <>
-                  <div className="flex flex-wrap gap-1.5">
-                    {mesesKeys.map((mes, idx) => (
-                      <button
-                        key={mes}
-                        type="button"
-                        onClick={() => setMesDiagnostico(mes)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          mesDiagnostico === mes
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-bg border border-border text-muted hover:text-text'
-                        }`}
-                      >
-                        {mesesNomes[idx]}
-                      </button>
-                    ))}
+                  {diagnostico.computed && (
+                    <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg px-4 py-2.5">
+                      Dados calculados a partir de 2025 (ainda não gravados no banco para toda a regional).
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-3 gap-3 sm:gap-4">
+                    <div className="rounded-xl border border-border bg-panel px-4 py-3 text-center shadow-sm">
+                      <p className="text-[10px] uppercase tracking-wide text-muted font-semibold">Previstas no mês</p>
+                      <p className="text-2xl font-bold text-text tabular-nums mt-1">{diagnostico.total}</p>
+                      <p className="text-[11px] text-muted mt-0.5">{diagnostico.mesLabel} / {anoMetaReal}</p>
+                    </div>
+                    <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-500/10 px-4 py-3 text-center shadow-sm">
+                      <p className="text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-300 font-semibold">Executadas</p>
+                      <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums mt-1">{diagnostico.executadas}</p>
+                    </div>
+                    <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10 px-4 py-3 text-center shadow-sm">
+                      <p className="text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300 font-semibold">Pendentes</p>
+                      <p className="text-2xl font-bold text-amber-700 dark:text-amber-300 tabular-nums mt-1">{diagnostico.pendentes}</p>
+                    </div>
                   </div>
 
-                  {diagnosticoLoading ? (
-                    <div className="py-8 text-center text-xs text-muted">Carregando diagnóstico...</div>
-                  ) : diagnostico ? (
-                    <>
-                      {diagnostico.computed && (
-                        <p className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg px-3 py-2">
-                          Cronograma calculado a partir de 2025. Edite e salve no cronograma abaixo para gravar no banco.
-                        </p>
-                      )}
-
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="rounded-lg border border-border bg-bg/50 px-3 py-2.5 text-center">
-                          <p className="text-[10px] uppercase text-muted font-semibold">No mês</p>
-                          <p className="text-lg font-bold text-text">{diagnostico.total}</p>
-                          <p className="text-[10px] text-muted">{diagnostico.mesLabel}/{anoMetaReal}</p>
-                        </div>
-                        <div className="rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-500/10 px-3 py-2.5 text-center">
-                          <p className="text-[10px] uppercase text-emerald-700 dark:text-emerald-300 font-semibold">Executadas</p>
-                          <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{diagnostico.executadas}</p>
-                        </div>
-                        <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-500/10 px-3 py-2.5 text-center">
-                          <p className="text-[10px] uppercase text-amber-700 dark:text-amber-300 font-semibold">Pendentes</p>
-                          <p className="text-lg font-bold text-amber-700 dark:text-amber-300">{diagnostico.pendentes}</p>
-                        </div>
-                      </div>
-
-                      {diagnostico.total === 0 ? (
-                        <p className="text-xs text-muted text-center py-6">
-                          Nenhuma atividade com fim previsto em {diagnostico.mesLabel}/{anoMetaReal} para {regional}.
-                        </p>
-                      ) : (
-                        <div className="space-y-4">
-                          {diagnostico.porUnidade.map((bloco) => (
-                            <div key={bloco.unidade} className="rounded-lg border border-border overflow-hidden">
-                              <div className="px-3 py-2 bg-bg/50 border-b border-border flex flex-wrap items-center justify-between gap-2">
-                                <span className="text-xs font-semibold text-text">{bloco.unidade}</span>
-                                <span className="text-[11px] text-muted">
-                                  <span className="text-emerald-600 dark:text-emerald-400 font-medium">{bloco.executadas} executada(s)</span>
-                                  {' · '}
-                                  <span className="text-amber-600 dark:text-amber-400 font-medium">{bloco.pendentes} pendente(s)</span>
-                                </span>
-                              </div>
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-[11px]">
-                                  <thead>
-                                    <tr className="border-b border-border text-muted">
-                                      <th className="px-3 py-2 text-left font-semibold">Nº</th>
-                                      <th className="px-3 py-2 text-left font-semibold">Atividade</th>
-                                      <th className="px-3 py-2 text-center font-semibold">Fim previsto</th>
-                                      <th className="px-3 py-2 text-center font-semibold">Conclusão</th>
-                                      <th className="px-3 py-2 text-center font-semibold">Status</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-border">
-                                    {bloco.itens.map((item) => (
-                                      <tr key={`${item.unidade}-${item.atividade_codigo}`} className="hover:bg-bg/30">
-                                        <td className="px-3 py-2 text-center">{item.atividade_codigo}</td>
-                                        <td className="px-3 py-2">{item.atividade_nome}</td>
-                                        <td className="px-3 py-2 text-center">{formatDate(item.data_fim_prevista)}</td>
-                                        <td className="px-3 py-2 text-center">{formatDate(item.data_conclusao)}</td>
-                                        <td className="px-3 py-2 text-center">
-                                          {item.status === 'executada' ? (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/40">
-                                              <CheckCircle2 className="w-3 h-3" />
-                                              Executada
-                                            </span>
-                                          ) : (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/40">
-                                              <XCircle className="w-3 h-3" />
-                                              Pendente
-                                            </span>
-                                          )}
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </>
+                  {diagnostico.total === 0 ? (
+                    <div className="rounded-xl border border-border bg-panel px-6 py-10 text-center">
+                      <p className="text-sm text-muted">
+                        Nenhuma atividade com fim previsto em {diagnostico.mesLabel}/{anoMetaReal} para {regional}.
+                      </p>
+                    </div>
                   ) : (
-                    <p className="text-xs text-muted text-center py-6">Não foi possível carregar o diagnóstico.</p>
+                    <div className="space-y-3">
+                      {diagnostico.porUnidade.map((bloco) => (
+                        <div
+                          key={bloco.unidade}
+                          className="rounded-xl border border-border bg-panel shadow-sm overflow-hidden"
+                        >
+                          <div className="px-4 py-2.5 bg-bg/60 border-b border-border flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-text leading-snug">{bloco.unidade}</span>
+                            <div className="flex items-center gap-2 text-[11px] shrink-0">
+                              <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-medium">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                {bloco.executadas}
+                              </span>
+                              <span className="text-muted">·</span>
+                              <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300 font-medium">
+                                <XCircle className="w-3.5 h-3.5" />
+                                {bloco.pendentes}
+                              </span>
+                            </div>
+                          </div>
+                          <table className="w-full table-fixed text-xs">
+                            <colgroup>
+                              <col className="w-[3rem]" />
+                              <col />
+                              <col className="w-[6.5rem]" />
+                              <col className="w-[6.5rem]" />
+                              <col className="w-[7.5rem]" />
+                            </colgroup>
+                            <thead>
+                              <tr className="border-b border-border bg-bg/30 text-muted">
+                                <th className="px-3 py-2 text-center font-semibold uppercase text-[10px]">Nº</th>
+                                <th className="px-3 py-2 text-left font-semibold uppercase text-[10px]">Atividade</th>
+                                <th className="px-3 py-2 text-center font-semibold uppercase text-[10px]">Fim prev.</th>
+                                <th className="px-3 py-2 text-center font-semibold uppercase text-[10px]">Conclusão</th>
+                                <th className="px-3 py-2 text-center font-semibold uppercase text-[10px]">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                              {bloco.itens.map((item) => (
+                                <tr key={`${item.unidade}-${item.atividade_codigo}`} className="hover:bg-bg/20">
+                                  <td className="px-3 py-2.5 text-center tabular-nums text-muted font-medium">
+                                    {item.atividade_codigo}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-left leading-snug pr-4">{item.atividade_nome}</td>
+                                  <td className="px-3 py-2.5 text-center tabular-nums whitespace-nowrap">
+                                    {formatDate(item.data_fim_prevista)}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-center tabular-nums whitespace-nowrap">
+                                    {formatDate(item.data_conclusao)}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-center">
+                                    {item.status === 'executada' ? (
+                                      <span className="inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300">
+                                        <CheckCircle2 className="w-3 h-3 shrink-0" />
+                                        OK
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300">
+                                        <XCircle className="w-3 h-3 shrink-0" />
+                                        Pend.
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </>
+              ) : (
+                <p className="text-xs text-muted text-center py-10">Não foi possível carregar o diagnóstico.</p>
               )}
             </div>
           )}
         </div>
       </div>
 
+      {abaAtiva !== 'diagnostico' && (
+      <>
       {/* Filtros */}
       <div className="rounded-xl border border-border bg-panel p-4 space-y-4">
         <div className="flex items-center gap-2 mb-2">
@@ -867,6 +921,8 @@ export default function CipaPage() {
           </>
         )}
       </div>
+      </>
+      )}
 
       {/* Modal de edição de datas */}
       {modalEdicao.open && modalEdicao.row && (

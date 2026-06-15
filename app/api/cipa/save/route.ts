@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
-import { compute2026From2025 } from '@/lib/cipa/compute-2026';
 import { cipaUnidadeMatchSql, resolveCipaUnidade } from '@/lib/cipa/unidades';
 
 function parseDateInput(value: unknown): string | null | 'invalid' {
@@ -36,30 +36,6 @@ async function rowExists(
     codNum,
   );
   return Boolean(found?.length);
-}
-
-async function ensureRegionalRows2026(regParam: string) {
-  const computed = await compute2026From2025(prisma, regParam, '');
-  for (const a of computed) {
-    const exists = await rowExists(a.regional, a.unidade, 2026, a.atividade_codigo);
-    if (exists) continue;
-    await prisma.$executeRawUnsafe(
-      `
-        INSERT INTO cronograma_cipa (
-          regional, unidade, ano_gestao, atividade_codigo, atividade_nome,
-          data_inicio_prevista, data_fim_prevista, data_conclusao, data_posse_gestao
-        )
-        VALUES ($1, $2, 2026, $3, $4, $5::date, $6::date, NULL, $7::date)
-      `,
-      a.regional,
-      a.unidade,
-      a.atividade_codigo,
-      a.atividade_nome,
-      a.data_inicio_prevista,
-      a.data_fim_prevista,
-      a.data_posse_gestao,
-    );
-  }
 }
 
 /**
@@ -122,11 +98,7 @@ export async function POST(req: NextRequest) {
 
     const uniParam = resolveCipaUnidade(String(unidade).trim(), codNum);
 
-    let exists = await rowExists(regParam, uniParam, anoNum, codNum);
-    if (!exists && anoNum === 2026) {
-      await ensureRegionalRows2026(regParam);
-      exists = await rowExists(regParam, uniParam, anoNum, codNum);
-    }
+    const exists = await rowExists(regParam, uniParam, anoNum, codNum);
 
     if (!exists) {
       const nomeParam = String(atividade_nome ?? '').trim();
@@ -221,6 +193,34 @@ export async function POST(req: NextRequest) {
       anoNum,
       codNum,
     );
+
+    const row = result[0];
+    const entityId = row?.id ? String(row.id) : `${regParam}|${uniParam}|${anoNum}|${codNum}`;
+
+    try {
+      const { userId } = await auth();
+      if (userId) {
+        await prisma.auditLog.create({
+          data: {
+            actorId: userId,
+            action: 'cipa_date_update',
+            entity: 'cronograma_cipa',
+            entityId,
+            diff: {
+              regional: regParam,
+              unidade: uniParam,
+              ano_gestao: anoNum,
+              atividade_codigo: codNum,
+              data_inicio_prevista: hasInicio ? inicioDate : undefined,
+              data_fim_prevista: hasFim ? fimDate : undefined,
+              data_conclusao: hasConclusao ? conclusaoDate : undefined,
+            },
+          },
+        });
+      }
+    } catch (auditErr) {
+      console.error('[cipa/save] audit log failed', auditErr);
+    }
 
     return NextResponse.json({
       ok: true,
