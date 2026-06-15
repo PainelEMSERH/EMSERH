@@ -59,6 +59,16 @@ type MetaRealData = {
   ano: number;
 };
 
+type UnidadeRanking = {
+  unidade: string;
+  totalMeta: number;
+  totalReal: number;
+  pendentes: number;
+  atrasadas: number;
+  percentTotal: number;
+  impactoRegionalPct: number;
+};
+
 async function fetchJSON(url: string, init?: RequestInit) {
   const res = await fetch(url, { cache: 'no-store', ...init });
   const json = await res.json().catch(() => ({}));
@@ -111,6 +121,8 @@ export default function CipaPage() {
 
   const [metaReal, setMetaReal] = useState<MetaRealData | null>(null);
   const [metaRealLoading, setMetaRealLoading] = useState(false);
+  const [rankingUnidades, setRankingUnidades] = useState<UnidadeRanking[]>([]);
+  const [rankingLoading, setRankingLoading] = useState(false);
   const [anoMetaReal, setAnoMetaReal] = useState<string>('2025');
 
   const [regionais, setRegionais] = useState<string[]>([]);
@@ -191,16 +203,36 @@ export default function CipaPage() {
 
   const loadMetaReal = async () => {
     setMetaRealLoading(true);
+    if (!regional) {
+      setRankingUnidades([]);
+      setRankingLoading(false);
+    } else {
+      setRankingLoading(true);
+    }
     try {
       const params = new URLSearchParams();
       if (regional) params.set('regional', regional);
       params.set('ano', anoMetaReal);
-      const data: any = await fetchJSON(`/api/cipa/meta-real?${params.toString()}`);
-      setMetaReal(data);
+
+      const requests: Promise<any>[] = [fetchJSON(`/api/cipa/meta-real?${params.toString()}`)];
+      if (regional) {
+        requests.push(fetchJSON(`/api/cipa/meta-real/por-unidade?${params.toString()}`));
+      }
+
+      const results = await Promise.all(requests);
+      setMetaReal(results[0]);
+
+      if (regional && results[1]?.ok) {
+        setRankingUnidades(Array.isArray(results[1].unidades) ? results[1].unidades : []);
+      } else {
+        setRankingUnidades([]);
+      }
     } catch {
       setMetaReal(null);
+      setRankingUnidades([]);
     } finally {
       setMetaRealLoading(false);
+      setRankingLoading(false);
     }
   };
 
@@ -454,6 +486,87 @@ export default function CipaPage() {
           }
         />
       ) : null}
+
+      {!regional && (
+        <div className="rounded-xl border border-dashed border-border bg-bg/40 px-4 py-3 text-xs text-muted">
+          Selecione a regional <strong className="text-text">NORTE</strong> nos filtros abaixo para ver quais unidades
+          mais puxam o indicador para baixo (ranking por pendências).
+        </div>
+      )}
+
+      {regional && (
+        <div className="rounded-xl border border-border bg-panel shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-text">
+                Unidades que mais impactam o indicador — {regional} ({anoMetaReal})
+              </h2>
+              <p className="text-[11px] text-muted mt-0.5">
+                Ordenadas por atividades pendentes. Impacto = peso das pendências no total da regional.
+                Clique na unidade para filtrar o cronograma.
+              </p>
+            </div>
+          </div>
+          {rankingLoading ? (
+            <div className="py-6 text-center text-xs text-muted">Carregando ranking...</div>
+          ) : rankingUnidades.length === 0 ? (
+            <div className="py-6 text-center text-xs text-muted">
+              Nenhuma pendência encontrada para esta regional no ano selecionado.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead className="bg-bg/50 border-b border-border">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left font-semibold text-muted uppercase">Unidade</th>
+                    <th className="px-3 py-2.5 text-center font-semibold text-muted uppercase">Meta</th>
+                    <th className="px-3 py-2.5 text-center font-semibold text-muted uppercase">Real</th>
+                    <th className="px-3 py-2.5 text-center font-semibold text-muted uppercase">%</th>
+                    <th className="px-3 py-2.5 text-center font-semibold text-muted uppercase">Pendentes</th>
+                    <th className="px-3 py-2.5 text-center font-semibold text-muted uppercase">Atrasadas</th>
+                    <th className="px-3 py-2.5 text-center font-semibold text-muted uppercase">Impacto</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {rankingUnidades.map((u) => {
+                    const critico = u.percentTotal < 60 || u.atrasadas >= 3;
+                    return (
+                      <tr
+                        key={u.unidade}
+                        className={`hover:bg-bg/30 cursor-pointer ${critico ? 'bg-red-50/50 dark:bg-red-500/5' : ''}`}
+                        onClick={() => {
+                          setUnidade(u.unidade);
+                          setAno(anoMetaReal);
+                          setPage(1);
+                        }}
+                        title="Clique para ver o cronograma desta unidade"
+                      >
+                        <td className="px-4 py-2.5 text-left font-medium">{u.unidade}</td>
+                        <td className="px-3 py-2.5 text-center">{u.totalMeta}</td>
+                        <td className="px-3 py-2.5 text-center">{u.totalReal}</td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span className={u.percentTotal >= 80 ? 'text-emerald-600' : u.percentTotal >= 50 ? 'text-amber-600' : 'text-red-600'}>
+                            {u.percentTotal}%
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-center font-semibold">{u.pendentes}</td>
+                        <td className="px-3 py-2.5 text-center">
+                          {u.atrasadas > 0 ? (
+                            <span className="text-red-600 font-semibold">{u.atrasadas}</span>
+                          ) : (
+                            '0'
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">{fmtPct(u.impactoRegionalPct)}%</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="rounded-xl border border-border bg-panel p-4 space-y-4">
