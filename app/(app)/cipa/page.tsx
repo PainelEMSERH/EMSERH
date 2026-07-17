@@ -83,6 +83,20 @@ type DiagnosticoData = {
   computed?: boolean;
 };
 
+type ConcluidasData = {
+  totalUnidades: number;
+  cipasConcluidas: number;
+  emAndamento: number;
+  unidades: Array<{
+    regional: string;
+    unidade: string;
+    totalAtividades: number;
+    concluidas: number;
+    dataUltimaConclusao: string | null;
+  }>;
+  computed?: boolean;
+};
+
 async function fetchJSON(url: string, init?: RequestInit) {
   const res = await fetch(url, { cache: 'no-store', ...init });
   const json = await res.json().catch(() => ({}));
@@ -136,12 +150,14 @@ export default function CipaPage() {
   const [metaReal, setMetaReal] = useState<MetaRealData | null>(null);
   const [metaRealLoading, setMetaRealLoading] = useState(false);
   const [anoMetaReal, setAnoMetaReal] = useState<string>('2025');
-  const [abaAtiva, setAbaAtiva] = useState<'indicador' | 'diagnostico'>('indicador');
+  const [abaAtiva, setAbaAtiva] = useState<'indicador' | 'diagnostico' | 'concluidas'>('indicador');
   const [mesDiagnostico, setMesDiagnostico] = useState<string>(
     String(new Date().getMonth() + 1).padStart(2, '0'),
   );
   const [diagnostico, setDiagnostico] = useState<DiagnosticoData | null>(null);
   const [diagnosticoLoading, setDiagnosticoLoading] = useState(false);
+  const [concluidas, setConcluidas] = useState<ConcluidasData | null>(null);
+  const [concluidasLoading, setConcluidasLoading] = useState(false);
 
   const [regionais, setRegionais] = useState<string[]>([]);
   const [unidades, setUnidades] = useState<Array<{ unidade: string; regional: string }>>([]);
@@ -182,7 +198,7 @@ export default function CipaPage() {
   }, [search]);
 
   useEffect(() => {
-    if (abaAtiva === 'diagnostico') return;
+    if (abaAtiva === 'diagnostico' || abaAtiva === 'concluidas') return;
     loadData();
   }, [regional, unidade, ano, page, pageSize, searchDebounced, abaAtiva]);
 
@@ -194,6 +210,11 @@ export default function CipaPage() {
     if (abaAtiva === 'diagnostico' && regional) loadDiagnostico();
     else setDiagnostico(null);
   }, [abaAtiva, regional, anoMetaReal, mesDiagnostico]);
+
+  useEffect(() => {
+    if (abaAtiva === 'concluidas') loadConcluidas();
+    else setConcluidas(null);
+  }, [abaAtiva, regional, anoMetaReal]);
 
   // Sincroniza anoMetaReal com o filtro de ano quando mudar
   useEffect(() => {
@@ -268,6 +289,31 @@ export default function CipaPage() {
     }
   };
 
+  const loadConcluidas = async () => {
+    setConcluidasLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (regional) params.set('regional', regional);
+      params.set('ano', anoMetaReal);
+      const data: any = await fetchJSON(`/api/cipa/concluidas?${params.toString()}`);
+      if (data?.ok) {
+        setConcluidas({
+          totalUnidades: data.totalUnidades ?? 0,
+          cipasConcluidas: data.cipasConcluidas ?? 0,
+          emAndamento: data.emAndamento ?? 0,
+          unidades: data.unidades ?? [],
+          computed: data.computed,
+        });
+      } else {
+        setConcluidas(null);
+      }
+    } catch {
+      setConcluidas(null);
+    } finally {
+      setConcluidasLoading(false);
+    }
+  };
+
   const abrirModalEdicao = (row: Row) => {
     setModalEdicao({ open: true, row });
     setDataInicioEdit(toDateInputValue(row.data_inicio_prevista));
@@ -323,6 +369,7 @@ export default function CipaPage() {
         loadData();
         loadMetaReal();
         if (abaAtiva === 'diagnostico') loadDiagnostico();
+        if (abaAtiva === 'concluidas') loadConcluidas();
         showToast('Datas atualizadas com sucesso.', 'success');
       } else {
         showToast(data?.error || 'Erro ao salvar', 'error');
@@ -356,6 +403,7 @@ export default function CipaPage() {
         loadData();
         loadMetaReal();
         if (abaAtiva === 'diagnostico') loadDiagnostico();
+        if (abaAtiva === 'concluidas') loadConcluidas();
         showToast('Data de conclusão removida.', 'success');
       } else {
         showToast(data?.error || 'Erro ao remover', 'error');
@@ -398,6 +446,7 @@ export default function CipaPage() {
             onClick={() => {
               loadMetaReal();
               if (abaAtiva === 'diagnostico') loadDiagnostico();
+              else if (abaAtiva === 'concluidas') loadConcluidas();
               else loadData();
             }}
             className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-panel hover:bg-bg text-sm font-medium transition-colors"
@@ -433,6 +482,17 @@ export default function CipaPage() {
             }`}
           >
             Diagnóstico
+          </button>
+          <button
+            type="button"
+            onClick={() => setAbaAtiva('concluidas')}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              abaAtiva === 'concluidas'
+                ? 'text-emerald-700 dark:text-emerald-300 border-b-2 border-emerald-500 bg-emerald-50/50 dark:bg-emerald-500/10'
+                : 'text-muted hover:text-text hover:bg-bg/50'
+            }`}
+          >
+            Concluídas
           </button>
         </div>
 
@@ -733,10 +793,138 @@ export default function CipaPage() {
               )}
             </div>
           )}
+
+          {abaAtiva === 'concluidas' && (
+            <div className="space-y-5">
+              <div className="rounded-xl border border-border bg-bg/40 p-4 space-y-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-text">CIPAs concluídas</h2>
+                  <p className="text-xs text-muted mt-1">
+                    Unidades com todas as atividades do cronograma finalizadas (data de conclusão preenchida).
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
+                  <div>
+                    <label className="text-xs font-medium block mb-1.5 text-text">Regional</label>
+                    <select
+                      value={regional}
+                      onChange={(e) => {
+                        setRegional(e.target.value);
+                        setUnidade('');
+                      }}
+                      className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm text-text"
+                    >
+                      <option value="">Todas as regionais</option>
+                      {regionais.map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1.5 text-text">Ano</label>
+                    <select
+                      value={anoMetaReal}
+                      onChange={(e) => {
+                        setAnoMetaReal(e.target.value);
+                        setAno(e.target.value);
+                      }}
+                      className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm text-text"
+                    >
+                      {[2025, 2026].map((a) => (
+                        <option key={a} value={String(a)}>{a}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {concluidasLoading ? (
+                <div className="py-16 text-center">
+                  <div className="inline-block w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-2" />
+                  <p className="text-xs text-muted">Carregando CIPAs concluídas…</p>
+                </div>
+              ) : concluidas ? (
+                <>
+                  {concluidas.computed && (
+                    <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg px-4 py-2.5">
+                      Dados calculados a partir de 2025 (ainda não gravados no banco para toda a regional).
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-3 gap-3 sm:gap-4">
+                    <div className="rounded-xl border border-border bg-panel px-4 py-3 text-center shadow-sm">
+                      <p className="text-[10px] uppercase tracking-wide text-muted font-semibold">Total de unidades</p>
+                      <p className="text-2xl font-bold text-text tabular-nums mt-1">{concluidas.totalUnidades}</p>
+                      <p className="text-[11px] text-muted mt-0.5">{regional || 'Todas'} / {anoMetaReal}</p>
+                    </div>
+                    <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-500/10 px-4 py-3 text-center shadow-sm">
+                      <p className="text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-300 font-semibold">100% concluídas</p>
+                      <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums mt-1">{concluidas.cipasConcluidas}</p>
+                    </div>
+                    <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10 px-4 py-3 text-center shadow-sm">
+                      <p className="text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300 font-semibold">Em andamento</p>
+                      <p className="text-2xl font-bold text-amber-700 dark:text-amber-300 tabular-nums mt-1">{concluidas.emAndamento}</p>
+                    </div>
+                  </div>
+
+                  {concluidas.unidades.length === 0 ? (
+                    <div className="rounded-xl border border-border bg-panel px-6 py-10 text-center">
+                      <p className="text-sm text-muted">
+                        Nenhuma unidade com CIPA 100% concluída{regional ? ` em ${regional}` : ''} em {anoMetaReal}.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-border bg-panel shadow-sm overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-border bg-bg/30 text-muted">
+                            <th className="px-4 py-2.5 text-left font-semibold uppercase text-[10px]">Regional</th>
+                            <th className="px-4 py-2.5 text-left font-semibold uppercase text-[10px]">Unidade</th>
+                            <th className="px-4 py-2.5 text-center font-semibold uppercase text-[10px]">Atividades</th>
+                            <th className="px-4 py-2.5 text-center font-semibold uppercase text-[10px]">Última conclusão</th>
+                            <th className="px-4 py-2.5 text-center font-semibold uppercase text-[10px]">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {concluidas.unidades.map((item) => (
+                            <tr key={`${item.regional}-${item.unidade}`} className="hover:bg-bg/20">
+                              <td className="px-4 py-2.5 text-left font-medium">{item.regional}</td>
+                              <td className="px-4 py-2.5 text-left leading-snug">
+                                <span>{item.unidade}</span>
+                                {isDesignadoUnit(item.unidade) && (
+                                  <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-500/40">
+                                    Designado
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-2.5 text-center tabular-nums">
+                                {item.concluidas}/{item.totalAtividades}
+                              </td>
+                              <td className="px-4 py-2.5 text-center tabular-nums whitespace-nowrap">
+                                {formatDate(item.dataUltimaConclusao)}
+                              </td>
+                              <td className="px-4 py-2.5 text-center">
+                                <span className="inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300">
+                                  <CheckCircle2 className="w-3 h-3 shrink-0" />
+                                  Concluída
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-muted text-center py-10">Não foi possível carregar as CIPAs concluídas.</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {abaAtiva !== 'diagnostico' && (
+      {abaAtiva === 'indicador' && (
       <>
       {/* Filtros */}
       <div className="rounded-xl border border-border bg-panel p-4 space-y-4">

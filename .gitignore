@@ -9,3 +9,10 @@ scripts/preparar-tabela.sql
 /public/templates
 /public/uploads/plano-acao/*
 !/public/uploads/plano-acao/.gitkeep
+.vercel
+REPASSE-COMPLETO.md
+REPASSE-COMPLETO.pdf
+.env.vercel
+.env.vercel.production
+.env.production.local
+.env.development.local
