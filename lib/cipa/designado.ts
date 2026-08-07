@@ -25,6 +25,7 @@ const DESIGNADO_UNITS_CANON = new Set([
   'CASA TEA 12+',
   'SLZ-TEA-COHAB',
   'TEA 12+ COHAB',
+  'TEA COHAB',
   'HOSPITAL DE PAULINO NEVES',
   'HOSPITAL PAULINO NEVES',
   'HOSPITAL PAULINHO NEVES',
@@ -40,9 +41,10 @@ export function isDesignadoUnit(unidade: string | null | undefined): boolean {
 
   if ((c.includes('PAI') || c.includes('APOSENTAD')) && c.includes('PROGRAMA')) return true;
   if (c === 'CAF-FEME' || (c.startsWith('CAF') && c.includes('FEME') && !c.includes('SEDE'))) return true;
-  if (c === 'CASA TEA 12+' || c === 'SLZ-TEA-COHAB' || (c.includes('TEA') && c.includes('12') && c.includes('COHAB'))) {
+  if (c === 'CASA TEA 12+' || c === 'SLZ-TEA-COHAB' || c === 'TEA COHAB' || (c.includes('TEA') && c.includes('12') && c.includes('COHAB'))) {
     return true;
   }
+  if (c.includes('TEA') && c.includes('COHAB')) return true;
   if (c.includes('HOSPITAL') && (c.includes('PAULINO NEVES') || c.includes('PAULINHO NEVES'))) return true;
   if (c.includes('PAULINO NEVES') || c.includes('PAULINHO NEVES')) return true;
 
